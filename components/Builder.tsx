@@ -63,13 +63,16 @@ export default function Builder({
   initialName,
   initialSections,
   initialTheme,
+  initialCredits,
 }: {
   initialName: string
   initialSections: { type: SectionType; data: SectionData }[]
   initialTheme: Theme
+  initialCredits: number
 }) {
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [credits, setCredits] = useState(initialCredits)
   const [sections, setSections] = useState<Section[]>(() =>
     initialSections.map((s) => ({ id: newId(), type: s.type, data: s.data }))
   )
@@ -162,6 +165,7 @@ export default function Builder({
       if (!res.ok) throw new Error(d.error ?? 'Generation failed')
       setSections(renderFieldsFromModel(d.sections))
       if (d.theme) setTheme(d.theme)
+      if (typeof d.creditsRemaining === 'number') setCredits(d.creditsRemaining)
       addMsg('zeus', d.explanation ?? 'Done.')
     } catch (err: any) {
       addMsg('zeus', `⚠️ ${err.message}`)
@@ -208,6 +212,9 @@ export default function Builder({
           className="bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-zinc-700"
         />
         <div className="ml-auto flex items-center gap-3">
+          <span className={`text-xs px-2 py-1 rounded-full border ${credits <= 5 ? 'border-red-500/40 text-red-400' : 'border-zinc-700 text-zinc-400'}`}>
+            {credits} credit{credits === 1 ? '' : 's'} left
+          </span>
           <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Primary color">
             Primary
             <input
@@ -251,6 +258,11 @@ export default function Builder({
           </div>
 
           <div className="p-3 border-t border-zinc-800">
+            {credits <= 0 && (
+              <div className="text-xs text-red-400 mb-2">
+                Out of AI credits for this billing period. <a href="/#pricing" className="underline">Upgrade your plan</a> for more.
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mb-2">
               {['business', 'restaurant', 'agency'].map((t) => (
                 <button key={t} onClick={() => loadTemplate(t)} className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200 capitalize">
@@ -270,9 +282,10 @@ export default function Builder({
                 }}
                 placeholder="Describe your website or ask for changes…"
                 rows={2}
-                className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none"
+                disabled={credits <= 0}
+                className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
               />
-              <button onClick={handleSend} disabled={busy} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
+              <button onClick={handleSend} disabled={busy || credits <= 0} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
                 Send
               </button>
             </div>

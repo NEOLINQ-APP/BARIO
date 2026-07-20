@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { ensureCreditsRefreshed } from '@/lib/credits'
 import LogoutButton from '@/components/LogoutButton'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,8 @@ export default async function Dashboard() {
   const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
   const user = rows[0]
   if (!user) redirect('/login')
+
+  const credits = user.subscription_status === 'active' ? await ensureCreditsRefreshed(sql, user) : 0
 
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
@@ -41,6 +44,13 @@ export default async function Dashboard() {
             <div className="text-xs uppercase tracking-wide text-zinc-500">Status</div>
             <div className="text-lg mt-1">{STATUS_LABEL[user.subscription_status] ?? user.subscription_status}</div>
           </div>
+
+          {user.subscription_status === 'active' && (
+            <div className="mt-4">
+              <div className="text-xs uppercase tracking-wide text-zinc-500">AI Builder Credits</div>
+              <div className="text-lg mt-1">{credits} remaining this month</div>
+            </div>
+          )}
 
           {user.subscription_status === 'active' ? (
             <div className="flex flex-wrap gap-3 mt-6">

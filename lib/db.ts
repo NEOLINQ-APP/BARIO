@@ -24,10 +24,14 @@ async function ensureSchema() {
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
       is_admin BOOLEAN NOT NULL DEFAULT false,
+      credits_remaining INTEGER NOT NULL DEFAULT 0,
+      credits_reset_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_remaining INTEGER NOT NULL DEFAULT 0`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_reset_at TIMESTAMPTZ`
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -80,6 +84,8 @@ export type User = {
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   is_admin: boolean
+  credits_remaining: number
+  credits_reset_at: string | null
 }
 
 export type Template = {

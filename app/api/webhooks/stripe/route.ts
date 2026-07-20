@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getStripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
+import { creditsForPlan } from '@/lib/credits'
 import type Stripe from 'stripe'
 
 function generateLicenseKey() {
@@ -46,7 +47,9 @@ export async function POST(req: Request) {
           SET plan = ${plan ?? null},
               subscription_status = 'active',
               stripe_customer_id = ${String(session.customer)},
-              stripe_subscription_id = ${String(session.subscription)}
+              stripe_subscription_id = ${String(session.subscription)},
+              credits_remaining = ${creditsForPlan(plan ?? null)},
+              credits_reset_at = now() + interval '1 month'
           WHERE id = ${userId}
         `
       }
