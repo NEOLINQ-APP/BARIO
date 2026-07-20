@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniHub | The Ultimate Multi-Industry Business Marketplace</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #090d16; color: #f3f4f6; }
+        .glow-effect { background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.12) 0%, transparent 60%); }
+    </style>
+</head>
+<body class="overflow-x-hidden min-h-screen flex flex-col md:flex-row">
+
+    <!-- GLOBAL SIDEBAR NAVIGATION -->
+    <aside class="w-full md:w-80 bg-[#0f1524] border-b md:border-b-0 md:border-r border-gray-800 flex flex-col shrink-0 z-40">
+        <!-- Brand Identity -->
+        <div class="p-6 border-b border-gray-800 flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-cubes text-xl"></i>
+            </div>
+            <div>
+                <span class="text-lg font-bold tracking-tight text-white block">OMNI<span class="text-blue-500">HUB</span></span>
+                <span class="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Enterprise Directory</span>
+            </div>
+        </div>
+
+        <!-- Dynamic Industry Router Menu -->
+        <nav class="p-4 space-y-1 flex-grow overflow-y-auto max-h-[50vh] md:max-h-none">
+            <div class="text-[10px] uppercase font-bold text-gray-500 tracking-widest px-3 mb-2">Marketplace Operations</div>
+
+            <button id="nav-marketplace" onclick="switchIndustry('marketplace')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 bg-blue-600 text-white shadow-md">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-shop text-base"></i> Hub Marketplace</div>
+                <i class="fa-solid fa-chevron-right text-xs opacity-70"></i>
+            </button>
+
+            <div class="text-[10px] uppercase font-bold text-gray-500 tracking-widest px-3 pt-6 mb-2">Sectors & Subsidiaries</div>
+
+            <button id="nav-medical" onclick="switchIndustry('medical')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-heart-pulse text-base text-rose-500"></i> Medical Office</div>
+            </button>
+
+            <button id="nav-rental" onclick="switchIndustry('rental')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-car text-base text-amber-500"></i> Rental Car Co.</div>
+            </button>
+
+            <button id="nav-fitness" onclick="switchIndustry('fitness')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-dumbbell text-base text-emerald-500"></i> Fitness Training</div>
+            </button>
+
+            <button id="nav-tech" onclick="switchIndustry('tech')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-microchip text-base text-purple-500"></i> Tech Corporation</div>
+            </button>
+
+            <button id="nav-hosting" onclick="switchIndustry('hosting')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-server text-base text-cyan-500"></i> Cloud Hosting</div>
+            </button>
+
+            <button id="nav-dev" onclick="switchIndustry('dev')" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-code text-base text-indigo-500"></i> Web & App Agency</div>
+            </button>
+        </nav>
+
+        <!-- System Status Footer -->
+        <div class="p-4 border-t border-gray-800 text-xs text-gray-500 bg-gray-950/40">
+            <div class="flex items-center gap-2 text-emerald-400 font-medium mb-1">
+                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> 2026 Core Engine Live
+            </div>
+            Secure Multi-Tenant Architecture
+        </div>
+    </aside>
+
+    <!-- MAIN PLATFORM CONTENT CONTAINER -->
+    <div class="flex-grow min-h-screen flex flex-col relative">
+        <div class="absolute inset-0 glow-effect pointer-events-none"></div>
+
+        <!-- MAIN INTERACTIVE DISPLAY VIEWPORTS -->
+        <main class="flex-grow p-6 sm:p-10 z-10">
+
+            <!-- CATEGORY 1: GENERAL MARKETPLACE HUB -->
+            <div id="sector-marketplace" class="industry-view block animate-fadeIn">
+                <div class="mb-10">
+                    <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">The Ecosystem Overview</h1>
+                    <p class="text-gray-400 mt-2">Instantly navigate, interact, or manage services across our live corporate portfolios.</p>
+                </div>
+
+                <!-- Showcase Grid Linkages -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Medical Office -->
+                    <div onclick="switchIndustry('medical')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-rose-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-rose-500/10 text-rose-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-heart-pulse"></i></div>
+                            <span class="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-rose-400 transition-colors">Aura Health Medical Group</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">State-of-the-art diagnostic primary care centers built on modern clinical scheduling systems.</p>
+                    </div>
+
+                    <!-- Rental Cars -->
+                    <div onclick="switchIndustry('rental')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-amber-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-car"></i></div>
+                            <span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-amber-400 transition-colors">Veloce Premium Rentals</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">Tier-one high-performance exotic and business fleets available across major domestic hubs.</p>
+                    </div>
+
+                    <!-- Fitness Trainer -->
+                    <div onclick="switchIndustry('fitness')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-emerald-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-dumbbell"></i></div>
+                            <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">Kinetic Performance Systems</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">High-intensity bespoke athletic blueprints and data-driven metabolic tracking programs.</p>
+                    </div>
+
+                    <!-- Tech Company -->
+                    <div onclick="switchIndustry('tech')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-purple-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-purple-500/10 text-purple-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-microchip"></i></div>
+                            <span class="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-purple-400 transition-colors">Apex Quantum Technologies</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">Next-generation neural network computing matrices and high-throughput real-time AI modeling solutions.</p>
+                    </div>
+
+                    <!-- Hosting Company -->
+                    <div onclick="switchIndustry('hosting')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-cyan-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-cyan-500/10 text-cyan-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-server"></i></div>
+                            <span class="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors">Stratus Cloud Infrastructure</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">Bare-metal high-availability compute instances featuring isolated edge nodes and sub-millisecond route optimization.</p>
+                    </div>
+
+                    <!-- Web & App Development -->
+                    <div onclick="switchIndustry('dev')" class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 hover:border-indigo-500/40 hover:bg-[#0f1524] transition-all duration-300 cursor-pointer group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center text-xl"><i class="fa-solid fa-code"></i></div>
+                            <span class="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Active Sector</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">Synthetix Digital Labs</h3>
+                        <p class="text-sm text-gray-400 mt-2 line-clamp-2">Bespoke cross-platform engineering, complex high-performance architectures, and custom interface design assets.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 2: MEDICAL OFFICE -->
+            <div id="sector-medical" class="industry-view hidden animate-fadeIn">
+                <div class="flex flex-col lg:flex-row items-start gap-10">
+                    <div class="w-full lg:w-7/12 space-y-6">
+                        <span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider">Clinical Facility</span>
+                        <h2 class="text-3xl font-extrabold text-white">Aura Health Medical Group</h2>
+                        <img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80" class="w-full h-64 object-cover rounded-2xl border border-gray-800" alt="Medical Office Interior">
+                        <p class="text-gray-400 leading-relaxed text-sm">Welcome to a modern healthcare experience. Our medical facility provides integrative internal medicine, proactive diagnostic panels, and targeted wellness treatments under real-time clinical monitoring. Backed by cutting-edge biometric assessment tools, our board-certified physicians ensure high-tier medical accuracy in a calming atmosphere.</p>
+                    </div>
+                    <div class="w-full lg:w-5/12 bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6">
+                        <h3 class="text-lg font-bold text-white mb-4"><i class="fa-regular fa-calendar-check text-rose-400 mr-2"></i> Book Patient Intake</h3>
+                        <div class="space-y-4 text-sm">
+                            <div>
+                                <label class="block text-xs text-gray-400 uppercase font-semibold mb-1">Select Specialization Unit</label>
+                                <select class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-500">
+                                    <option>Comprehensive Preventive Physical</option>
+                                    <option>Advanced Metabolic & Biomarker Screen</option>
+                                    <option>Cardiovascular Performance Consultation</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 uppercase font-semibold mb-1">Preferred Intake Date</label>
+                                <input type="date" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-500">
+                            </div>
+                            <button onclick="alert('Clinical intake registered successfully under secure records.')" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl transition-all">Submit Intake Request</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 3: RENTAL CARS -->
+            <div id="sector-rental" class="industry-view hidden animate-fadeIn">
+                <div class="mb-8">
+                    <span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider">Premium Logistics</span>
+                    <h2 class="text-3xl font-extrabold text-white mt-1">Veloce Premium Rentals</h2>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover" alt="Performance Coupe">
+                        <div class="p-5">
+                            <h3 class="text-base font-bold text-white">Apex Carbon GT Coupe</h3>
+                            <p class="text-xs text-gray-400 mt-1">V10 Elite performance config. Ideal for dynamic track or premium executive transportation environments.</p>
+                            <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-800">
+                                <span class="text-lg font-extrabold text-white">$450 <span class="text-xs text-gray-500 font-normal">/ day</span></span>
+                                <button onclick="alert('Vehicle reserved for checkout validation.')" class="bg-amber-600 hover:bg-amber-700 text-xs font-bold px-4 py-2 rounded-xl text-white transition-all">Reserve Fleet</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover" alt="Electric Luxury SUV">
+                        <div class="p-5">
+                            <h3 class="text-base font-bold text-white">Zenith EV Luxury Edition</h3>
+                            <p class="text-xs text-gray-400 mt-1">Satin stealth design complete with autonomous driver assist algorithms and a premium interior.</p>
+                            <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-800">
+                                <span class="text-lg font-extrabold text-white">$320 <span class="text-xs text-gray-500 font-normal">/ day</span></span>
+                                <button onclick="alert('Vehicle reserved for checkout validation.')" class="bg-amber-600 hover:bg-amber-700 text-xs font-bold px-4 py-2 rounded-xl text-white transition-all">Reserve Fleet</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover" alt="Off-road Vehicle">
+                        <div class="p-5">
+                            <h3 class="text-base font-bold text-white">Vanguard Offroad Overlander</h3>
+                            <p class="text-xs text-gray-400 mt-1">All-terrain heavy-duty utility configuration optimized for extreme rugged route conditions.</p>
+                            <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-800">
+                                <span class="text-lg font-extrabold text-white">$280 <span class="text-xs text-gray-500 font-normal">/ day</span></span>
+                                <button onclick="alert('Vehicle reserved for checkout validation.')" class="bg-amber-600 hover:bg-amber-700 text-xs font-bold px-4 py-2 rounded-xl text-white transition-all">Reserve Fleet</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 4: FITNESS TRAINER -->
+            <div id="sector-fitness" class="industry-view hidden animate-fadeIn">
+                <div class="flex flex-col lg:flex-row items-start gap-10">
+                    <div class="w-full lg:w-6/12 space-y-6">
+                        <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider">Metabolic Human Optimization</span>
+                        <h2 class="text-3xl font-extrabold text-white">Kinetic Performance Systems</h2>
+                        <img src="https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=1200&q=80" class="w-full h-72 object-cover rounded-2xl border border-gray-800" alt="Athletic Training Space">
+                        <p class="text-gray-400 text-sm leading-relaxed">Break through plateau barriers utilizing scientific athletic structural development blueprints. Guided by elite high-performance coordinators, our programs integrate biomechanical motion analyses, periodized strength protocols, and hyper-customized recovery schedules to unlock true functional human output.</p>
+                    </div>
+                    <div class="w-full lg:w-6/12 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-[#0f1524]/60 border border-gray-800 p-5 rounded-2xl">
+                            <div class="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center mb-3 text-lg"><i class="fa-solid fa-bolt-lightning"></i></div>
+                            <h3 class="text-base font-bold text-white">Hypertrophy Track</h3>
+                            <p class="text-xs text-gray-400 mt-1">Comprehensive micro-cycle targeted lean tissue cultivation development paths.</p>
+                        </div>
+                        <div class="bg-[#0f1524]/60 border border-gray-800 p-5 rounded-2xl">
+                            <div class="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center mb-3 text-lg"><i class="fa-solid fa-heart"></i></div>
+                            <h3 class="text-base font-bold text-white">VO2 Max Conditioning</h3>
+                            <p class="text-xs text-gray-400 mt-1">High-threshold interval metrics to optimize cardiovascular oxygen processing limits.</p>
+                        </div>
+                        <div class="bg-[#0f1524]/60 border border-gray-800 p-5 rounded-2xl">
+                            <div class="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center mb-3 text-lg"><i class="fa-solid fa-apple-whole"></i></div>
+                            <h3 class="text-base font-bold text-white">Macro Precision Plans</h3>
+                            <p class="text-xs text-gray-400 mt-1">Biochemically balanced nutritional strategies structured directly down to gram targets.</p>
+                        </div>
+                        <div class="bg-[#0f1524]/60 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between items-start">
+                            <div>
+                                <h3 class="text-base font-bold text-white">Ready for Optimization?</h3>
+                                <p class="text-xs text-gray-400 mt-1">Consult with standard tier lead coaches.</p>
+                            </div>
+                            <button onclick="alert('Onboarding specialist assigned to schedule your biomechanic profiling session.')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-xs font-bold py-2 rounded-xl text-white transition-all mt-4">Initialize Onboarding</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 5: TECHNOLOGY COMPANY -->
+            <div id="sector-tech" class="industry-view hidden animate-fadeIn">
+                <div class="bg-[#0f1524]/40 border border-gray-800 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto relative overflow-hidden">
+                    <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider mb-4 inline-block">Deep Tech Enterprise</span>
+                    <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">Apex Quantum Technologies</h2>
+                    <p class="text-gray-400 mt-4 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">Architecting real-time high-throughput neural networks, decentralized security pipelines, and distributed ledger arrays. Our platform layers operational intelligence across industrial systems via hyper-scalable APIs.</p>
+
+                    <div class="my-10 max-w-xl mx-auto">
+                        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1000&q=80" class="w-full h-48 object-cover rounded-xl border border-gray-800" alt="Technology Circuit Infrastructure">
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                        <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-800"><div class="text-xl font-bold text-purple-400">99.999%</div><div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">API Up-time SLA</div></div>
+                        <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-800"><div class="text-xl font-bold text-purple-400">&lt; 2.4ms</div><div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Global Latency</div></div>
+                        <div class="col-span-2 sm:col-span-1 bg-gray-900/80 p-4 rounded-xl border border-gray-800"><div class="text-xl font-bold text-purple-400">256-Bit</div><div class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Post-Quantum Cryptography</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 6: HOSTING COMPANY -->
+            <div id="sector-hosting" class="industry-view hidden animate-fadeIn">
+                <div class="mb-10 text-center max-w-2xl mx-auto">
+                    <span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider mb-2 inline-block">Infrastructure Platform</span>
+                    <h2 class="text-3xl font-extrabold text-white">Stratus Cloud Hosting</h2>
+                    <p class="text-gray-400 text-sm mt-1">High-performance bare metal nodes distributed globally.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                    <div class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between hover:border-cyan-500/40 transition-all">
+                        <div>
+                            <div class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">Micro Sandbox</div>
+                            <div class="text-3xl font-extrabold text-white">$9<span class="text-xs text-gray-500 font-normal"> / mo</span></div>
+                            <ul class="text-xs text-gray-400 space-y-2 mt-4 pt-4 border-t border-gray-800">
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 1 Virtual CPU Core</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 2 GB High-Speed NVMe Storage</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 1 TB High-Speed Outbound Transfer</li>
+                            </ul>
+                        </div>
+                        <button onclick="alert('Micro instance initialized.')" class="w-full bg-gray-800 hover:bg-cyan-600 font-bold py-2 text-xs rounded-xl transition-all text-white mt-6">Deploy Instance</button>
+                    </div>
+                    <div class="bg-[#0f1524] border-2 border-cyan-500 rounded-2xl p-6 flex flex-col justify-between shadow-xl shadow-cyan-500/5 relative">
+                        <span class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-cyan-500 text-gray-950 font-bold text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">Most Selected</span>
+                        <div>
+                            <div class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">Scale Cluster Instance</div>
+                            <div class="text-3xl font-extrabold text-white">$49<span class="text-xs text-gray-500 font-normal"> / mo</span></div>
+                            <ul class="text-xs text-gray-400 space-y-2 mt-4 pt-4 border-t border-gray-800">
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 4 Dedicated CPU Cores</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 16 GB High-Speed NVMe Storage</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> Dedicated Multi-Region Global Edge CDN</li>
+                            </ul>
+                        </div>
+                        <button onclick="alert('Scale Cluster initialized.')" class="w-full bg-cyan-600 hover:bg-cyan-700 font-bold py-2 text-xs rounded-xl transition-all text-white mt-6">Deploy Instance</button>
+                    </div>
+                    <div class="bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between hover:border-cyan-500/40 transition-all">
+                        <div>
+                            <div class="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">Bare Metal Enterprise</div>
+                            <div class="text-3xl font-extrabold text-white">$199<span class="text-xs text-gray-500 font-normal"> / mo</span></div>
+                            <ul class="text-xs text-gray-400 space-y-2 mt-4 pt-4 border-t border-gray-800">
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 16 Physical Compute Threads</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> 64 GB High-Speed NVMe Storage</li>
+                                <li><i class="fa-solid fa-check text-cyan-500 mr-2"></i> Advanced Bare-Metal Hardware Access</li>
+                            </ul>
+                        </div>
+                        <button onclick="alert('Enterprise cluster routing setup requested.')" class="w-full bg-gray-800 hover:bg-cyan-600 font-bold py-2 text-xs rounded-xl transition-all text-white mt-6">Deploy Instance</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORY 7: WEBSITE BUILDING AND APP CREATION COMPANY -->
+            <div id="sector-dev" class="industry-view hidden animate-fadeIn">
+                <div class="flex flex-col lg:flex-row items-stretch gap-10">
+                    <div class="w-full lg:w-7/12 flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold px-3 py-1 rounded-md uppercase tracking-wider inline-block">Production Studio</span>
+                            <h2 class="text-3xl font-extrabold text-white">Synthetix Digital Labs</h2>
+                            <p class="text-gray-400 text-sm leading-relaxed">We transform visionary logic into fast, secure web architectures and cross-platform native application codebases. Our engineering approach relies on optimized React Native structures, state machines, and micro-frontend components to ensure flawless presentation across all devices.</p>
+                        </div>
+                        <div class="mt-6 border border-gray-800 rounded-2xl overflow-hidden aspect-video bg-gray-900">
+                            <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80" class="w-full h-full object-cover" alt="Digital Design Platform Interface">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Web/App Scope Cost Calculator -->
+                    <div class="w-full lg:w-5/12 bg-[#0f1524]/60 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-2 flex items-center gap-2"><i class="fa-solid fa-calculator text-indigo-400"></i> Scope Pricing Estimator</h3>
+                            <p class="text-xs text-gray-400 mb-6">Select your development requirements to generate an instantaneous project baseline estimation quote.</p>
+
+                            <div class="space-y-4 text-sm">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Primary Target Interface</label>
+                                    <select id="dev-platform" onchange="calculateDevQuote()" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-medium">
+                                        <option value="4500">Premium Responsive Web App</option>
+                                        <option value="6500">Native iOS + Android Mobile Suite</option>
+                                        <option value="9500">Omni-Channel Desktop & Mobile System</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Estimated Page Blueprint Target</label>
+                                    <select id="dev-pages" onchange="calculateDevQuote()" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-medium">
+                                        <option value="1">Core Landing Platform (1-3 Pages)</option>
+                                        <option value="1.5">Middle tier System (4-10 Pages)</option>
+                                        <option value="2.5">Complex Architecture Enterprise Suite (10+ Pages)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 pt-6 border-t border-gray-800">
+                            <div class="text-xs text-gray-400">Estimated Core Engineering Quote</div>
+                            <div id="dev-quote-display" class="text-3xl font-extrabold text-indigo-400 mt-1">$4,500.00</div>
+                            <button onclick="alert('Project parameters submitted to the engineering desk. A solution architect will contact you within 4 business hours.')" class="w-full bg-indigo-600 hover:bg-indigo-700 font-bold py-3 rounded-xl transition-all text-white text-sm mt-4">Lock Scope & Request Discovery</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- CORE JAVASCRIPT OBJECT APPLICATION ROUTER -->
+    <script>
+        function switchIndustry(targetViewId) {
+            // Hide all views
+            document.querySelectorAll('.industry-view').forEach(element => element.classList.add('hidden'));
+
+            // Show targeted view
+            document.getElementById(`sector-${targetViewId}`).classList.remove('hidden');
+
+            // Reset dynamic focus layout borders on sidebar button navigation systems
+            const allNavIds = ['marketplace', 'medical', 'rental', 'fitness', 'tech', 'hosting', 'dev'];
+            allNavIds.forEach(id => {
+                const navButtonElement = document.getElementById(`nav-${id}`);
+                if (id === targetViewId) {
+                    navButtonElement.className = "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 bg-blue-600 text-white shadow-md";
+                } else {
+                    navButtonElement.className = "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50";
+                }
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function calculateDevQuote() {
+            const platformBaseVal = parseFloat(document.getElementById("dev-platform").value) || 0;
+            const multiplierVal = parseFloat(document.getElementById("dev-pages").value) || 1;
+            const totalProjectQuote = platformBaseVal * multiplierVal;
+
+            document.getElementById("dev-quote-display").innerText = `$${totalProjectQuote.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+    </script>
+</body>
+</html>

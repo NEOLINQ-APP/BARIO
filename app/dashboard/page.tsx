@@ -43,12 +43,23 @@ export default async function Dashboard() {
           </div>
 
           {user.subscription_status === 'active' ? (
-            <a href="/build" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
-              Open Website Builder
-            </a>
+            <div className="flex flex-wrap gap-3 mt-6">
+              <a href="/build" className="px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
+                Open Website Builder
+              </a>
+              <a href="/build/templates" className="px-5 py-3 rounded-xl font-semibold border border-zinc-700 text-zinc-200">
+                Premium Templates
+              </a>
+            </div>
           ) : (
             <a href="/#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
               Choose a plan
+            </a>
+          )}
+
+          {user.is_admin && (
+            <a href="/admin" className="inline-block mt-4 text-xs text-zinc-500 hover:text-zinc-300">
+              Admin: pending template approvals →
             </a>
           )}
         </div>

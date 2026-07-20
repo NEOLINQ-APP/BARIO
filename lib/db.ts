@@ -23,9 +23,11 @@ async function ensureSchema() {
       subscription_status TEXT NOT NULL DEFAULT 'none',
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
+      is_admin BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -33,6 +35,30 @@ async function ensureSchema() {
       name TEXT NOT NULL DEFAULT 'My Site',
       sections_json TEXT NOT NULL DEFAULT '[]',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      html TEXT NOT NULL,
+      is_premium BOOLEAN NOT NULL DEFAULT true,
+      price_cents INTEGER NOT NULL DEFAULT 4900,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS template_licenses (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      template_id TEXT NOT NULL REFERENCES templates(id),
+      site_id TEXT,
+      license_key TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_approval',
+      stripe_payment_intent TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
 }
@@ -51,4 +77,25 @@ export type User = {
   subscription_status: string
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
+  is_admin: boolean
+}
+
+export type Template = {
+  id: string
+  title: string
+  category: string
+  description: string
+  html: string
+  is_premium: boolean
+  price_cents: number
+}
+
+export type TemplateLicense = {
+  id: string
+  user_id: string
+  template_id: string
+  site_id: string | null
+  license_key: string
+  status: 'pending_approval' | 'active' | 'revoked'
+  stripe_payment_intent: string | null
 }

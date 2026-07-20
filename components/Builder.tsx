@@ -178,6 +178,7 @@ export default function Builder({ initialName, initialSections }: { initialName:
     <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
       <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
         <a href="/dashboard" className="text-sm text-zinc-400 hover:text-zinc-200">← Dashboard</a>
+        <a href="/build/templates" className="text-sm text-zinc-400 hover:text-zinc-200">Premium Templates</a>
         <input
           value={siteName}
           onChange={(e) => setSiteName(e.target.value)}

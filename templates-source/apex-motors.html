@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Motors | Luxury & Performance Dealership</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
+        .blur-gradient { background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%); }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- TOP NOTIFICATION BAR -->
+    <div class="bg-blue-600 text-white text-xs md:text-sm font-medium py-2 px-4 text-center tracking-wide">
+        <i class="fa-solid fa-sparkles mr-2"></i> Experience the Future of Driving: 2026 Fleet Inventory Now Available & Live.
+    </div>
+
+    <!-- MAIN INTERACTIVE NAVIGATION -->
+    <nav class="sticky top-0 z-50 bg-[#0b0f19]/90 backdrop-blur-md border-b border-gray-800 transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('sales')">
+                <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-bolt text-lg"></i>
+                </div>
+                <span class="text-xl font-bold tracking-tight text-white">APEX<span class="text-blue-500">MOTORS</span></span>
+            </div>
+
+            <!-- Tab Desktop Navigation System -->
+            <div class="hidden md:flex items-center gap-1 bg-gray-900/60 p-1.5 rounded-xl border border-gray-800">
+                <button id="nav-sales" onclick="switchTab('sales')" class="px-5 py-2 rounded-lg font-medium text-sm transition-all duration-300 bg-blue-600 text-white shadow-md">
+                    <i class="fa-solid fa-car mr-2"></i>Showroom & Inventory
+                </button>
+                <button id="nav-finance" onclick="switchTab('finance')" class="px-5 py-2 rounded-lg font-medium text-sm transition-all duration-300 text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-wallet mr-2"></i>Finance Center
+                </button>
+                <button id="nav-parts" onclick="switchTab('parts')" class="px-5 py-2 rounded-lg font-medium text-sm transition-all duration-300 text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-gears mr-2"></i>Parts & Service
+                </button>
+            </div>
+
+            <div class="hidden lg:flex items-center gap-4 text-sm text-gray-400 font-medium">
+                <div><i class="fa-solid fa-phone text-blue-500 mr-2"></i>1-800-555-APEX</div>
+                <button onclick="switchTab('finance')" class="bg-gray-800 hover:bg-gray-700 text-white font-semibold py-2.5 px-5 rounded-xl border border-gray-700 transition-all">Pre-Qualify Now</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- TAB ONE: SALES / INVENTORY -->
+    <div id="tab-sales" class="tab-content block animate-fadeIn">
+        <!-- Hero Dynamic Section -->
+        <header class="relative relative min-h-[70vh] flex items-center justify-center bg-cover bg-center" style="background-image: linear-gradient(to bottom, rgba(11,15,25,0.7), #0b0f19), url('https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1920&q=80');">
+            <div class="absolute inset-0 blur-gradient pointer-events-none"></div>
+            <div class="max-w-5xl mx-auto text-center px-4 z-10">
+                <span class="bg-blue-500/10 text-blue-400 border border-blue-500/30 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-6 inline-block">Elite Showroom Matrix</span>
+                <h1 class="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-tight mb-6">Elevate Your Automotive <br><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500">Standard</span></h1>
+                <p class="text-gray-400 text-lg max-w-2xl mx-auto mb-10">Explore curated high-performance new, used, and precision pre-owned units mapped directly out of our flagship distribution centers.</p>
+
+                <!-- Quick Filter Dynamic Control Panel -->
+                <div class="bg-gray-900/90 backdrop-blur-md border border-gray-800 p-4 rounded-2xl shadow-2xl max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <select id="filter-condition" onchange="applyFilters()" class="bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-blue-500">
+                        <option value="all">All Vehicle Types</option>
+                        <option value="New">Brand New Units</option>
+                        <option value="Pre-Owned">Certified Pre-Owned</option>
+                        <option value="Used">Pre-Loved (Used)</option>
+                    </select>
+                    <select id="filter-brand" onchange="applyFilters()" class="bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:border-blue-500">
+                        <option value="all">All Manufacturers</option>
+                        <option value="Aero">Aero Luxury</option>
+                        <option value="Vanguard">Vanguard Performance</option>
+                        <option value="Zenith">Zenith Electric</option>
+                    </select>
+                    <div class="flex items-center bg-blue-600 text-white font-semibold rounded-xl px-6 py-3 text-sm justify-center cursor-pointer hover:bg-blue-700 transition-all" onclick="resetFilters()">
+                        <i class="fa-solid fa-arrows-rotate mr-2"></i> Reset Search Parameters
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Vehicle Inventory Section -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div class="flex items-center justify-between mb-10">
+                <div>
+                    <h2 class="text-2xl font-bold text-white tracking-tight">Active Live Listings</h2>
+                    <p class="text-sm text-gray-400 mt-1">Real assets cataloged at site hubs</p>
+                </div>
+                <span id="listing-count" class="bg-gray-900 border border-gray-800 text-blue-400 font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider">6 Units Available</span>
+            </div>
+
+            <!-- Dynamic Listings Generation Grid -->
+            <div id="listings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Javascript maps here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- TAB TWO: FINANCE CENTER -->
+    <div id="tab-finance" class="tab-content hidden animate-fadeIn max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+            <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-4 inline-block">Apex Financial Ecosystem</span>
+            <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">Seamless Auto Financing Engines</h2>
+            <p class="text-gray-400 mt-3 text-base sm:text-lg">Acquire low interest tier approvals instantaneously with transparent calculator modeling interfaces built right below.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+            <!-- Dynamic Form Configuration Container -->
+            <div class="lg:col-span-2 bg-gray-900/60 border border-gray-800 p-8 rounded-3xl backdrop-blur-sm">
+                <h3 class="text-xl font-bold mb-6 text-white flex items-center gap-3"><i class="fa-solid fa-calculator text-blue-500"></i> Interactive Payment Estimator</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Vehicle Configuration Capital ($)</label>
+                        <input id="calc-price" type="number" value="89500" oninput="calculateLoan()" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Initial Down Payment ($)</label>
+                        <input id="calc-down" type="number" value="15000" oninput="calculateLoan()" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Amortization Term Period</label>
+                        <select id="calc-term" onchange="calculateLoan()" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-semibold">
+                            <option value="36">36 Months Tier</option>
+                            <option value="48">48 Months Tier</option>
+                            <option value="60" selected>60 Months Standard Tier</option>
+                            <option value="72">72 Months Extended Tier</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Estimated APR Interest Rate (%)</label>
+                        <input id="calc-apr" type="number" value="4.9" step="0.1" oninput="calculateLoan()" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-semibold">
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <div>
+                        <div class="text-sm text-gray-400">Estimated Monthly Installment Outlay</div>
+                        <div id="calc-result" class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 mt-1">$1,402.15 / mo</div>
+                    </div>
+                    <button class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-lg shadow-blue-500/20">
+                        Submit Digital Credit Profile <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Perks Strategy Sidebar Information Component -->
+            <div class="space-y-6">
+                <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 p-6 rounded-2xl">
+                    <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl flex items-center justify-center mb-4"><i class="fa-solid fa-bolt-lightning"></i></div>
+                    <h4 class="text-lg font-bold mb-1.5 text-white">60-Second Approval Speed</h4>
+                    <p class="text-sm text-gray-400 leading-relaxed">Automated scoring matrix APIs map portfolios across top federal standard institutional lenders simultaneously.</p>
+                </div>
+                <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 p-6 rounded-2xl">
+                    <div class="w-10 h-10 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-xl flex items-center justify-center mb-4"><i class="fa-solid fa-percent"></i></div>
+                    <h4 class="text-lg font-bold mb-1.5 text-white">Sub-Prime to Prime Programs</h4>
+                    <p class="text-sm text-gray-400 leading-relaxed">Flexible acceptance protocols designed specifically for credit reconstruction frameworks and seasoned investors.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB THREE: PARTS DEPARTMENT -->
+    <div id="tab-parts" class="tab-content hidden animate-fadeIn max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-4 inline-block">OEM Components Hub</span>
+            <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight">Authentic Component Logistics</h2>
+            <p class="text-gray-400 mt-3 text-base sm:text-lg">Order factory-certified components designed engineered directly down to structural metrics.</p>
+        </div>
+
+        <!-- Inventory Part Cards Component Engine Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all">
+                <img src="https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover rounded-xl mb-4 bg-gray-800" alt="Forged Alloy Performance Wheel">
+                <span class="text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">In Stock</span>
+                <h3 class="text-lg font-bold text-white mt-2">Forged Monoblock Rim</h3>
+                <p class="text-xs text-gray-400 mt-1">Satin Stealth Matte Premium finish architectural design.</p>
+                <div class="flex items-center justify-between mt-5 pt-3 border-t border-gray-800">
+                    <span class="text-xl font-extrabold text-white">$1,250<span class="text-xs text-gray-500 font-normal"> / unit</span></span>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all"><i class="fa-solid fa-cart-plus"></i></button>
+                </div>
+            </div>
+            <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all">
+                <img src="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover rounded-xl mb-4 bg-gray-800" alt="Brembo Carbon Ceramic Brake System">
+                <span class="text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">In Stock</span>
+                <h3 class="text-lg font-bold text-white mt-2">Carbon Ceramic Rotors</h3>
+                <p class="text-xs text-gray-400 mt-1">High-temperature degradation multi-piston cooling vents.</p>
+                <div class="flex items-center justify-between mt-5 pt-3 border-t border-gray-800">
+                    <span class="text-xl font-extrabold text-white">$3,400<span class="text-xs text-gray-500 font-normal"> / pair</span></span>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all"><i class="fa-solid fa-cart-plus"></i></button>
+                </div>
+            </div>
+            <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all">
+                <img src="https://images.unsplash.com/photo-1552656967-7a0991a13906?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover rounded-xl mb-4 bg-gray-800" alt="Carbon Intake Module">
+                <span class="text-[10px] uppercase font-bold tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">In Stock</span>
+                <h3 class="text-lg font-bold text-white mt-2">Dry-Carbon Air Box</h3>
+                <p class="text-xs text-gray-400 mt-1">Enclosed low pressure forced thermal insulation optimization induction.</p>
+                <div class="flex items-center justify-between mt-5 pt-3 border-t border-gray-800">
+                    <span class="text-xl font-extrabold text-white">$850<span class="text-xs text-gray-500 font-normal"> / kit</span></span>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all"><i class="fa-solid fa-cart-plus"></i></button>
+                </div>
+            </div>
+            <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all">
+                <img src="https://images.unsplash.com/photo-1616788494707-ec28f08d05a1?auto=format&fit=crop&w=600&q=80" class="w-full h-44 object-cover rounded-xl mb-4 bg-gray-800" alt="Performance Steering Elements">
+                <span class="text-[10px] uppercase font-bold tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">Backorder (3 days)</span>
+                <h3 class="text-lg font-bold text-white mt-2">Alcantara Track Wheel</h3>
+                <p class="text-xs text-gray-400 mt-1">Ergonomic tailored design profiles with embedded race displays.</p>
+                <div class="flex items-center justify-between mt-5 pt-3 border-t border-gray-800">
+                    <span class="text-xl font-extrabold text-white">$1,100<span class="text-xs text-gray-500 font-normal"> / unit</span></span>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all"><i class="fa-solid fa-cart-plus"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GLOBAL DATA COMPONENT FOOTER GRID -->
+    <footer class="bg-gray-950 border-t border-gray-900 py-12 mt-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div class="space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white"><i class="fa-solid fa-bolt text-xs"></i></div>
+                    <span class="text-lg font-bold text-white">APEX<span class="text-blue-500">MOTORS</span></span>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed">Precision performance parameters. Top tier dynamic user experiences architected exclusively for automotive modern standards.</p>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Operations Matrix</h4>
+                <ul class="space-y-2 text-xs text-gray-400">
+                    <li>Sales Fleet Operations: Mon-Sat (9AM - 8PM)</li>
+                    <li>Financial Portfolio Desks: Mon-Fri (9AM - 6PM)</li>
+                    <li>Logistics Parts Infrastructure: Mon-Fri (8AM - 5PM)</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Corporate Hubs</h4>
+                <ul class="space-y-2 text-xs text-gray-400">
+                    <li><i class="fa-solid fa-location-dot text-blue-500 mr-2"></i> 742 Performance Parkway, Las Vegas, NV</li>
+                    <li><i class="fa-solid fa-location-dot text-indigo-500 mr-2"></i> 109 Innovation Drive, Silicon Valley, CA</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Platform Verifications</h4>
+                <div class="bg-gray-900 border border-gray-800 p-3 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-shield-halved text-blue-400 text-xl"></i>
+                    <div>
+                        <div class="text-[11px] font-bold text-white uppercase">SSL Secure Systems</div>
+                        <div class="text-[10px] text-gray-500">256-Bit Encrypted Finance Engines</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- INTERACTIVE ENGINE JAVASCRIPT OBJECT ROUTERS -->
+    <script>
+        // Core Vehicle Inventory Schema Modeling Array Dataset
+        const carInventory = [
+            {
+                id: 1,
+                title: "Aero Track Spec-R Coupe",
+                condition: "New",
+                year: 2026,
+                brand: "Aero",
+                price: 145000,
+                mileage: "12 Miles",
+                engine: "4.0L Twin-Turbo V8",
+                hubAddress: "742 Performance Parkway, Las Vegas, NV",
+                image: "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=800&q=80"
+            },
+            {
+                id: 2,
+                title: "Zenith EV Hyper-Cruiser",
+                condition: "New",
+                year: 2026,
+                brand: "Zenith",
+                price: 98000,
+                mileage: "5 Miles",
+                engine: "Quad-Motor Electric (1020hp)",
+                hubAddress: "109 Innovation Drive, Silicon Valley, CA",
+                image: "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=800&q=80"
+            },
+            {
+                id: 3,
+                title: "Vanguard Overlander V6",
+                condition: "Pre-Owned",
+                year: 2024,
+                brand: "Vanguard",
+                price: 64500,
+                mileage: "14,200 Miles",
+                engine: "3.5L Twin-Turbo V6",
+                hubAddress: "742 Performance Parkway, Las Vegas, NV",
+                image: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80"
+            },
+            {
+                id: 4,
+                title: "Aero GT Stealth Concept",
+                condition: "New",
+                year: 2025,
+                brand: "Aero",
+                price: 189000,
+                mileage: "45 Miles",
+                engine: "V10 Naturally Aspirated",
+                hubAddress: "109 Innovation Drive, Silicon Valley, CA",
+                image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80"
+            },
+            {
+                id: 5,
+                title: "Zenith Pulse Sportback SUV",
+                condition: "Used",
+                year: 2023,
+                brand: "Zenith",
+                price: 52000,
+                mileage: "28,100 Miles",
+                engine: "Dual Motor AWD E-Performance",
+                hubAddress: "742 Performance Parkway, Las Vegas, NV",
+                image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80"
+            },
+            {
+                id: 6,
+                title: "Vanguard Carbon-Line Roadster",
+                condition: "Pre-Owned",
+                year: 2024,
+                brand: "Vanguard",
+                price: 112000,
+                mileage: "8,900 Miles",
+                engine: "3.0L Inline-6 TwinPower",
+                hubAddress: "109 Innovation Drive, Silicon Valley, CA",
+                image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=800&q=80"
+            }
+        ];
+
+        // Global Single Page Application Tab State Navigation Routing Matrix
+        function switchTab(targetTabId) {
+            document.querySelectorAll('.tab-content').forEach(element => element.classList.add('hidden'));
+            document.getElementById(`tab-${targetTabId}`).classList.remove('hidden');
+
+            // Reset dynamic navigation state focus structures
+            ['sales', 'finance', 'parts'].forEach(id => {
+                const navBtn = document.getElementById(`nav-${id}`);
+                if (id === targetTabId) {
+                    navBtn.className = "px-5 py-2 rounded-lg font-medium text-sm transition-all duration-300 bg-blue-600 text-white shadow-md";
+                } else {
+                    navBtn.className = "px-5 py-2 rounded-lg font-medium text-sm transition-all duration-300 text-gray-400 hover:text-white";
+                }
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Programmatic Render Engine mapping arrays to standard semantic HTML modules
+        function renderListings(filteredDataset) {
+            const gridContainer = document.getElementById("listings-grid");
+            const totalCounterText = document.getElementById("listing-count");
+            gridContainer.innerHTML = "";
+
+            totalCounterText.innerText = `${filteredDataset.length} Units Available`;
+
+            if (filteredDataset.length === 0) {
+                gridContainer.innerHTML = `
+                    <div class="col-span-full text-center py-12 border border-dashed border-gray-800 rounded-2xl">
+                        <i class="fa-solid fa-car-tunnel text-4xl text-gray-600 mb-3"></i>
+                        <div class="text-white font-bold">Zero Variant Matches Located</div>
+                        <div class="text-xs text-gray-500 mt-1">Alter configurations to find available hub options.</div>
+                    </div>`;
+                return;
+            }
+
+            filteredDataset.forEach(item => {
+                let statusBadgeColor = item.condition === 'New' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                                      item.condition === 'Pre-Owned' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' :
+                                      'bg-amber-500/10 text-amber-400 border-amber-500/30';
+
+                gridContainer.innerHTML += `
+                    <div class="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 hover:shadow-xl transition-all flex flex-col group">
+                        <div class="relative overflow-hidden aspect-[16/10] bg-gray-800">
+                            <img src="${item.image}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500">
+                            <span class="absolute top-3 left-3 border text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-full backdrop-blur-md ${statusBadgeColor}">
+                                ${item.condition}
+                            </span>
+                        </div>
+                        <div class="p-5 flex flex-col flex-grow">
+                            <div class="text-xs text-gray-500 font-bold uppercase tracking-wide">${item.year} • ${item.brand} Fleet Asset</div>
+                            <h3 class="text-lg font-bold text-white mt-1 group-hover:text-blue-400 transition-colors">${item.title}</h3>
+
+                            <div class="grid grid-cols-2 gap-2 my-4 bg-gray-900/60 p-3 rounded-xl border border-gray-800/80 text-xs">
+                                <div class="text-gray-400"><i class="fa-solid fa-gauge-high mr-1.5 text-blue-500"></i>${item.mileage}</div>
+                                <div class="text-gray-400 text-right"><i class="fa-solid fa-microchip mr-1.5 text-indigo-500"></i>${item.engine.split(' ')[0]} Engine</div>
+                            </div>
+
+                            <div class="mt-auto pt-4 border-t border-gray-800/80">
+                                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-start gap-1 mb-3">
+                                    <i class="fa-solid fa-location-dot text-red-400 mt-0.5"></i>
+                                    <span>${item.hubAddress}</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="text-xs text-gray-500 block">MSRP Outlay</span>
+                                        <span class="text-2xl font-extrabold text-white">$${item.price.toLocaleString()}</span>
+                                    </div>
+                                    <button onclick="routeToFinance(${item.price})" class="bg-gray-800 hover:bg-blue-600 group-hover:bg-blue-600 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-gray-700 group-hover:border-blue-500">
+                                        Finance Terms
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        // Live Inventory Filtering Calculations
+        function applyFilters() {
+            const conditionValue = document.getElementById("filter-condition").value;
+            const brandValue = document.getElementById("filter-brand").value;
+
+            const filteredData = carInventory.filter(car => {
+                const matchesCondition = (conditionValue === "all" || car.condition === conditionValue);
+                const matchesBrand = (brandValue === "all" || car.brand === brandValue);
+                return matchesCondition && matchesBrand;
+            });
+
+            renderListings(filteredData);
+        }
+
+        function resetFilters() {
+            document.getElementById("filter-condition").value = "all";
+            document.getElementById("filter-brand").value = "all";
+            renderListings(carInventory);
+        }
+
+        // Internal Router Bridging Data context directly from Selection to Loan Calculator Panel
+        function routeToFinance(targetVehiclePrice) {
+            document.getElementById("calc-price").value = targetVehiclePrice;
+            document.getElementById("calc-down").value = Math.round(targetVehiclePrice * 0.15); // Auto inject 15% estimated baseline down payment
+            switchTab('finance');
+            calculateLoan();
+        }
+
+        // Financial Amortization Formula Calculation Engine ($ PMT standard math)
+        function calculateLoan() {
+            const price = parseFloat(document.getElementById("calc-price").value) || 0;
+            const down = parseFloat(document.getElementById("calc-down").value) || 0;
+            const termMonths = parseInt(document.getElementById("calc-term").value) || 60;
+            const annualApr = parseFloat(document.getElementById("calc-apr").value) || 0;
+
+            const principal = price - down;
+
+            if (principal <= 0) {
+                document.getElementById("calc-result").innerText = "$0.00 / mo";
+                return;
+            }
+
+            if (annualApr === 0) {
+                const monthlyBase = principal / termMonths;
+                document.getElementById("calc-result").innerText = `$${monthlyBase.toFixed(2)} / mo`;
+                return;
+            }
+
+            const monthlyInterestRate = (annualApr / 100) / 12;
+            const monthlyPayment = (principal * monthlyInterestRate * Math.pow(1 + monthlyInterestRate, termMonths)) / (Math.pow(1 + monthlyInterestRate, termMonths) - 1);
+
+            document.getElementById("calc-result").innerText = isNaN(monthlyPayment) ? "$0.00 / mo" : `$${monthlyPayment.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} / mo`;
+        }
+
+        // Execution Core Trigger
+        window.onload = function() {
+            renderListings(carInventory);
+            calculateLoan();
+        };
+    </script>
+</body>
+</html>
