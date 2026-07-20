@@ -13,7 +13,10 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased">
       <header className="max-w-6xl mx-auto px-6 pt-20 pb-16 md:pt-28 md:pb-24">
-        <div className="text-sm text-zinc-400 mb-3">bario.ca • Edmonton / Vancouver</div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-zinc-400">bario.ca • Edmonton / Vancouver</div>
+          <a href="/login" className="text-sm text-zinc-400 hover:text-zinc-200">Log in</a>
+        </div>
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-3xl">
           Build your website live. No code, no waiting.
         </h1>
