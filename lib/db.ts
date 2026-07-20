@@ -77,6 +77,29 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gift_codes (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      credits INTEGER NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      max_redemptions INTEGER,
+      redemption_count INTEGER NOT NULL DEFAULT 0,
+      expires_at TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS gift_code_redemptions (
+      id TEXT PRIMARY KEY,
+      gift_code_id TEXT NOT NULL REFERENCES gift_codes(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      redeemed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (gift_code_id, user_id)
+    )
+  `
 }
 
 export async function db() {
@@ -116,4 +139,16 @@ export type TemplateLicense = {
   license_key: string
   status: 'pending_approval' | 'active' | 'revoked'
   stripe_payment_intent: string | null
+}
+
+export type GiftCode = {
+  id: string
+  code: string
+  credits: number
+  note: string
+  max_redemptions: number | null
+  redemption_count: number
+  expires_at: string | null
+  is_active: boolean
+  created_by: string
 }

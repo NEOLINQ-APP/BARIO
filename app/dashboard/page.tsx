@@ -5,6 +5,7 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import LogoutButton from '@/components/LogoutButton'
 import ChangePasswordForm from '@/components/ChangePasswordForm'
+import RedeemGiftCode from '@/components/RedeemGiftCode'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,11 @@ export default async function Dashboard() {
               Admin panel →
             </a>
           )}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+          <h2 className="text-sm font-semibold mb-4">Redeem a gift or promo code</h2>
+          <RedeemGiftCode />
         </div>
 
         <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
