@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
+import { hasBuilderAccess } from '@/lib/access'
 import LogoutButton from '@/components/LogoutButton'
 import ChangePasswordForm from '@/components/ChangePasswordForm'
 
@@ -23,7 +24,8 @@ export default async function Dashboard() {
   const user = rows[0]
   if (!user) redirect('/login')
 
-  const credits = user.subscription_status === 'active' ? await ensureCreditsRefreshed(sql, user) : 0
+  const builderAccess = hasBuilderAccess(user)
+  const credits = user.is_admin ? -1 : builderAccess ? await ensureCreditsRefreshed(sql, user) : 0
 
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
@@ -46,14 +48,14 @@ export default async function Dashboard() {
             <div className="text-lg mt-1">{STATUS_LABEL[user.subscription_status] ?? user.subscription_status}</div>
           </div>
 
-          {user.subscription_status === 'active' && (
+          {builderAccess && (
             <div className="mt-4">
               <div className="text-xs uppercase tracking-wide text-zinc-500">AI Builder Credits</div>
-              <div className="text-lg mt-1">{credits} remaining this month</div>
+              <div className="text-lg mt-1">{user.is_admin ? '∞ (admin)' : `${credits} remaining this month`}</div>
             </div>
           )}
 
-          {user.subscription_status === 'active' ? (
+          {builderAccess ? (
             <div className="flex flex-wrap gap-3 mt-6">
               <a href="/build" className="px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
                 Open Website Builder

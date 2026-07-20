@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getOpenAI, SECTION_TYPES } from '@/lib/openai'
 import { ensureCreditsRefreshed } from '@/lib/credits'
+import { hasBuilderAccess } from '@/lib/access'
 
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
@@ -44,17 +45,19 @@ export async function POST(req: Request) {
     const sql = await db()
     const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = rows[0]
-    if (!user || user.subscription_status !== 'active') {
+    if (!user || !hasBuilderAccess(user)) {
       return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
     }
 
-    const creditsAvailable = await ensureCreditsRefreshed(sql, user)
-    if (creditsAvailable <= 0) {
-      const resetDate = user.credits_reset_at ? new Date(user.credits_reset_at).toLocaleDateString() : 'next billing cycle'
-      return NextResponse.json(
-        { error: `You're out of AI credits for this billing period. They refresh on ${resetDate}, or upgrade your plan for more.` },
-        { status: 403 }
-      )
+    if (!user.is_admin) {
+      const creditsAvailable = await ensureCreditsRefreshed(sql, user)
+      if (creditsAvailable <= 0) {
+        const resetDate = user.credits_reset_at ? new Date(user.credits_reset_at).toLocaleDateString() : 'next billing cycle'
+        return NextResponse.json(
+          { error: `You're out of AI credits for this billing period. They refresh on ${resetDate}, or upgrade your plan for more.` },
+          { status: 403 }
+        )
+      }
     }
 
     const { prompt, sections, theme, isNew } = await req.json()
@@ -92,16 +95,20 @@ export async function POST(req: Request) {
       accent: HEX_RE.test(parsed.theme?.accent) ? parsed.theme.accent : currentTheme.accent,
     }
 
-    const creditRows = (await sql`
-      UPDATE users SET credits_remaining = credits_remaining - 1 WHERE id = ${user.id}
-      RETURNING credits_remaining
-    `) as unknown as { credits_remaining: number }[]
+    let creditsRemaining = -1
+    if (!user.is_admin) {
+      const creditRows = (await sql`
+        UPDATE users SET credits_remaining = credits_remaining - 1 WHERE id = ${user.id}
+        RETURNING credits_remaining
+      `) as unknown as { credits_remaining: number }[]
+      creditsRemaining = creditRows[0]?.credits_remaining ?? 0
+    }
 
     return NextResponse.json({
       explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
       theme: theme_out,
       sections: cleaned,
-      creditsRemaining: creditRows[0]?.credits_remaining ?? 0,
+      creditsRemaining,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

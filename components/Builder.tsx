@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, createElement } from 'react'
 import './builder-sections.css'
+import ProfileMenu from '@/components/ProfileMenu'
 
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer'
 type SectionData = Record<string, string>
@@ -64,15 +65,23 @@ export default function Builder({
   initialSections,
   initialTheme,
   initialCredits,
+  userEmail,
+  userPlan,
+  isAdmin,
 }: {
   initialName: string
   initialSections: { type: SectionType; data: SectionData }[]
   initialTheme: Theme
   initialCredits: number
+  userEmail: string
+  userPlan: string | null
+  isAdmin: boolean
 }) {
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [credits, setCredits] = useState(initialCredits)
+  const unlimitedCredits = credits === -1
+  const outOfCredits = !unlimitedCredits && credits <= 0
   const [sections, setSections] = useState<Section[]>(() =>
     initialSections.map((s) => ({ id: newId(), type: s.type, data: s.data }))
   )
@@ -212,8 +221,8 @@ export default function Builder({
           className="bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-zinc-700"
         />
         <div className="ml-auto flex items-center gap-3">
-          <span className={`text-xs px-2 py-1 rounded-full border ${credits <= 5 ? 'border-red-500/40 text-red-400' : 'border-zinc-700 text-zinc-400'}`}>
-            {credits} credit{credits === 1 ? '' : 's'} left
+          <span className={`text-xs px-2 py-1 rounded-full border ${!unlimitedCredits && credits <= 5 ? 'border-red-500/40 text-red-400' : 'border-zinc-700 text-zinc-400'}`}>
+            {unlimitedCredits ? '∞ credits (admin)' : `${credits} credit${credits === 1 ? '' : 's'} left`}
           </span>
           <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Primary color">
             Primary
@@ -240,6 +249,12 @@ export default function Builder({
           <button onClick={handleExport} className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
             Export HTML
           </button>
+          <ProfileMenu
+            email={userEmail}
+            plan={userPlan}
+            isAdmin={isAdmin}
+            creditsLabel={unlimitedCredits ? '∞ credits (admin)' : `${credits} credit${credits === 1 ? '' : 's'} left`}
+          />
         </div>
       </div>
 
@@ -258,7 +273,7 @@ export default function Builder({
           </div>
 
           <div className="p-3 border-t border-zinc-800">
-            {credits <= 0 && (
+            {outOfCredits && (
               <div className="text-xs text-red-400 mb-2">
                 Out of AI credits for this billing period. <a href="/#pricing" className="underline">Upgrade your plan</a> for more.
               </div>
@@ -282,10 +297,10 @@ export default function Builder({
                 }}
                 placeholder="Describe your website or ask for changes…"
                 rows={2}
-                disabled={credits <= 0}
+                disabled={outOfCredits}
                 className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
               />
-              <button onClick={handleSend} disabled={busy || credits <= 0} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
+              <button onClick={handleSend} disabled={busy || outOfCredits} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
                 Send
               </button>
             </div>

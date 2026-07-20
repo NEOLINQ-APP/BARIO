@@ -50,7 +50,7 @@ export default function Home() {
             <div className="text-zinc-400 text-sm">Starter</div>
             <div className="text-3xl font-bold mt-1">$19<span className="text-base font-normal text-zinc-400">/mo</span></div>
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
-              <li>1 site</li><li>Live editor</li><li>Basic templates</li><li>Email support</li>
+              <li><strong className="text-[#f59e0b]">75 AI credits/mo</strong></li><li>1 site</li><li>Live editor</li><li>Basic templates</li><li>Email support</li>
             </ul>
             <PricingButton plan="starter" label="Choose Starter" />
           </div>
@@ -59,7 +59,7 @@ export default function Home() {
             <div className="text-zinc-300 text-sm mt-1">Business</div>
             <div className="text-3xl font-bold mt-1">$49<span className="text-base font-normal text-zinc-400">/mo</span></div>
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
-              <li>5 sites</li><li>Marketing asset pack</li><li>Custom domain</li><li>Priority support</li>
+              <li><strong className="text-[#f59e0b]">200 AI credits/mo</strong></li><li>5 sites</li><li>Marketing asset pack</li><li>Custom domain</li><li>Priority support</li>
             </ul>
             <PricingButton plan="business" label="Choose Business" />
           </div>
@@ -67,12 +67,12 @@ export default function Home() {
             <div className="text-zinc-400 text-sm">Agency</div>
             <div className="text-3xl font-bold mt-1">$149<span className="text-base font-normal text-zinc-400">/mo</span></div>
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
-              <li>Unlimited sites</li><li>White-label export</li><li>Client seats</li><li>CA phone support</li>
+              <li><strong className="text-[#f59e0b]">750 AI credits/mo</strong></li><li>Unlimited sites</li><li>White-label export</li><li>Client seats</li><li>CA phone support</li>
             </ul>
             <PricingButton plan="agency" label="Choose Agency" />
           </div>
         </div>
-        <p className="text-xs text-zinc-500 mt-3">Prices in CAD. GST/HST extra where applicable. Cancel anytime.</p>
+        <p className="text-xs text-zinc-500 mt-3">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Zeus (building or editing a section) — manual text edits are always free.</p>
       </section>
 
       <section className="max-w-4xl mx-auto px-6 pb-24">
