@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { continueAfterAuth } from '@/lib/continueAfterAuth'
+import PasswordInput from '@/components/PasswordInput'
 
 export default function LoginForm() {
   const params = useSearchParams()
@@ -43,13 +44,7 @@ export default function LoginForm() {
         className="w-full mt-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
       />
       <label className="block text-sm text-zinc-400 mt-4">Password</label>
-      <input
-        type="password"
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="w-full mt-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
-      />
+      <PasswordInput value={password} onChange={setPassword} />
       {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
