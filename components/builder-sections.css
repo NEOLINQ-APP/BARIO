@@ -1,0 +1,78 @@
+/* Styles for the sections rendered inside the Bario website builder canvas.
+   These represent the customer's site being built, intentionally styled
+   independently from bario.ca's own brand (dark/amber) so it reads as a
+   separate, editable product. */
+
+.b-section { position: relative; }
+.b-section:hover { outline: 2px dashed rgba(26,86,219,0.4); outline-offset: 2px; }
+.b-section.selected { outline: 2px solid #1a56db; outline-offset: 2px; }
+
+.b-sec-toolbar {
+  position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
+  background: #0A2342; border-radius: 8px; padding: 4px 6px; display: none;
+  gap: 4px; z-index: 20; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.b-section.selected .b-sec-toolbar { display: flex; }
+.b-sec-btn {
+  background: rgba(255,255,255,0.1); border: none; border-radius: 4px; padding: 4px 8px;
+  font-size: 10px; color: white; cursor: pointer; font-weight: 600;
+}
+.b-sec-btn:hover { background: #1a56db; }
+.b-sec-btn.red:hover { background: #ef4444; }
+
+.b-editable { outline: none; cursor: text; }
+.b-editable:hover { background: rgba(26,86,219,0.06); border-radius: 4px; }
+.b-editable:focus { background: rgba(26,86,219,0.1); border-radius: 4px; }
+
+.s-nav { background: #0A2342; color: white; padding: 16px 48px; display: flex; align-items: center; justify-content: space-between; }
+.s-nav-logo { font-size: 20px; font-weight: 800; }
+.s-nav-links { display: flex; gap: 28px; font-size: 13px; opacity: 0.8; }
+
+.s-hero { background: linear-gradient(135deg, #0A2342 0%, #1e3a6e 60%, #1a56db 100%); color: white; padding: 80px 48px; text-align: center; }
+.s-hero h1 { font-size: 42px; font-weight: 800; margin-bottom: 16px; line-height: 1.15; }
+.s-hero p { font-size: 17px; opacity: 0.85; margin-bottom: 28px; max-width: 560px; margin-left: auto; margin-right: auto; }
+.s-hero-btn { background: linear-gradient(135deg,#fbbf24,#f97316); color: white; padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 700; display: inline-block; }
+
+.s-features { padding: 64px 48px; background: #f8faff; }
+.s-features h2 { text-align: center; font-size: 30px; font-weight: 800; margin-bottom: 40px; color: #0A2342; }
+.s-features-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.s-feat-card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 24px rgba(10,35,66,0.06); text-align: center; }
+.s-feat-icon { font-size: 36px; margin-bottom: 14px; }
+.s-feat-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #0A2342; }
+.s-feat-card p { font-size: 13px; color: #64748b; line-height: 1.6; }
+
+.s-stats { padding: 40px 48px; background: white; }
+.s-stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; text-align: center; }
+.s-stat-num { font-size: 34px; font-weight: 800; color: #1a56db; }
+.s-stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+
+.s-testimonial { padding: 64px 48px; background: #f0f4ff; }
+.s-testimonial h2 { text-align: center; font-size: 30px; font-weight: 800; margin-bottom: 36px; color: #0A2342; }
+.s-test-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.s-test-card { background: white; border-radius: 14px; padding: 22px; box-shadow: 0 4px 16px rgba(10,35,66,0.06); }
+.s-test-quote { font-size: 13px; color: #64748b; line-height: 1.65; margin-bottom: 16px; font-style: italic; }
+.s-test-author { display: flex; align-items: center; gap: 10px; }
+.s-test-av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#1a56db,#0A2342); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; }
+.s-test-name { font-size: 12px; font-weight: 700; color: #0A2342; }
+.s-test-role { font-size: 11px; color: #94a3b8; }
+
+.s-pricing { padding: 64px 48px; background: white; }
+.s-pricing h2 { text-align: center; font-size: 30px; font-weight: 800; margin-bottom: 36px; color: #0A2342; }
+.s-price-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.s-price-card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 28px; text-align: center; }
+.s-price-card.featured { border-color: #1a56db; background: #f0f4ff; }
+.s-price-name { font-size: 15px; font-weight: 700; color: #0A2342; margin-bottom: 6px; }
+.s-price-num { font-size: 34px; font-weight: 800; color: #1a56db; margin-bottom: 2px; }
+.s-price-per { font-size: 12px; color: #94a3b8; margin-bottom: 18px; }
+.s-price-features { list-style: none; text-align: left; margin-bottom: 20px; padding: 0; }
+.s-price-features li { font-size: 12px; color: #64748b; padding: 5px 0; border-bottom: 1px solid #e2e8f0; }
+
+.s-cta { background: linear-gradient(135deg,#1a56db,#0A2342); color: white; padding: 64px 48px; text-align: center; }
+.s-cta h2 { font-size: 32px; font-weight: 800; margin-bottom: 14px; }
+.s-cta p { font-size: 16px; opacity: 0.88; margin-bottom: 26px; max-width: 480px; margin-left: auto; margin-right: auto; }
+.s-cta-btn { background: white; color: #1a56db; padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 700; display: inline-block; }
+
+.s-footer { background: #0f0f1a; color: white; padding: 32px 48px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.s-footer-logo { font-size: 16px; font-weight: 800; opacity: 0.9; }
+.s-footer-links { display: flex; gap: 20px; font-size: 12px; opacity: 0.5; }
+.s-footer-copy { font-size: 11px; opacity: 0.4; }

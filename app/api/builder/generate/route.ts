@@ -1,0 +1,79 @@
+import { NextResponse } from 'next/server'
+import { getSession } from '@/lib/session'
+import { db, type User } from '@/lib/db'
+import { getOpenAI, SECTION_TYPES } from '@/lib/openai'
+
+const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
+
+You build and edit websites as a list of sections. The allowed section types and their data fields are:
+
+- nav: { "logo": string }
+- hero: { "headline": string, "sub": string, "cta": string }
+- features: { "title": string, "f1t": string, "f1d": string, "f2t": string, "f2d": string, "f3t": string, "f3d": string }
+- stats: { "s1n": string, "s1l": string, "s2n": string, "s2l": string, "s3n": string, "s3l": string, "s4n": string, "s4l": string }
+- testimonial: { "title": string, "t1q": string, "t1n": string, "t1r": string, "t2q": string, "t2n": string, "t2r": string, "t3q": string, "t3n": string, "t3r": string }
+- pricing: { "title": string, "p1n": string, "p1p": string, "p1f": string, "p2n": string, "p2p": string, "p2f": string, "p3n": string, "p3p": string, "p3f": string } (the *f fields are comma-separated feature lists)
+- cta: { "headline": string, "sub": string, "cta": string }
+- footer: { "logo": string, "copy": string }
+
+Always respond with a single JSON object of the shape:
+{
+  "explanation": "one or two plain-language sentences, written for someone with no coding background, explaining what you built or changed and why",
+  "sections": [ { "type": "...", "data": { ... } }, ... ]
+}
+
+When building a new site, include nav, hero, at least one middle section, cta, and footer, with content specific to what the user described.
+
+When editing an existing site, you will be given the current sections as JSON. Return the FULL updated list of ALL sections in the same order (unless the user asked to add/remove one). For any section NOT related to the user's request, copy its "data" EXACTLY as given — do not rewrite content the user did not ask to change. Only modify what was specifically requested.
+
+Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
+
+export async function POST(req: Request) {
+  try {
+    const session = await getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    const sql = await db()
+    const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
+    const user = rows[0]
+    if (!user || user.subscription_status !== 'active') {
+      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    }
+
+    const { prompt, sections, isNew } = await req.json()
+
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      return NextResponse.json({ error: 'A description is required' }, { status: 400 })
+    }
+
+    const userPrompt = isNew
+      ? `Build a new website. The user wants: "${prompt}"`
+      : `Edit the existing website. The user wants: "${prompt}"\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
+
+    const completion = await getOpenAI().chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
+    })
+
+    const raw = completion.choices[0]?.message?.content
+    if (!raw) throw new Error('No response from model')
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed.sections)) throw new Error('Model did not return a sections array')
+
+    const cleaned = parsed.sections.filter((s: any) => SECTION_TYPES.includes(s?.type))
+
+    return NextResponse.json({
+      explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
+      sections: cleaned,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
