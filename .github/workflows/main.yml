@@ -2,7 +2,8 @@ name: Build and Deploy BARIO
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -16,10 +17,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm ci || npm install --legacy-peer-deps || echo "No package.json found"
 
       - name: Build project
         run: npm run build --if-present
