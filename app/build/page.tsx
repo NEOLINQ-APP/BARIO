@@ -21,10 +21,17 @@ export default async function BuildPage() {
 
   const credits = user.is_admin ? -1 : await ensureCreditsRefreshed(sql, user)
 
-  const siteRows = (await sql`SELECT name, sections_json, theme_json FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+  const siteRows = (await sql`
+    SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published
+    FROM sites WHERE user_id = ${session.userId} LIMIT 1
+  `) as unknown as {
     name: string
     sections_json: string
     theme_json: string
+    subdomain: string | null
+    custom_domain: string | null
+    domain_status: string
+    is_published: boolean
   }[]
   const site = siteRows[0]
 
@@ -37,6 +44,10 @@ export default async function BuildPage() {
       userEmail={user.email}
       userPlan={user.plan}
       isAdmin={user.is_admin}
+      initialSubdomain={site?.subdomain ?? null}
+      initialCustomDomain={site?.custom_domain ?? null}
+      initialDomainStatus={site?.domain_status ?? 'none'}
+      initialPublished={site?.is_published ?? false}
     />
   )
 }

@@ -39,10 +39,18 @@ async function ensureSchema() {
       name TEXT NOT NULL DEFAULT 'My Site',
       sections_json TEXT NOT NULL DEFAULT '[]',
       theme_json TEXT NOT NULL DEFAULT '{"primary":"#0A2342","accent":"#1a56db"}',
+      subdomain TEXT UNIQUE,
+      custom_domain TEXT UNIQUE,
+      domain_status TEXT NOT NULL DEFAULT 'none',
+      is_published BOOLEAN NOT NULL DEFAULT false,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme_json TEXT NOT NULL DEFAULT '{"primary":"#0A2342","accent":"#1a56db"}'`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS subdomain TEXT UNIQUE`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain TEXT UNIQUE`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none'`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT false`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -139,6 +147,18 @@ export type TemplateLicense = {
   license_key: string
   status: 'pending_approval' | 'active' | 'revoked'
   stripe_payment_intent: string | null
+}
+
+export type Site = {
+  id: string
+  user_id: string
+  name: string
+  sections_json: string
+  theme_json: string
+  subdomain: string | null
+  custom_domain: string | null
+  domain_status: 'none' | 'pending' | 'verified'
+  is_published: boolean
 }
 
 export type GiftCode = {
