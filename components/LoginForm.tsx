@@ -43,7 +43,10 @@ export default function LoginForm() {
         onChange={(e) => setEmail(e.target.value)}
         className="w-full mt-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
       />
-      <label className="block text-sm text-zinc-400 mt-4">Password</label>
+      <div className="flex items-center justify-between mt-4">
+        <label className="block text-sm text-zinc-400">Password</label>
+        <a href="/forgot-password" className="text-xs text-zinc-500 hover:text-zinc-300">Forgot password?</a>
+      </div>
       <PasswordInput value={password} onChange={setPassword} />
       {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
       <button

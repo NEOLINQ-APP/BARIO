@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import LogoutButton from '@/components/LogoutButton'
+import ChangePasswordForm from '@/components/ChangePasswordForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,9 +70,14 @@ export default async function Dashboard() {
 
           {user.is_admin && (
             <a href="/admin" className="inline-block mt-4 text-xs text-zinc-500 hover:text-zinc-300">
-              Admin: pending template approvals →
+              Admin panel →
             </a>
           )}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+          <h2 className="text-sm font-semibold mb-4">Change password</h2>
+          <ChangePasswordForm />
         </div>
       </div>
     </main>
