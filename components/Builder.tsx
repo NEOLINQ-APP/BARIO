@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, createElement } from 'react'
+import { useState, useRef, useEffect, createElement } from 'react'
 import './builder-sections.css'
 
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer'
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type ChatMsg = { role: 'zeus' | 'user'; text: string }
+type Theme = { primary: string; accent: string }
 
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
@@ -15,8 +16,8 @@ const SECTION_LABELS: Record<SectionType, string> = {
 
 const DEFAULTS: Record<SectionType, SectionData> = {
   nav: { logo: '⚡ YourBrand' },
-  hero: { headline: 'Your Powerful Headline Goes Here', sub: 'A compelling description that explains your unique value proposition clearly.', cta: 'Get Started Today' },
-  features: { title: 'Why Choose Us', f1t: 'Fast & Reliable', f1d: 'Built for speed and performance at every level.', f2t: 'Secure', f2d: 'Enterprise-grade security protecting your data.', f3t: 'Smart', f3d: 'Tools that work the way you think.' },
+  hero: { headline: 'Your Powerful Headline Goes Here', sub: 'A compelling description that explains your unique value proposition clearly.', cta: 'Get Started Today', image: '' },
+  features: { title: 'Why Choose Us', f1t: 'Fast & Reliable', f1d: 'Built for speed and performance at every level.', f1img: '', f2t: 'Secure', f2d: 'Enterprise-grade security protecting your data.', f2img: '', f3t: 'Smart', f3d: 'Tools that work the way you think.', f3img: '' },
   stats: { s1n: '500+', s1l: 'Happy Clients', s2n: '98%', s2l: 'Satisfaction Rate', s3n: '10yr', s3l: 'Experience', s4n: '24/7', s4l: 'Support' },
   testimonial: { title: 'What Our Clients Say', t1q: 'Amazing service! Completely transformed our business.', t1n: 'John D.', t1r: 'CEO, Company', t2q: 'Best decision we ever made.', t2n: 'Sarah M.', t2r: 'Director, Firm', t3q: 'Outstanding results from day one.', t3n: 'Rob C.', t3r: 'Owner, Business' },
   pricing: { title: 'Simple, Transparent Pricing', p1n: 'Basic', p1p: '$99', p1f: 'Feature 1,Feature 2,Feature 3', p2n: 'Pro', p2p: '$199', p2f: 'Feature 1,Feature 2,Feature 3,Feature 4', p3n: 'Enterprise', p3p: '$499', p3f: 'Feature 1,Feature 2,Feature 3,Feature 4,Feature 5' },
@@ -58,11 +59,31 @@ function newId() {
   return crypto.randomUUID()
 }
 
-export default function Builder({ initialName, initialSections }: { initialName: string; initialSections: { type: SectionType; data: SectionData }[] }) {
+export default function Builder({
+  initialName,
+  initialSections,
+  initialTheme,
+}: {
+  initialName: string
+  initialSections: { type: SectionType; data: SectionData }[]
+  initialTheme: Theme
+}) {
   const [siteName, setSiteName] = useState(initialName)
+  const [theme, setTheme] = useState<Theme>(initialTheme)
   const [sections, setSections] = useState<Section[]>(() =>
     initialSections.map((s) => ({ id: newId(), type: s.type, data: s.data }))
   )
+  const canvasScrollRef = useRef<HTMLDivElement>(null)
+  const sectionsLengthRef = useRef(sections.length)
+
+  useEffect(() => {
+    if (sections.length > sectionsLengthRef.current) {
+      requestAnimationFrame(() => {
+        canvasScrollRef.current?.scrollTo({ top: canvasScrollRef.current.scrollHeight, behavior: 'smooth' })
+      })
+    }
+    sectionsLengthRef.current = sections.length
+  }, [sections])
   const [messages, setMessages] = useState<ChatMsg[]>([
     { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it. Try: \"Build a modern site for a Calgary plumbing company.\"" },
   ])
@@ -133,12 +154,14 @@ export default function Builder({ initialName, initialSections }: { initialName:
         body: JSON.stringify({
           prompt: text,
           sections: sections.map((s) => ({ type: s.type, data: s.data })),
+          theme,
           isNew,
         }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Generation failed')
       setSections(renderFieldsFromModel(d.sections))
+      if (d.theme) setTheme(d.theme)
       addMsg('zeus', d.explanation ?? 'Done.')
     } catch (err: any) {
       addMsg('zeus', `⚠️ ${err.message}`)
@@ -153,7 +176,7 @@ export default function Builder({ initialName, initialSections }: { initialName:
       const res = await fetch('/api/builder/site', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: siteName, sections: sections.map((s) => ({ type: s.type, data: s.data })) }),
+        body: JSON.stringify({ name: siteName, sections: sections.map((s) => ({ type: s.type, data: s.data })), theme }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
@@ -166,7 +189,7 @@ export default function Builder({ initialName, initialSections }: { initialName:
   }
 
   function handleExport() {
-    const html = buildExportHtml(siteName, sections)
+    const html = buildExportHtml(siteName, sections, theme)
     const blob = new Blob([html], { type: 'text/html' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -184,7 +207,25 @@ export default function Builder({ initialName, initialSections }: { initialName:
           onChange={(e) => setSiteName(e.target.value)}
           className="bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-zinc-700"
         />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Primary color">
+            Primary
+            <input
+              type="color"
+              value={theme.primary}
+              onChange={(e) => setTheme((t) => ({ ...t, primary: e.target.value }))}
+              className="w-6 h-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Accent color">
+            Accent
+            <input
+              type="color"
+              value={theme.accent}
+              onChange={(e) => setTheme((t) => ({ ...t, accent: e.target.value }))}
+              className="w-6 h-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
+            />
+          </label>
           {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
           <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
@@ -247,8 +288,11 @@ export default function Builder({ initialName, initialSections }: { initialName:
               </button>
             ))}
           </div>
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="bg-white rounded-lg shadow-2xl max-w-5xl mx-auto overflow-hidden min-h-[400px]">
+          <div ref={canvasScrollRef} className="flex-1 overflow-y-auto p-6">
+            <div
+              className="b-canvas bg-white rounded-lg shadow-2xl max-w-5xl mx-auto overflow-hidden min-h-[400px]"
+              style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent }}
+            >
               {sections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
                   <div className="text-4xl opacity-40">🏗️</div>
@@ -338,6 +382,7 @@ function SectionView({
     return (
       <div className={`${wrapperClass} s-hero`} onClick={onSelect}>
         {toolbar}
+        {data.image && <img src={data.image} alt="" className="b-hero-img" />}
         <Editable tag="h1" value={data.headline} onCommit={(v) => onCommit('headline', v)} />
         <Editable tag="p" value={data.sub} onCommit={(v) => onCommit('sub', v)} />
         <Editable value={data.cta} onCommit={(v) => onCommit('cta', v)} className="s-hero-btn" />
@@ -352,7 +397,11 @@ function SectionView({
         <div className="s-features-grid">
           {[1, 2, 3].map((n) => (
             <div className="s-feat-card" key={n}>
-              <div className="s-feat-icon">✨</div>
+              {data[`f${n}img`] ? (
+                <img src={data[`f${n}img`]} alt="" className="b-feat-img" />
+              ) : (
+                <div className="s-feat-icon">✨</div>
+              )}
               <Editable tag="h3" value={data[`f${n}t`]} onCommit={(v) => onCommit(`f${n}t`, v)} />
               <Editable tag="p" value={data[`f${n}d`]} onCommit={(v) => onCommit(`f${n}d`, v)} />
             </div>
@@ -445,9 +494,9 @@ function sectionToHtml(type: SectionType, data: SectionData): string {
     case 'nav':
       return `<div class="s-nav"><div class="s-nav-logo">${data.logo}</div><div class="s-nav-links"><span>Home</span><span>About</span><span>Services</span><span>Contact</span></div></div>`
     case 'hero':
-      return `<div class="s-hero"><h1>${data.headline}</h1><p>${data.sub}</p><div class="s-hero-btn">${data.cta}</div></div>`
+      return `<div class="s-hero">${data.image ? `<img src="${data.image}" alt="" style="width:100%;max-width:600px;border-radius:12px;margin:0 auto 24px;display:block;object-fit:cover;height:260px">` : ''}<h1>${data.headline}</h1><p>${data.sub}</p><div class="s-hero-btn">${data.cta}</div></div>`
     case 'features':
-      return `<div class="s-features"><h2>${data.title}</h2><div class="s-features-grid">${[1, 2, 3].map((n) => `<div class="s-feat-card"><div class="s-feat-icon">✨</div><h3>${data[`f${n}t`]}</h3><p>${data[`f${n}d`]}</p></div>`).join('')}</div></div>`
+      return `<div class="s-features"><h2>${data.title}</h2><div class="s-features-grid">${[1, 2, 3].map((n) => `<div class="s-feat-card">${data[`f${n}img`] ? `<img src="${data[`f${n}img`]}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;display:block">` : '<div class="s-feat-icon">✨</div>'}<h3>${data[`f${n}t`]}</h3><p>${data[`f${n}d`]}</p></div>`).join('')}</div></div>`
     case 'stats':
       return `<div class="s-stats"><div class="s-stats-grid">${[1, 2, 3, 4].map((n) => `<div><div class="s-stat-num">${data[`s${n}n`]}</div><div class="s-stat-label">${data[`s${n}l`]}</div></div>`).join('')}</div></div>`
     case 'testimonial':
@@ -464,47 +513,47 @@ function sectionToHtml(type: SectionType, data: SectionData): string {
 const EXPORT_CSS = `
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',sans-serif}
-.s-nav{background:#0A2342;color:white;padding:16px 48px;display:flex;align-items:center;justify-content:space-between}
+.s-nav{background:var(--b-primary);color:white;padding:16px 48px;display:flex;align-items:center;justify-content:space-between}
 .s-nav-logo{font-size:20px;font-weight:800}
 .s-nav-links{display:flex;gap:28px;font-size:13px;opacity:0.8}
-.s-hero{background:linear-gradient(135deg,#0A2342 0%,#1e3a6e 60%,#1a56db 100%);color:white;padding:96px 64px;text-align:center}
+.s-hero{background:linear-gradient(135deg,var(--b-primary) 0%,#1e3a6e 60%,var(--b-accent) 100%);color:white;padding:96px 64px;text-align:center}
 .s-hero h1{font-size:52px;font-weight:800;margin-bottom:18px;line-height:1.15}
 .s-hero p{font-size:19px;opacity:0.85;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto}
 .s-hero-btn{background:linear-gradient(135deg,#fbbf24,#f97316);color:white;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
 .s-features{padding:88px 64px;background:#f8faff}
-.s-features h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:56px;color:#0A2342}
+.s-features h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:56px;color:var(--b-primary)}
 .s-features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
 .s-feat-card{background:white;border-radius:20px;padding:36px;box-shadow:0 4px 24px rgba(10,35,66,0.06);text-align:center}
 .s-feat-icon{font-size:44px;margin-bottom:18px}
-.s-feat-card h3{font-size:19px;font-weight:700;margin-bottom:10px;color:#0A2342}
+.s-feat-card h3{font-size:19px;font-weight:700;margin-bottom:10px;color:var(--b-primary)}
 .s-feat-card p{font-size:14px;color:#64748b;line-height:1.65}
 .s-stats{padding:56px 64px;background:white}
 .s-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
-.s-stat-num{font-size:42px;font-weight:800;color:#1a56db}
+.s-stat-num{font-size:42px;font-weight:800;color:var(--b-accent)}
 .s-stat-label{font-size:13px;color:#64748b;margin-top:6px}
 .s-testimonial{padding:88px 64px;background:#f0f4ff}
-.s-testimonial h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:#0A2342}
+.s-testimonial h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
 .s-test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
 .s-test-card{background:white;border-radius:16px;padding:28px;box-shadow:0 4px 16px rgba(10,35,66,0.06)}
 .s-test-quote{font-size:14px;color:#64748b;line-height:1.7;margin-bottom:20px;font-style:italic}
 .s-test-author{display:flex;align-items:center;gap:10px}
-.s-test-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#0A2342);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700}
-.s-test-name{font-size:13px;font-weight:700;color:#0A2342}
+.s-test-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--b-accent),var(--b-primary));display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700}
+.s-test-name{font-size:13px;font-weight:700;color:var(--b-primary)}
 .s-test-role{font-size:11px;color:#94a3b8}
 .s-pricing{padding:88px 64px;background:white}
-.s-pricing h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:#0A2342}
+.s-pricing h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
 .s-price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
 .s-price-card{border:2px solid #e2e8f0;border-radius:20px;padding:36px;text-align:center}
-.s-price-card.featured{border-color:#1a56db;background:#f0f4ff;transform:scale(1.04)}
-.s-price-name{font-size:16px;font-weight:700;color:#0A2342;margin-bottom:8px}
-.s-price-num{font-size:42px;font-weight:800;color:#1a56db;margin-bottom:4px}
+.s-price-card.featured{border-color:var(--b-accent);background:#f0f4ff;transform:scale(1.04)}
+.s-price-name{font-size:16px;font-weight:700;color:var(--b-primary);margin-bottom:8px}
+.s-price-num{font-size:42px;font-weight:800;color:var(--b-accent);margin-bottom:4px}
 .s-price-per{font-size:13px;color:#94a3b8;margin-bottom:24px}
 .s-price-features{list-style:none;text-align:left;margin-bottom:28px}
 .s-price-features li{font-size:13px;color:#64748b;padding:6px 0;border-bottom:1px solid #e2e8f0}
-.s-cta{background:linear-gradient(135deg,#1a56db,#0A2342);color:white;padding:88px 64px;text-align:center}
+.s-cta{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:88px 64px;text-align:center}
 .s-cta h2{font-size:42px;font-weight:800;margin-bottom:18px}
 .s-cta p{font-size:19px;opacity:0.88;margin-bottom:36px;max-width:560px;margin-left:auto;margin-right:auto}
-.s-cta-btn{background:white;color:#1a56db;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
+.s-cta-btn{background:white;color:var(--b-accent);padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
 .s-footer{background:#0f0f1a;color:white;padding:48px 64px;display:flex;align-items:center;justify-content:space-between}
 .s-footer-logo{font-size:18px;font-weight:800;opacity:0.9}
 .s-footer-links{display:flex;gap:24px;font-size:13px;opacity:0.5}
@@ -521,7 +570,7 @@ body{font-family:'Inter',sans-serif}
 }
 `
 
-function buildExportHtml(name: string, sections: Section[]): string {
+function buildExportHtml(name: string, sections: Section[], theme: Theme): string {
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
   return `<!DOCTYPE html>
 <html lang="en">
@@ -530,7 +579,7 @@ function buildExportHtml(name: string, sections: Section[]): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${name} — Built with Bario</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>${EXPORT_CSS}</style>
+<style>:root{--b-primary:${theme.primary};--b-accent:${theme.accent}}${EXPORT_CSS}</style>
 </head>
 <body>
 ${body}

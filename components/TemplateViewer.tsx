@@ -61,6 +61,15 @@ export default function TemplateViewer({ templateId }: { templateId: string }) {
     window.location.href = `/api/templates/${templateId}/export`
   }
 
+  function handleFullPreview() {
+    if (!template) return
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.open()
+    win.document.write(template.html)
+    win.document.close()
+  }
+
   if (error) return <main className="min-h-screen bg-[#0b111c] text-red-400 p-10">{error}</main>
   if (!template) return <main className="min-h-screen bg-[#0b111c] text-zinc-400 p-10">Loading…</main>
 
@@ -76,6 +85,9 @@ export default function TemplateViewer({ templateId }: { templateId: string }) {
           {template.licenseStatus === 'pending_approval' && (
             <span className="text-xs text-amber-400">License pending admin approval</span>
           )}
+          <button onClick={handleFullPreview} className="px-4 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold text-zinc-200">
+            Open Full Preview ↗
+          </button>
           {!template.licenseStatus && (
             <button onClick={handleBuy} disabled={buying} className="px-4 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold disabled:opacity-60">
               {buying ? 'Redirecting…' : `Buy License — $${(template.price_cents / 100).toFixed(2)}`}

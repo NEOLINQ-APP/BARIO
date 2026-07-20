@@ -34,9 +34,11 @@ async function ensureSchema() {
       user_id TEXT NOT NULL REFERENCES users(id),
       name TEXT NOT NULL DEFAULT 'My Site',
       sections_json TEXT NOT NULL DEFAULT '[]',
+      theme_json TEXT NOT NULL DEFAULT '{"primary":"#0A2342","accent":"#1a56db"}',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS theme_json TEXT NOT NULL DEFAULT '{"primary":"#0A2342","accent":"#1a56db"}'`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
