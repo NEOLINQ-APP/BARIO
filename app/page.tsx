@@ -2,6 +2,8 @@
 // Bario.ca – Nexus Build – Next.js 14 + Tailwind
 // Drop into a fresh Next.js app with Tailwind configured
 
+import PricingButton from '@/components/PricingButton'
+
 export const metadata = {
   title: "Bario — Live website builder for Canadian businesses",
   description: "Design and edit your website live in the browser. Bario.ca helps you build sites and marketing assets to grow your business – no code needed. Edmonton / Vancouver."
@@ -38,7 +40,7 @@ export default function Home() {
         ))}
       </section>
 
-      <section className="max-w-6xl mx-auto px-6 pb-20">
+      <section id="pricing" className="max-w-6xl mx-auto px-6 pb-20">
         <h2 className="text-2xl md:text-3xl font-bold mb-6">Simple pricing — CAD</h2>
         <div className="grid md:grid-cols-3 gap-6">
           <div className="rounded-2xl border border-zinc-800 p-6 bg-[#131b2a]">
@@ -47,6 +49,7 @@ export default function Home() {
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
               <li>1 site</li><li>Live editor</li><li>Basic templates</li><li>Email support</li>
             </ul>
+            <PricingButton plan="starter" label="Choose Starter" />
           </div>
           <div className="rounded-2xl border-2 border-[#f59e0b] p-6 bg-[#17131a] relative">
             <div className="text-xs uppercase tracking-wide text-[#f59e0b] font-bold">Most popular</div>
@@ -55,6 +58,7 @@ export default function Home() {
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
               <li>5 sites</li><li>Marketing asset pack</li><li>Custom domain</li><li>Priority support</li>
             </ul>
+            <PricingButton plan="business" label="Choose Business" />
           </div>
           <div className="rounded-2xl border border-zinc-800 p-6 bg-[#131b2a]">
             <div className="text-zinc-400 text-sm">Agency</div>
@@ -62,6 +66,7 @@ export default function Home() {
             <ul className="text-sm text-zinc-300 mt-4 space-y-2">
               <li>Unlimited sites</li><li>White-label export</li><li>Client seats</li><li>CA phone support</li>
             </ul>
+            <PricingButton plan="agency" label="Choose Agency" />
           </div>
         </div>
         <p className="text-xs text-zinc-500 mt-3">Prices in CAD. GST/HST extra where applicable. Cancel anytime.</p>
