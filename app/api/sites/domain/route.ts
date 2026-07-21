@@ -19,6 +19,11 @@ export async function POST(req: Request) {
     const site = rows[0]
     if (!site) return NextResponse.json({ error: 'Save your site before connecting a domain' }, { status: 400 })
 
+    const existing = (await sql`SELECT id FROM sites WHERE custom_domain = ${clean} AND id != ${site.id}`) as unknown as { id: string }[]
+    if (existing[0]) {
+      return NextResponse.json({ error: 'That domain is already connected to another site' }, { status: 409 })
+    }
+
     const vercelResult = await addDomainToVercel(clean)
 
     const www = wwwSibling(clean)
