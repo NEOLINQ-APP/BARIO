@@ -20,6 +20,7 @@ export default function PublishPanel({
   const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
   const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
   const [instructions, setInstructions] = useState<{ a: any; cname: any } | null>(null)
+  const [verification, setVerification] = useState<{ type: string; domain: string; value: string; reason: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -55,6 +56,7 @@ export default function PublishPanel({
       if (!res.ok) throw new Error(data.error ?? 'Failed to connect domain')
       setDomainStatus('pending')
       setInstructions(data.instructions)
+      setVerification([])
     } catch (err: any) {
       setError(err.message)
     }
@@ -69,7 +71,14 @@ export default function PublishPanel({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Verification check failed')
       setDomainStatus(data.verified ? 'verified' : 'pending')
-      if (!data.verified) setError('Not verified yet — DNS changes can take a while to propagate. Try again shortly.')
+      setVerification(data.verification ?? [])
+      if (!data.verified) {
+        setError(
+          data.verification?.length
+            ? 'Additional DNS records are needed to verify ownership — see below.'
+            : 'Not verified yet — DNS changes can take a while to propagate. Try again shortly.'
+        )
+      }
     } catch (err: any) {
       setError(err.message)
     }
@@ -86,6 +95,7 @@ export default function PublishPanel({
       setCustomDomain('')
       setDomainStatus('none')
       setInstructions(null)
+      setVerification([])
     } catch (err: any) {
       setError(err.message)
     }
@@ -191,6 +201,16 @@ export default function PublishPanel({
                     <div>Add these DNS records at your registrar:</div>
                     <div className="font-mono">A @ → {instructions.a.value}</div>
                     <div className="font-mono">CNAME www → {instructions.cname.value}</div>
+                  </div>
+                )}
+                {verification.length > 0 && (
+                  <div className="mt-2 space-y-1 text-amber-300">
+                    <div>Vercel also needs this record to verify ownership:</div>
+                    {verification.map((v, i) => (
+                      <div key={i} className="font-mono">
+                        {v.type} {v.domain} → {v.value}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

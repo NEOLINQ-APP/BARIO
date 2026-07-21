@@ -23,6 +23,19 @@ export async function POST(req: Request) {
 
   const sql = await db()
 
+  // Mirrors hasBuilderAccess(): any status other than 'active' means no
+  // builder access, so a live published site should come down with it.
+  // Admins are exempt since they get free access regardless of billing
+  // status. custom_domain/domain_status are left alone — unpublishing is
+  // fully reversible, and resubscribing shouldn't require reconnecting DNS.
+  async function unpublishForCustomer(stripeCustomerId: string) {
+    await sql`
+      UPDATE sites SET is_published = false
+      WHERE is_published = true
+        AND user_id IN (SELECT id FROM users WHERE stripe_customer_id = ${stripeCustomerId} AND is_admin = false)
+    `
+  }
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
@@ -62,6 +75,9 @@ export async function POST(req: Request) {
         SET subscription_status = ${sub.status}
         WHERE stripe_customer_id = ${String(sub.customer)}
       `
+      if (sub.status !== 'active') {
+        await unpublishForCustomer(String(sub.customer))
+      }
       break
     }
     case 'customer.subscription.deleted': {
@@ -71,6 +87,7 @@ export async function POST(req: Request) {
         SET subscription_status = 'canceled'
         WHERE stripe_customer_id = ${String(sub.customer)}
       `
+      await unpublishForCustomer(String(sub.customer))
       break
     }
     case 'invoice.payment_failed': {
@@ -80,6 +97,7 @@ export async function POST(req: Request) {
         SET subscription_status = 'past_due'
         WHERE stripe_customer_id = ${String(invoice.customer)}
       `
+      await unpublishForCustomer(String(invoice.customer))
       break
     }
   }
