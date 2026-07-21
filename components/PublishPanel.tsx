@@ -120,7 +120,18 @@ export default function PublishPanel({
           <div className="flex items-center justify-between rounded-xl border border-zinc-800 p-3">
             <div>
               <div className="text-sm font-semibold">{published ? 'Live' : 'Not published'}</div>
-              <div className="text-xs text-zinc-500">{published ? 'Your site is publicly visible' : 'Publish to go live'}</div>
+              {published && subdomain ? (
+                <a
+                  href={`https://${subdomain}.bario.ca`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#f59e0b] underline"
+                >
+                  {subdomain}.bario.ca ↗
+                </a>
+              ) : (
+                <div className="text-xs text-zinc-500">{published ? 'Your site is publicly visible' : 'Publish to go live'}</div>
+              )}
             </div>
             <button
               onClick={() => handleSaveSubdomainAndPublish(!published)}
@@ -150,6 +161,19 @@ export default function PublishPanel({
                 <div className="flex items-center justify-between">
                   <span>
                     Status: <strong className={domainStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}>{domainStatus}</strong>
+                    {domainStatus === 'verified' && customDomain && (
+                      <>
+                        {' '}
+                        <a
+                          href={`https://${customDomain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#f59e0b] underline"
+                        >
+                          Visit ↗
+                        </a>
+                      </>
+                    )}
                   </span>
                   <div className="flex items-center gap-3">
                     {domainStatus !== 'verified' && (
