@@ -4,6 +4,10 @@ import { db } from '@/lib/db'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 
+// These already have their own DNS records on bario.ca pointing away from
+// Vercel, so claiming them would save fine but never actually resolve.
+const RESERVED_SUBDOMAINS = new Set(['www', 'admin', 'hub', 'mail'])
+
 export async function POST(req: Request) {
   try {
     const session = await getSession()
@@ -20,6 +24,9 @@ export async function POST(req: Request) {
       const clean = String(subdomain).trim().toLowerCase()
       if (!SUBDOMAIN_RE.test(clean)) {
         return NextResponse.json({ error: 'Subdomain must be lowercase letters, numbers, and hyphens only' }, { status: 400 })
+      }
+      if (RESERVED_SUBDOMAINS.has(clean)) {
+        return NextResponse.json({ error: 'That subdomain is reserved' }, { status: 409 })
       }
       const taken = (await sql`SELECT id FROM sites WHERE subdomain = ${clean} AND id != ${site.id}`) as unknown as { id: string }[]
       if (taken[0]) {
