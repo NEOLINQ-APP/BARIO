@@ -101,8 +101,19 @@ body{font-family:'Inter',sans-serif}
 }
 `
 
+// Theme values land inside a <style> block, where HTML-escaping alone
+// doesn't stop CSS injection (e.g. "red; } body { display:none"). Since
+// these are only ever meant to be hex colors, validate the format instead
+// and fall back to the app default for anything else.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/
+function sanitizeColor(value: string | undefined, fallback: string): string {
+  return value && HEX_COLOR_RE.test(value) ? value : fallback
+}
+
 export function buildSiteHtml(name: string, sections: Section[], theme: Theme): string {
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
+  const primary = sanitizeColor(theme.primary, '#0A2342')
+  const accent = sanitizeColor(theme.accent, '#1a56db')
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -110,7 +121,7 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme): 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(name)} — Built with Bario</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>:root{--b-primary:${theme.primary};--b-accent:${theme.accent}}${EXPORT_CSS}</style>
+<style>:root{--b-primary:${primary};--b-accent:${accent}}${EXPORT_CSS}</style>
 </head>
 <body>
 ${body}
