@@ -77,6 +77,7 @@ export default function Builder({
   initialMetaTitle,
   initialMetaDescription,
   initialAnalyticsId,
+  initialFaviconUrl,
 }: {
   initialName: string
   initialSections: { type: SectionType; data: SectionData }[]
@@ -92,12 +93,14 @@ export default function Builder({
   initialMetaTitle: string
   initialMetaDescription: string
   initialAnalyticsId: string
+  initialFaviconUrl: string
 }) {
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [metaTitle, setMetaTitle] = useState(initialMetaTitle)
   const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
   const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
+  const [faviconUrl, setFaviconUrl] = useState(initialFaviconUrl)
   const [showPublish, setShowPublish] = useState(false)
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
@@ -233,6 +236,7 @@ export default function Builder({
       metaTitle,
       metaDescription,
       analyticsId,
+      faviconUrl,
     })
     const blob = new Blob([html], { type: 'text/html' })
     const a = document.createElement('a')
@@ -394,6 +398,8 @@ export default function Builder({
           setMetaDescription={setMetaDescription}
           analyticsId={analyticsId}
           setAnalyticsId={setAnalyticsId}
+          faviconUrl={faviconUrl}
+          setFaviconUrl={setFaviconUrl}
           onSaveSeo={handleSave}
         />
       )}

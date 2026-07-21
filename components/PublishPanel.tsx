@@ -14,6 +14,8 @@ export default function PublishPanel({
   setMetaDescription,
   analyticsId,
   setAnalyticsId,
+  faviconUrl,
+  setFaviconUrl,
   onSaveSeo,
 }: {
   onClose: () => void
@@ -27,6 +29,8 @@ export default function PublishPanel({
   setMetaDescription: (v: string) => void
   analyticsId: string
   setAnalyticsId: (v: string) => void
+  faviconUrl: string
+  setFaviconUrl: (v: string) => void
   onSaveSeo: () => void | Promise<void>
 }) {
   const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
@@ -39,6 +43,7 @@ export default function PublishPanel({
   const [busy, setBusy] = useState(false)
   const [seoSaving, setSeoSaving] = useState(false)
   const [seoSaved, setSeoSaved] = useState(false)
+  const [faviconUploading, setFaviconUploading] = useState(false)
 
   async function handleSaveSubdomainAndPublish(nextPublished: boolean) {
     setBusy(true)
@@ -108,6 +113,25 @@ export default function PublishPanel({
     setSeoSaving(false)
     setSeoSaved(true)
     setTimeout(() => setSeoSaved(false), 3000)
+  }
+
+  async function handleFaviconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setFaviconUploading(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/sites/favicon', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to upload favicon')
+      setFaviconUrl(data.url)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setFaviconUploading(false)
   }
 
   async function handleDisconnect() {
@@ -263,6 +287,22 @@ export default function PublishPanel({
               placeholder="Google Analytics ID, e.g. G-ABC1234DEF"
               className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
             />
+            <div className="flex items-center gap-3">
+              {faviconUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={faviconUrl} alt="Favicon" className="w-6 h-6 rounded" />
+              )}
+              <label className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold cursor-pointer">
+                {faviconUploading ? 'Uploading…' : faviconUrl ? 'Replace favicon' : 'Upload favicon'}
+                <input
+                  type="file"
+                  accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg"
+                  onChange={handleFaviconUpload}
+                  disabled={faviconUploading}
+                  className="hidden"
+                />
+              </label>
+            </div>
             <button
               onClick={handleSaveSeo}
               disabled={seoSaving}

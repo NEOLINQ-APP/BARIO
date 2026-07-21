@@ -26,6 +26,7 @@ export async function GET() {
     meta_title: string | null
     meta_description: string | null
     analytics_id: string | null
+    favicon_url: string | null
   }[]
   const site = rows[0]
 
@@ -36,6 +37,7 @@ export async function GET() {
     metaTitle: site?.meta_title ?? '',
     metaDescription: site?.meta_description ?? '',
     analyticsId: site?.analytics_id ?? '',
+    faviconUrl: site?.favicon_url ?? '',
   })
 }
 

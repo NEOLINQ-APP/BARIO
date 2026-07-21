@@ -23,7 +23,7 @@ export default async function BuildPage() {
 
   const siteRows = (await sql`
     SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
-           meta_title, meta_description, analytics_id
+           meta_title, meta_description, analytics_id, favicon_url
     FROM sites WHERE user_id = ${session.userId} LIMIT 1
   `) as unknown as {
     name: string
@@ -36,6 +36,7 @@ export default async function BuildPage() {
     meta_title: string | null
     meta_description: string | null
     analytics_id: string | null
+    favicon_url: string | null
   }[]
   const site = siteRows[0]
 
@@ -55,6 +56,7 @@ export default async function BuildPage() {
       initialMetaTitle={site?.meta_title ?? ''}
       initialMetaDescription={site?.meta_description ?? ''}
       initialAnalyticsId={site?.analytics_id ?? ''}
+      initialFaviconUrl={site?.favicon_url ?? ''}
     />
   )
 }

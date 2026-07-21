@@ -54,6 +54,7 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS meta_title TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS meta_description TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS analytics_id TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS favicon_url TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -165,6 +166,7 @@ export type Site = {
   meta_title: string | null
   meta_description: string | null
   analytics_id: string | null
+  favicon_url: string | null
 }
 
 export type GiftCode = {

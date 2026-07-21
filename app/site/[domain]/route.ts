@@ -29,6 +29,7 @@ export async function GET(req: Request, { params }: { params: { domain: string }
     metaTitle: site.meta_title,
     metaDescription: site.meta_description,
     analyticsId: site.analytics_id,
+    faviconUrl: site.favicon_url,
   })
 
   return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })

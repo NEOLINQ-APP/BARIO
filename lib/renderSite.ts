@@ -121,6 +121,7 @@ export type SeoOptions = {
   metaTitle?: string | null
   metaDescription?: string | null
   analyticsId?: string | null
+  faviconUrl?: string | null
 }
 
 export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions): string {
@@ -131,6 +132,7 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme, s
   const description = seo?.metaDescription?.trim()
   const analyticsId = seo?.analyticsId?.trim()
   const validAnalyticsId = analyticsId && GA4_ID_RE.test(analyticsId) ? analyticsId : null
+  const faviconUrl = seo?.faviconUrl?.trim()
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -138,6 +140,7 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme, s
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 ${description ? `<meta name="description" content="${esc(description)}">` : ''}
+${faviconUrl ? `<link rel="icon" href="${esc(faviconUrl)}">` : ''}
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>:root{--b-primary:${primary};--b-accent:${accent}}${EXPORT_CSS}</style>
 ${validAnalyticsId ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${validAnalyticsId}"></script>
