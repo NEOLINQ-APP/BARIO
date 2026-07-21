@@ -15,13 +15,31 @@ export async function POST(req: Request) {
     }
 
     const sql = await db()
-    const rows = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
+    const rows = (await sql`SELECT id, custom_domain FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+      id: string
+      custom_domain: string | null
+    }[]
     const site = rows[0]
     if (!site) return NextResponse.json({ error: 'Save your site before connecting a domain' }, { status: 400 })
+
+    if (site.custom_domain === clean) {
+      return NextResponse.json({ error: 'That domain is already connected to this site' }, { status: 409 })
+    }
 
     const existing = (await sql`SELECT id FROM sites WHERE custom_domain = ${clean} AND id != ${site.id}`) as unknown as { id: string }[]
     if (existing[0]) {
       return NextResponse.json({ error: 'That domain is already connected to another site' }, { status: 409 })
+    }
+
+    if (site.custom_domain) {
+      try {
+        await removeDomainFromVercel(site.custom_domain)
+        const oldWww = wwwSibling(site.custom_domain)
+        if (oldWww) await removeDomainFromVercel(oldWww)
+      } catch {
+        // Non-fatal: proceed with connecting the new domain even if the old
+        // one couldn't be released (e.g. it was already removed manually).
+      }
     }
 
     const vercelResult = await addDomainToVercel(clean)
