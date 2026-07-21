@@ -4,8 +4,14 @@ import { buildSiteHtml, esc, type Section, type Theme } from '@/lib/renderSite'
 // Route Handlers are statically cached by default in the App Router. Without
 // this, the first successful render of a given hostname gets cached
 // indefinitely, so unpublishing, editing, or disconnecting a domain would
-// silently have no effect on what's actually served.
+// silently have no effect on what's actually served. The explicit
+// Cache-Control: no-store header below is a second, independent guarantee —
+// this route is reached via a middleware rewrite (one hostname per site),
+// and Vercel's rewrite-caching layer can cache the response at the edge
+// regardless of what Next.js's own `dynamic` export says.
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, must-revalidate' }
 
 export async function GET(req: Request, { params }: { params: { domain: string } }) {
   const domain = params.domain.toLowerCase()
@@ -26,7 +32,10 @@ export async function GET(req: Request, { params }: { params: { domain: string }
 
   const site = rows[0]
   if (!site) {
-    return new Response(notFoundHtml(domain), { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    return new Response(notFoundHtml(domain), {
+      status: 404,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS },
+    })
   }
 
   const sections: Section[] = JSON.parse(site.sections_json)
@@ -38,7 +47,10 @@ export async function GET(req: Request, { params }: { params: { domain: string }
     faviconUrl: site.favicon_url,
   })
 
-  return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS },
+  })
 }
 
 function notFoundHtml(domain: string) {
