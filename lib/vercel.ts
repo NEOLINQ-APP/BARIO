@@ -30,3 +30,21 @@ export async function getDomainStatus(domain: string) {
   if (!res.ok) throw new Error(data.error?.message || 'Failed to check domain status')
   return data as { verified: boolean; verification?: { type: string; domain: string; value: string; reason: string }[] }
 }
+
+export async function removeDomainFromVercel(domain: string) {
+  if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is not set')
+  const res = await fetch(`${VERCEL_API}/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains/${domain}${teamQuery()}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!res.ok && res.status !== 404) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error?.message || 'Failed to remove domain from Vercel')
+  }
+}
+
+// A connected apex domain gets its "www" sibling added/removed alongside it
+// so both resolve, matching the DNS instructions we hand out (A @, CNAME www).
+export function wwwSibling(domain: string): string | null {
+  return domain.startsWith('www.') ? null : `www.${domain}`
+}

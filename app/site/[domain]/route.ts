@@ -12,8 +12,9 @@ export async function GET(req: Request, { params }: { params: { domain: string }
       SELECT * FROM sites WHERE subdomain = ${subdomain} AND is_published = true
     `) as unknown as Site[]
   } else {
+    const bareDomain = domain.startsWith('www.') ? domain.slice(4) : domain
     rows = (await sql`
-      SELECT * FROM sites WHERE custom_domain = ${domain} AND domain_status = 'verified' AND is_published = true
+      SELECT * FROM sites WHERE custom_domain = ${bareDomain} AND domain_status = 'verified' AND is_published = true
     `) as unknown as Site[]
   }
 

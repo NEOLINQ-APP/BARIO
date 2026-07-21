@@ -76,6 +76,22 @@ export default function PublishPanel({
     setBusy(false)
   }
 
+  async function handleDisconnect() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/sites/domain', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to disconnect domain')
+      setCustomDomain('')
+      setDomainStatus('none')
+      setInstructions(null)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setBusy(false)
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
@@ -135,11 +151,16 @@ export default function PublishPanel({
                   <span>
                     Status: <strong className={domainStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}>{domainStatus}</strong>
                   </span>
-                  {domainStatus !== 'verified' && (
-                    <button onClick={handleVerify} disabled={busy} className="text-[#f59e0b] underline">
-                      Check verification
+                  <div className="flex items-center gap-3">
+                    {domainStatus !== 'verified' && (
+                      <button onClick={handleVerify} disabled={busy} className="text-[#f59e0b] underline">
+                        Check verification
+                      </button>
+                    )}
+                    <button onClick={handleDisconnect} disabled={busy} className="text-red-400 underline">
+                      Disconnect
                     </button>
-                  )}
+                  </div>
                 </div>
                 {instructions && (
                   <div className="mt-2 space-y-1 text-zinc-400">
