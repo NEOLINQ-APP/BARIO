@@ -74,6 +74,9 @@ export default function Builder({
   initialCustomDomain,
   initialDomainStatus,
   initialPublished,
+  initialMetaTitle,
+  initialMetaDescription,
+  initialAnalyticsId,
 }: {
   initialName: string
   initialSections: { type: SectionType; data: SectionData }[]
@@ -86,9 +89,15 @@ export default function Builder({
   initialCustomDomain: string | null
   initialDomainStatus: string
   initialPublished: boolean
+  initialMetaTitle: string
+  initialMetaDescription: string
+  initialAnalyticsId: string
 }) {
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [metaTitle, setMetaTitle] = useState(initialMetaTitle)
+  const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
+  const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
   const [showPublish, setShowPublish] = useState(false)
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
@@ -200,7 +209,14 @@ export default function Builder({
       const res = await fetch('/api/builder/site', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: siteName, sections: sections.map((s) => ({ type: s.type, data: s.data })), theme }),
+        body: JSON.stringify({
+          name: siteName,
+          sections: sections.map((s) => ({ type: s.type, data: s.data })),
+          theme,
+          metaTitle,
+          metaDescription,
+          analyticsId,
+        }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
@@ -213,7 +229,11 @@ export default function Builder({
   }
 
   function handleExport() {
-    const html = buildSiteHtml(siteName, sections.map((s) => ({ type: s.type, data: s.data })), theme)
+    const html = buildSiteHtml(siteName, sections.map((s) => ({ type: s.type, data: s.data })), theme, {
+      metaTitle,
+      metaDescription,
+      analyticsId,
+    })
     const blob = new Blob([html], { type: 'text/html' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -368,6 +388,13 @@ export default function Builder({
           initialCustomDomain={initialCustomDomain}
           initialDomainStatus={initialDomainStatus}
           initialPublished={initialPublished}
+          metaTitle={metaTitle}
+          setMetaTitle={setMetaTitle}
+          metaDescription={metaDescription}
+          setMetaDescription={setMetaDescription}
+          analyticsId={analyticsId}
+          setAnalyticsId={setAnalyticsId}
+          onSaveSeo={handleSave}
         />
       )}
     </main>

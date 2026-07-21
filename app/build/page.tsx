@@ -22,7 +22,8 @@ export default async function BuildPage() {
   const credits = user.is_admin ? -1 : await ensureCreditsRefreshed(sql, user)
 
   const siteRows = (await sql`
-    SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published
+    SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
+           meta_title, meta_description, analytics_id
     FROM sites WHERE user_id = ${session.userId} LIMIT 1
   `) as unknown as {
     name: string
@@ -32,6 +33,9 @@ export default async function BuildPage() {
     custom_domain: string | null
     domain_status: string
     is_published: boolean
+    meta_title: string | null
+    meta_description: string | null
+    analytics_id: string | null
   }[]
   const site = siteRows[0]
 
@@ -48,6 +52,9 @@ export default async function BuildPage() {
       initialCustomDomain={site?.custom_domain ?? null}
       initialDomainStatus={site?.domain_status ?? 'none'}
       initialPublished={site?.is_published ?? false}
+      initialMetaTitle={site?.meta_title ?? ''}
+      initialMetaDescription={site?.meta_description ?? ''}
+      initialAnalyticsId={site?.analytics_id ?? ''}
     />
   )
 }

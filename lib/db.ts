@@ -51,6 +51,9 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain TEXT UNIQUE`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none'`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS meta_title TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS meta_description TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS analytics_id TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -159,6 +162,9 @@ export type Site = {
   custom_domain: string | null
   domain_status: 'none' | 'pending' | 'verified'
   is_published: boolean
+  meta_title: string | null
+  meta_description: string | null
+  analytics_id: string | null
 }
 
 export type GiftCode = {

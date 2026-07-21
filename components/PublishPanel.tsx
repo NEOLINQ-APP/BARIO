@@ -8,12 +8,26 @@ export default function PublishPanel({
   initialCustomDomain,
   initialDomainStatus,
   initialPublished,
+  metaTitle,
+  setMetaTitle,
+  metaDescription,
+  setMetaDescription,
+  analyticsId,
+  setAnalyticsId,
+  onSaveSeo,
 }: {
   onClose: () => void
   initialSubdomain: string | null
   initialCustomDomain: string | null
   initialDomainStatus: string
   initialPublished: boolean
+  metaTitle: string
+  setMetaTitle: (v: string) => void
+  metaDescription: string
+  setMetaDescription: (v: string) => void
+  analyticsId: string
+  setAnalyticsId: (v: string) => void
+  onSaveSeo: () => void | Promise<void>
 }) {
   const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
   const [published, setPublished] = useState(initialPublished)
@@ -23,6 +37,8 @@ export default function PublishPanel({
   const [verification, setVerification] = useState<{ type: string; domain: string; value: string; reason: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [seoSaving, setSeoSaving] = useState(false)
+  const [seoSaved, setSeoSaved] = useState(false)
 
   async function handleSaveSubdomainAndPublish(nextPublished: boolean) {
     setBusy(true)
@@ -83,6 +99,15 @@ export default function PublishPanel({
       setError(err.message)
     }
     setBusy(false)
+  }
+
+  async function handleSaveSeo() {
+    setSeoSaving(true)
+    setSeoSaved(false)
+    await onSaveSeo()
+    setSeoSaving(false)
+    setSeoSaved(true)
+    setTimeout(() => setSeoSaved(false), 3000)
   }
 
   async function handleDisconnect() {
@@ -215,6 +240,36 @@ export default function PublishPanel({
                 )}
               </div>
             )}
+          </div>
+
+          <div className="pt-4 border-t border-zinc-800 space-y-2">
+            <label className="block text-xs text-zinc-400 mb-1">SEO & analytics (optional)</label>
+            <input
+              value={metaTitle}
+              onChange={(e) => setMetaTitle(e.target.value)}
+              placeholder="Page title shown in search results and browser tabs"
+              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+            />
+            <textarea
+              value={metaDescription}
+              onChange={(e) => setMetaDescription(e.target.value)}
+              placeholder="Meta description shown under your listing in search results"
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm resize-none"
+            />
+            <input
+              value={analyticsId}
+              onChange={(e) => setAnalyticsId(e.target.value)}
+              placeholder="Google Analytics ID, e.g. G-ABC1234DEF"
+              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+            />
+            <button
+              onClick={handleSaveSeo}
+              disabled={seoSaving}
+              className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50"
+            >
+              {seoSaving ? 'Saving…' : seoSaved ? 'Saved' : 'Save SEO settings'}
+            </button>
           </div>
 
           {error && <p className="text-xs text-red-400">{error}</p>}

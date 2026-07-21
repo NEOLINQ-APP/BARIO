@@ -110,18 +110,38 @@ function sanitizeColor(value: string | undefined, fallback: string): string {
   return value && HEX_COLOR_RE.test(value) ? value : fallback
 }
 
-export function buildSiteHtml(name: string, sections: Section[], theme: Theme): string {
+// A GA4 measurement ID, e.g. "G-ABC1234DEF". Validated (not just escaped)
+// since it's used to build a script src URL, not just text content.
+const GA4_ID_RE = /^G-[A-Z0-9]{4,}$/i
+export function isValidGa4Id(value: string): boolean {
+  return GA4_ID_RE.test(value)
+}
+
+export type SeoOptions = {
+  metaTitle?: string | null
+  metaDescription?: string | null
+  analyticsId?: string | null
+}
+
+export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions): string {
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
   const primary = sanitizeColor(theme.primary, '#0A2342')
   const accent = sanitizeColor(theme.accent, '#1a56db')
+  const title = seo?.metaTitle?.trim() || `${name} — Built with Bario`
+  const description = seo?.metaDescription?.trim()
+  const analyticsId = seo?.analyticsId?.trim()
+  const validAnalyticsId = analyticsId && GA4_ID_RE.test(analyticsId) ? analyticsId : null
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(name)} — Built with Bario</title>
+<title>${esc(title)}</title>
+${description ? `<meta name="description" content="${esc(description)}">` : ''}
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>:root{--b-primary:${primary};--b-accent:${accent}}${EXPORT_CSS}</style>
+${validAnalyticsId ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${validAnalyticsId}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${validAnalyticsId}');</script>` : ''}
 </head>
 <body>
 ${body}

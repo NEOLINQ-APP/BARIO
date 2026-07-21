@@ -25,7 +25,11 @@ export async function GET(req: Request, { params }: { params: { domain: string }
 
   const sections: Section[] = JSON.parse(site.sections_json)
   const theme: Theme = JSON.parse(site.theme_json)
-  const html = buildSiteHtml(site.name, sections, theme)
+  const html = buildSiteHtml(site.name, sections, theme, {
+    metaTitle: site.meta_title,
+    metaDescription: site.meta_description,
+    analyticsId: site.analytics_id,
+  })
 
   return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }
