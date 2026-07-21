@@ -1,5 +1,5 @@
 import { db, type Site } from '@/lib/db'
-import { buildSiteHtml, type Section, type Theme } from '@/lib/renderSite'
+import { buildSiteHtml, esc, type Section, type Theme } from '@/lib/renderSite'
 
 export async function GET(req: Request, { params }: { params: { domain: string } }) {
   const domain = params.domain.toLowerCase()
@@ -34,7 +34,7 @@ function notFoundHtml(domain: string) {
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Site not found</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:80px 20px;color:#334">
-<h1>No site published at ${domain}</h1>
+<h1>No site published at ${esc(domain)}</h1>
 <p>If this is your domain, make sure the site is published in your Bario dashboard.</p>
 </body></html>`
 }

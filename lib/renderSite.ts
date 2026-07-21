@@ -7,24 +7,37 @@ export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
 export type Theme = { primary: string; accent: string }
 
+// All section data is user- (or AI-) authored and ends up on a publicly
+// served page, so every value must be escaped before interpolation — this
+// is the only thing standing between a text field and stored XSS.
+export function esc(value: string | undefined | null): string {
+  if (value == null) return ''
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function sectionToHtml(type: SectionType, data: SectionData): string {
   switch (type) {
     case 'nav':
-      return `<div class="s-nav"><div class="s-nav-logo">${data.logo}</div><div class="s-nav-links"><span>Home</span><span>About</span><span>Services</span><span>Contact</span></div></div>`
+      return `<div class="s-nav"><div class="s-nav-logo">${esc(data.logo)}</div><div class="s-nav-links"><span>Home</span><span>About</span><span>Services</span><span>Contact</span></div></div>`
     case 'hero':
-      return `<div class="s-hero">${data.image ? `<img src="${data.image}" alt="" style="width:100%;max-width:600px;border-radius:12px;margin:0 auto 24px;display:block;object-fit:cover;height:260px">` : ''}<h1>${data.headline}</h1><p>${data.sub}</p><div class="s-hero-btn">${data.cta}</div></div>`
+      return `<div class="s-hero">${data.image ? `<img src="${esc(data.image)}" alt="" style="width:100%;max-width:600px;border-radius:12px;margin:0 auto 24px;display:block;object-fit:cover;height:260px">` : ''}<h1>${esc(data.headline)}</h1><p>${esc(data.sub)}</p><div class="s-hero-btn">${esc(data.cta)}</div></div>`
     case 'features':
-      return `<div class="s-features"><h2>${data.title}</h2><div class="s-features-grid">${[1, 2, 3].map((n) => `<div class="s-feat-card">${data[`f${n}img`] ? `<img src="${data[`f${n}img`]}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;display:block">` : '<div class="s-feat-icon">✨</div>'}<h3>${data[`f${n}t`]}</h3><p>${data[`f${n}d`]}</p></div>`).join('')}</div></div>`
+      return `<div class="s-features"><h2>${esc(data.title)}</h2><div class="s-features-grid">${[1, 2, 3].map((n) => `<div class="s-feat-card">${data[`f${n}img`] ? `<img src="${esc(data[`f${n}img`])}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;display:block">` : '<div class="s-feat-icon">✨</div>'}<h3>${esc(data[`f${n}t`])}</h3><p>${esc(data[`f${n}d`])}</p></div>`).join('')}</div></div>`
     case 'stats':
-      return `<div class="s-stats"><div class="s-stats-grid">${[1, 2, 3, 4].map((n) => `<div><div class="s-stat-num">${data[`s${n}n`]}</div><div class="s-stat-label">${data[`s${n}l`]}</div></div>`).join('')}</div></div>`
+      return `<div class="s-stats"><div class="s-stats-grid">${[1, 2, 3, 4].map((n) => `<div><div class="s-stat-num">${esc(data[`s${n}n`])}</div><div class="s-stat-label">${esc(data[`s${n}l`])}</div></div>`).join('')}</div></div>`
     case 'testimonial':
-      return `<div class="s-testimonial"><h2>${data.title}</h2><div class="s-test-grid">${[1, 2, 3].map((n) => `<div class="s-test-card"><p class="s-test-quote">"${data[`t${n}q`]}"</p><div class="s-test-author"><div class="s-test-av">${(data[`t${n}n`] || '?').slice(0, 2).toUpperCase()}</div><div><div class="s-test-name">${data[`t${n}n`]}</div><div class="s-test-role">${data[`t${n}r`]}</div></div></div></div>`).join('')}</div></div>`
+      return `<div class="s-testimonial"><h2>${esc(data.title)}</h2><div class="s-test-grid">${[1, 2, 3].map((n) => `<div class="s-test-card"><p class="s-test-quote">"${esc(data[`t${n}q`])}"</p><div class="s-test-author"><div class="s-test-av">${esc((data[`t${n}n`] || '?').slice(0, 2).toUpperCase())}</div><div><div class="s-test-name">${esc(data[`t${n}n`])}</div><div class="s-test-role">${esc(data[`t${n}r`])}</div></div></div></div>`).join('')}</div></div>`
     case 'pricing':
-      return `<div class="s-pricing"><h2>${data.title}</h2><div class="s-price-grid">${[1, 2, 3].map((n) => `<div class="s-price-card ${n === 2 ? 'featured' : ''}"><div class="s-price-name">${data[`p${n}n`]}</div><div class="s-price-num">${data[`p${n}p`]}</div><div class="s-price-per">/month</div><ul class="s-price-features">${(data[`p${n}f`] || '').split(',').map((f) => `<li>${f.trim()}</li>`).join('')}</ul></div>`).join('')}</div></div>`
+      return `<div class="s-pricing"><h2>${esc(data.title)}</h2><div class="s-price-grid">${[1, 2, 3].map((n) => `<div class="s-price-card ${n === 2 ? 'featured' : ''}"><div class="s-price-name">${esc(data[`p${n}n`])}</div><div class="s-price-num">${esc(data[`p${n}p`])}</div><div class="s-price-per">/month</div><ul class="s-price-features">${(data[`p${n}f`] || '').split(',').map((f) => `<li>${esc(f.trim())}</li>`).join('')}</ul></div>`).join('')}</div></div>`
     case 'cta':
-      return `<div class="s-cta"><h2>${data.headline}</h2><p>${data.sub}</p><div class="s-cta-btn">${data.cta}</div></div>`
+      return `<div class="s-cta"><h2>${esc(data.headline)}</h2><p>${esc(data.sub)}</p><div class="s-cta-btn">${esc(data.cta)}</div></div>`
     case 'footer':
-      return `<div class="s-footer"><div class="s-footer-logo">${data.logo}</div><div class="s-footer-links"><span>Privacy</span><span>Terms</span><span>Contact</span></div><div class="s-footer-copy">${data.copy}</div></div>`
+      return `<div class="s-footer"><div class="s-footer-logo">${esc(data.logo)}</div><div class="s-footer-links"><span>Privacy</span><span>Terms</span><span>Contact</span></div><div class="s-footer-copy">${esc(data.copy)}</div></div>`
   }
 }
 
@@ -95,7 +108,7 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme): 
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${name} — Built with Bario</title>
+<title>${esc(name)} — Built with Bario</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>:root{--b-primary:${theme.primary};--b-accent:${theme.accent}}${EXPORT_CSS}</style>
 </head>
