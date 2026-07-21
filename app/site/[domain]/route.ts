@@ -1,6 +1,12 @@
 import { db, type Site } from '@/lib/db'
 import { buildSiteHtml, esc, type Section, type Theme } from '@/lib/renderSite'
 
+// Route Handlers are statically cached by default in the App Router. Without
+// this, the first successful render of a given hostname gets cached
+// indefinitely, so unpublishing, editing, or disconnecting a domain would
+// silently have no effect on what's actually served.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: { domain: string } }) {
   const domain = params.domain.toLowerCase()
   const sql = await db()
