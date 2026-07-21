@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
-import { db } from '@/lib/db'
+import { db, type User } from '@/lib/db'
+import { hasBuilderAccess } from '@/lib/access'
 
 const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db' }
 
@@ -10,6 +11,12 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const sql = await db()
+  const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
+  const user = userRows[0]
+  if (!user || !hasBuilderAccess(user)) {
+    return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+  }
+
   const rows = (await sql`SELECT * FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
     id: string
     name: string
@@ -30,12 +37,18 @@ export async function POST(req: Request) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+    const sql = await db()
+    const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
+    const user = userRows[0]
+    if (!user || !hasBuilderAccess(user)) {
+      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    }
+
     const { name, sections, theme } = await req.json()
     if (!Array.isArray(sections)) {
       return NextResponse.json({ error: 'sections must be an array' }, { status: 400 })
     }
 
-    const sql = await db()
     const existing = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
     const sectionsJson = JSON.stringify(sections)
     const themeJson = JSON.stringify(theme ?? DEFAULT_THEME)

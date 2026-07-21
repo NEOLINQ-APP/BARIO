@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
-import { db } from '@/lib/db'
+import { db, type User } from '@/lib/db'
+import { hasBuilderAccess } from '@/lib/access'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 
@@ -13,9 +14,15 @@ export async function POST(req: Request) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
+    const sql = await db()
+    const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
+    const user = userRows[0]
+    if (!user || !hasBuilderAccess(user)) {
+      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    }
+
     const { subdomain, publish } = await req.json()
 
-    const sql = await db()
     const rows = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
     const site = rows[0]
     if (!site) return NextResponse.json({ error: 'Save your site before publishing' }, { status: 400 })
