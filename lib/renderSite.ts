@@ -152,3 +152,47 @@ ${body}
 </body>
 </html>`
 }
+
+// Templates arrive as a full, already-authored HTML document (their own
+// <title>, styles, scripts). Rather than rebuild the page, this does
+// targeted string-level surgery on <head> to layer optional SEO fields on
+// top — same escaping/validation rules as buildSiteHtml.
+export function injectSeoIntoHtml(html: string, seo: SeoOptions): string {
+  let out = html
+
+  const title = seo.metaTitle?.trim()
+  if (title) {
+    const titleTag = `<title>${esc(title)}</title>`
+    out = /<title>[\s\S]*?<\/title>/i.test(out) ? out.replace(/<title>[\s\S]*?<\/title>/i, titleTag) : injectIntoHead(out, titleTag)
+  }
+
+  const description = seo.metaDescription?.trim()
+  if (description) {
+    const metaTag = `<meta name="description" content="${esc(description)}">`
+    out = /<meta\s+name=["']description["'][^>]*>/i.test(out)
+      ? out.replace(/<meta\s+name=["']description["'][^>]*>/i, metaTag)
+      : injectIntoHead(out, metaTag)
+  }
+
+  const faviconUrl = seo.faviconUrl?.trim()
+  if (faviconUrl) {
+    out = injectIntoHead(out, `<link rel="icon" href="${esc(faviconUrl)}">`)
+  }
+
+  const analyticsId = seo.analyticsId?.trim()
+  if (analyticsId && GA4_ID_RE.test(analyticsId)) {
+    out = injectIntoHead(
+      out,
+      `<script async src="https://www.googletagmanager.com/gtag/js?id=${analyticsId}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${analyticsId}');</script>`
+    )
+  }
+
+  return out
+}
+
+function injectIntoHead(html: string, fragment: string): string {
+  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${fragment}\n</head>`)
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => `${m}\n${fragment}`)
+  return fragment + html
+}

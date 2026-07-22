@@ -1,5 +1,5 @@
 import { db, type Site } from '@/lib/db'
-import { buildSiteHtml, esc, type Section, type Theme } from '@/lib/renderSite'
+import { buildSiteHtml, injectSeoIntoHtml, esc, type Section, type Theme } from '@/lib/renderSite'
 
 // Route Handlers are statically cached by default in the App Router. Without
 // this, the first successful render of a given hostname gets cached
@@ -38,14 +38,17 @@ export async function GET(req: Request, { params }: { params: { domain: string }
     })
   }
 
-  const sections: Section[] = JSON.parse(site.sections_json)
-  const theme: Theme = JSON.parse(site.theme_json)
-  const html = buildSiteHtml(site.name, sections, theme, {
+  const seo = {
     metaTitle: site.meta_title,
     metaDescription: site.meta_description,
     analyticsId: site.analytics_id,
     faviconUrl: site.favicon_url,
-  })
+  }
+
+  const html =
+    site.content_mode === 'template' && site.raw_html
+      ? injectSeoIntoHtml(site.raw_html, seo)
+      : buildSiteHtml(site.name, JSON.parse(site.sections_json) as Section[], JSON.parse(site.theme_json) as Theme, seo)
 
   return new Response(html, {
     status: 200,

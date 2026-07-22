@@ -67,6 +67,8 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS meta_description TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS analytics_id TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS favicon_url TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS content_mode TEXT NOT NULL DEFAULT 'sections'`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS raw_html TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -202,6 +204,8 @@ export type Site = {
   meta_description: string | null
   analytics_id: string | null
   favicon_url: string | null
+  content_mode: 'sections' | 'template'
+  raw_html: string | null
 }
 
 export type MarketingPlatform = 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'google_business'

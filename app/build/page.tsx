@@ -4,6 +4,7 @@ import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import Builder from '@/components/Builder'
+import TemplateBuilder from '@/components/TemplateBuilder'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,7 @@ export default async function BuildPage() {
 
   const siteRows = (await sql`
     SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
-           meta_title, meta_description, analytics_id, favicon_url
+           meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html
     FROM sites WHERE user_id = ${session.userId} LIMIT 1
   `) as unknown as {
     name: string
@@ -37,8 +38,30 @@ export default async function BuildPage() {
     meta_description: string | null
     analytics_id: string | null
     favicon_url: string | null
+    content_mode: 'sections' | 'template'
+    raw_html: string | null
   }[]
   const site = siteRows[0]
+
+  if (site?.content_mode === 'template' && site.raw_html) {
+    return (
+      <TemplateBuilder
+        initialName={site.name}
+        initialHtml={site.raw_html}
+        userEmail={user.email}
+        userPlan={user.plan}
+        isAdmin={user.is_admin}
+        initialSubdomain={site.subdomain}
+        initialCustomDomain={site.custom_domain}
+        initialDomainStatus={site.domain_status}
+        initialPublished={site.is_published}
+        initialMetaTitle={site.meta_title ?? ''}
+        initialMetaDescription={site.meta_description ?? ''}
+        initialAnalyticsId={site.analytics_id ?? ''}
+        initialFaviconUrl={site.favicon_url ?? ''}
+      />
+    )
+  }
 
   return (
     <Builder

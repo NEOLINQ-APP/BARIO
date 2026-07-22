@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import TemplateThumbnail from '@/components/TemplateThumbnail'
 
 type TemplateSummary = {
   id: string
@@ -43,12 +44,13 @@ export default function TemplateGallery() {
             <a
               key={t.id}
               href={`/build/templates/${t.id}`}
-              className="block rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors"
+              className="block rounded-2xl border border-zinc-800 bg-[#131b2a] p-4 hover:border-zinc-600 transition-colors"
             >
-              <div className="text-xs uppercase tracking-wide text-zinc-500">{t.category}</div>
-              <h3 className="text-lg font-semibold mt-2">{t.title}</h3>
+              <TemplateThumbnail templateId={t.id} title={t.title} />
+              <div className="text-xs uppercase tracking-wide text-zinc-500 mt-3">{t.category}</div>
+              <h3 className="text-lg font-semibold mt-1">{t.title}</h3>
               <p className="text-sm text-zinc-400 mt-2">{t.description}</p>
-              <div className="mt-4 text-sm font-semibold text-[#f59e0b]">Open editor →</div>
+              <div className="mt-4 text-sm font-semibold text-[#f59e0b]">Preview & use →</div>
             </a>
           ))}
         </div>
