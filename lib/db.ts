@@ -188,16 +188,6 @@ export type Template = {
   price_cents: number
 }
 
-export type TemplateLicense = {
-  id: string
-  user_id: string
-  template_id: string
-  site_id: string | null
-  license_key: string
-  status: 'pending_approval' | 'active' | 'revoked'
-  stripe_payment_intent: string | null
-}
-
 export type Site = {
   id: string
   user_id: string

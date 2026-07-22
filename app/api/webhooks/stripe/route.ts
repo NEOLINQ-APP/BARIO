@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import { getStripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import type Stripe from 'stripe'
-
-function generateLicenseKey() {
-  return `BARIO-${randomUUID().toUpperCase().replace(/-/g, '').slice(0, 20).match(/.{1,5}/g)!.join('-')}`
-}
 
 export async function POST(req: Request) {
   const body = await req.text()
@@ -39,18 +34,6 @@ export async function POST(req: Request) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
-
-      if (session.mode === 'payment' && session.metadata?.kind === 'template_license') {
-        const userId = session.metadata.userId
-        const templateId = session.metadata.templateId
-        if (userId && templateId) {
-          await sql`
-            INSERT INTO template_licenses (id, user_id, template_id, license_key, status, stripe_payment_intent)
-            VALUES (${randomUUID()}, ${userId}, ${templateId}, ${generateLicenseKey()}, 'pending_approval', ${String(session.payment_intent)})
-          `
-        }
-        break
-      }
 
       const userId = session.client_reference_id ?? session.metadata?.userId
       const plan = session.metadata?.plan

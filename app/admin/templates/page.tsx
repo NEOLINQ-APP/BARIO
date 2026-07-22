@@ -1,18 +1,17 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import AdminHome from '@/components/AdminHome'
+import AdminTemplates from '@/components/AdminTemplates'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AdminPage() {
+export default async function AdminTemplatesPage() {
   const session = await getSession()
   if (!session) redirect('/login')
 
   const sql = await db()
   const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
-  const user = rows[0]
-  if (!user?.is_admin) redirect('/dashboard')
+  if (!rows[0]?.is_admin) redirect('/dashboard')
 
-  return <AdminHome />
+  return <AdminTemplates />
 }
