@@ -120,6 +120,19 @@ async function ensureSchema() {
     )
   `
   await sql`
+    CREATE TABLE IF NOT EXISTS marketing_posts (
+      id TEXT PRIMARY KEY,
+      platform TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      error TEXT,
+      external_post_id TEXT,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      posted_at TIMESTAMPTZ
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS gift_codes (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -199,6 +212,20 @@ export type Site = {
   meta_description: string | null
   analytics_id: string | null
   favicon_url: string | null
+}
+
+export type MarketingPlatform = 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'google_business'
+
+export type MarketingPost = {
+  id: string
+  platform: MarketingPlatform
+  content: string
+  status: 'draft' | 'approved' | 'posted' | 'failed' | 'rejected'
+  error: string | null
+  external_post_id: string | null
+  created_by: string
+  created_at: string
+  posted_at: string | null
 }
 
 export type GiftCode = {

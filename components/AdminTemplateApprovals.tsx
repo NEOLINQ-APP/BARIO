@@ -50,7 +50,10 @@ export default function AdminTemplateApprovals() {
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
       <div className="max-w-3xl mx-auto">
-        <a href="/admin/gift-codes" className="text-sm text-zinc-400 hover:text-zinc-200">Gift & promo credit codes →</a>
+        <div className="flex gap-4">
+          <a href="/admin/gift-codes" className="text-sm text-zinc-400 hover:text-zinc-200">Gift & promo credit codes →</a>
+          <a href="/admin/marketing" className="text-sm text-zinc-400 hover:text-zinc-200">Marketing posts →</a>
+        </div>
         <h1 className="text-2xl font-bold mt-2">Pending Template License Approvals</h1>
         <p className="text-sm text-zinc-400 mt-1">Only approved licenses can edit or export their template.</p>
 
