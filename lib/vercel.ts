@@ -31,6 +31,18 @@ export async function getDomainStatus(domain: string) {
   return data as { verified: boolean; verification?: { type: string; domain: string; value: string; reason: string }[] }
 }
 
+// Ownership ("verified") is separate from actual DNS routing — a domain can pass
+// the ownership challenge yet still not have its A/CNAME records pointed at Vercel.
+// This checks the latter via Vercel's domain-config endpoint (`misconfigured`).
+export async function getDomainConfig(domain: string) {
+  const res = await fetch(`${VERCEL_API}/v6/domains/${domain}/config${teamQuery()}`, {
+    headers: authHeaders(),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error?.message || 'Failed to check domain config')
+  return data as { misconfigured: boolean }
+}
+
 export async function removeDomainFromVercel(domain: string) {
   if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is not set')
   const res = await fetch(`${VERCEL_API}/v9/projects/${process.env.VERCEL_PROJECT_ID}/domains/${domain}${teamQuery()}`, {

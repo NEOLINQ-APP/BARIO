@@ -97,6 +97,8 @@ export default function PublishPanel({
         setError(
           data.verification?.length
             ? 'Additional DNS records are needed to verify ownership — see below.'
+            : data.ownershipVerified && data.misconfigured
+            ? "Ownership is verified, but your DNS records aren't pointing to us yet — double-check the A/CNAME records below."
             : 'Not verified yet — DNS changes can take a while to propagate. Try again shortly.'
         )
       }

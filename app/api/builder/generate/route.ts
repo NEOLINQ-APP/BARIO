@@ -72,14 +72,42 @@ export async function POST(req: Request) {
       ? `Build a new website. The user wants: "${prompt}"`
       : `Edit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
 
-    const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-    })
+    // gpt-4o-mini's 128k-token context has to fit the system prompt, this prompt, and the
+    // response. A site that has grown very large (many sections/edits) can blow past that;
+    // fail fast with an actionable message rather than burning a request on a doomed call.
+    const roughTokenEstimate = (SYSTEM_PROMPT.length + userPrompt.length) / 4
+    if (roughTokenEstimate > 100_000) {
+      return NextResponse.json(
+        {
+          error:
+            "Your site has grown too large for the AI to edit in one go. Try removing a few sections you no longer need, then ask again.",
+        },
+        { status: 400 }
+      )
+    }
+
+    let completion
+    try {
+      completion = await getOpenAI().chat.completions.create({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+      })
+    } catch (err: any) {
+      if (err?.code === 'context_length_exceeded') {
+        return NextResponse.json(
+          {
+            error:
+              "Your site has grown too large for the AI to edit in one go. Try removing a few sections you no longer need, then ask again.",
+          },
+          { status: 400 }
+        )
+      }
+      throw err
+    }
 
     const raw = completion.choices[0]?.message?.content
     if (!raw) throw new Error('No response from model')
