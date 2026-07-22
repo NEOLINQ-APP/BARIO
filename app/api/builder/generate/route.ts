@@ -4,6 +4,7 @@ import { db, type User } from '@/lib/db'
 import { getOpenAI, SECTION_TYPES } from '@/lib/openai'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
+import { errorResponse } from '@/lib/errors'
 
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
@@ -139,6 +140,6 @@ export async function POST(req: Request) {
       creditsRemaining,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

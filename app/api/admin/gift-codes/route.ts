@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { errorResponse } from '@/lib/errors'
 
 async function requireAdmin(sql: any, userId: string): Promise<User | null> {
   const rows = (await sql`SELECT * FROM users WHERE id = ${userId}`) as unknown as User[]
@@ -55,6 +56,6 @@ export async function POST(req: Request) {
     if (err.message?.includes('duplicate') || err.code === '23505') {
       return NextResponse.json({ error: 'That code already exists — try a different one' }, { status: 409 })
     }
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

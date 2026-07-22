@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { isValidGa4Id } from '@/lib/renderSite'
+import { errorResponse } from '@/lib/errors'
 
 const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db' }
 
@@ -87,6 +88,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

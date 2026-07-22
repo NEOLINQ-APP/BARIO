@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
 import { db, type User } from '@/lib/db'
 import { sendPasswordResetEmail } from '@/lib/email'
+import { rateLimit, rateLimitResponse, clientIp } from '@/lib/rateLimit'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +14,11 @@ export async function POST(req: Request) {
 
     const sql = await db()
     const normalizedEmail = email.trim().toLowerCase()
+
+    const ipOk = await rateLimit(sql, `forgot:ip:${clientIp(req)}`, 8, 60 * 60)
+    const emailOk = await rateLimit(sql, `forgot:email:${normalizedEmail}`, 5, 60 * 60)
+    if (!ipOk || !emailOk) return rateLimitResponse()
+
     const rows = (await sql`SELECT * FROM users WHERE email = ${normalizedEmail}`) as unknown as User[]
     const user = rows[0]
 
@@ -29,6 +36,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

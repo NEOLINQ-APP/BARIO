@@ -23,3 +23,16 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
     `,
   })
 }
+
+export async function sendVerificationEmail(to: string, verifyUrl: string) {
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: 'Verify your Bario email',
+    html: `
+      <p>Welcome to Bario! Please confirm this is your email address.</p>
+      <p><a href="${verifyUrl}">Click here to verify your email</a> (this link expires in 24 hours).</p>
+      <p>If you didn't create a Bario account, you can safely ignore this email.</p>
+    `,
+  })
+}

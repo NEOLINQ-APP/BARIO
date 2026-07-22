@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
+import { errorResponse } from '@/lib/errors'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 
@@ -49,6 +50,6 @@ export async function POST(req: Request) {
     const updated = (await sql`SELECT subdomain, custom_domain, domain_status, is_published FROM sites WHERE id = ${site.id}`) as unknown as any[]
     return NextResponse.json(updated[0])
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db, type User } from '@/lib/db'
 import { createSession } from '@/lib/session'
+import { rateLimit, rateLimitResponse, clientIp } from '@/lib/rateLimit'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +16,10 @@ export async function POST(req: Request) {
     const sql = await db()
     const normalizedEmail = email.trim().toLowerCase()
 
+    const ipOk = await rateLimit(sql, `login:ip:${clientIp(req)}`, 20, 15 * 60)
+    const emailOk = await rateLimit(sql, `login:email:${normalizedEmail}`, 10, 15 * 60)
+    if (!ipOk || !emailOk) return rateLimitResponse()
+
     const rows = (await sql`SELECT * FROM users WHERE email = ${normalizedEmail}`) as unknown as User[]
     const user = rows[0]
 
@@ -25,9 +31,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 
-    await createSession(user.id)
+    await createSession(user.id, user.session_version)
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

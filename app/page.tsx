@@ -86,7 +86,10 @@ export default function Home() {
 
       <footer className="border-t border-zinc-800 py-10 text-center text-sm text-zinc-500">
         © 2026 bario.ca • hello@bario.ca • Edmonton, AB / Vancouver, BC<br/>
-        A Unique Group inc. product
+        A Unique Group inc. product<br/>
+        <a href="/terms" className="underline hover:text-zinc-300">Terms of Service</a>
+        {' · '}
+        <a href="/privacy" className="underline hover:text-zinc-300">Privacy Policy</a>
       </footer>
     </main>
   )

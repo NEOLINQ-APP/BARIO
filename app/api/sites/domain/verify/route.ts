@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { getDomainStatus, getDomainConfig } from '@/lib/vercel'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST() {
   try {
@@ -36,6 +37,6 @@ export async function POST() {
       verification: status.verification ?? [],
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

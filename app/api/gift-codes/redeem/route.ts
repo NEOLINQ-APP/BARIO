@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type GiftCode } from '@/lib/db'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -46,6 +47,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, creditsAdded: giftCode.credits, creditsRemaining: rows2[0]?.credits_remaining ?? 0 })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

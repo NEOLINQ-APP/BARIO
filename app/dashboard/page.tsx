@@ -6,6 +6,7 @@ import { hasBuilderAccess } from '@/lib/access'
 import LogoutButton from '@/components/LogoutButton'
 import ChangePasswordForm from '@/components/ChangePasswordForm'
 import RedeemGiftCode from '@/components/RedeemGiftCode'
+import ResendVerificationButton from '@/components/ResendVerificationButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,13 @@ export default async function Dashboard() {
           <LogoutButton />
         </div>
 
+        {!user.is_admin && !user.email_verified && (
+          <div className="mt-6 rounded-2xl border border-amber-800 bg-amber-950/30 p-4">
+            <p className="text-sm text-amber-300 mb-2">Please verify your email to unlock the AI builder.</p>
+            <ResendVerificationButton />
+          </div>
+        )}
+
         <div className="mt-8 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
           <div className="text-sm text-zinc-400">{user.email}</div>
 
@@ -65,6 +73,8 @@ export default async function Dashboard() {
                 Premium Templates
               </a>
             </div>
+          ) : user.subscription_status === 'active' && !user.email_verified ? (
+            <p className="mt-6 text-sm text-zinc-400">Verify your email above to unlock the builder.</p>
           ) : (
             <a href="/#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
               Choose a plan

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStripe, PLAN_PRICE_IDS } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -38,6 +39,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: checkoutSession.url })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

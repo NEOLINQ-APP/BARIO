@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
+import { db } from '@/lib/db'
 
 const COOKIE_NAME = 'bario_session'
 const ALG = 'HS256'
@@ -10,8 +11,8 @@ function getSecret() {
   return new TextEncoder().encode(secret)
 }
 
-export async function createSession(userId: string) {
-  const token = await new SignJWT({ sub: userId })
+export async function createSession(userId: string, sessionVersion: number) {
+  const token = await new SignJWT({ sub: userId, sv: sessionVersion })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
     .setExpirationTime('30d')
@@ -26,12 +27,23 @@ export async function createSession(userId: string) {
   })
 }
 
+// Checks the token's session version against the DB so that changing/resetting
+// a password immediately invalidates any other token still out there (e.g. a
+// stolen cookie), without needing a server-side session store.
 export async function getSession(): Promise<{ userId: string } | null> {
   const token = cookies().get(COOKIE_NAME)?.value
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, getSecret())
-    return { userId: payload.sub as string }
+    const userId = payload.sub as string
+    const sv = payload.sv as number | undefined
+
+    const sql = await db()
+    const rows = (await sql`SELECT session_version FROM users WHERE id = ${userId}`) as unknown as { session_version: number }[]
+    const currentSv = rows[0]?.session_version
+    if (currentSv === undefined || sv === undefined || currentSv !== sv) return null
+
+    return { userId }
   } catch {
     return null
   }

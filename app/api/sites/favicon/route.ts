@@ -3,6 +3,7 @@ import { put, del } from '@vercel/blob'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
+import { errorResponse } from '@/lib/errors'
 
 const ALLOWED_TYPES: Record<string, string> = {
   'image/png': 'png',
@@ -61,6 +62,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, url: blob.url })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

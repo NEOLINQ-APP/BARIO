@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getSession } from '@/lib/session'
+import { getSession, createSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -22,10 +23,15 @@ export async function POST(req: Request) {
     if (!valid) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 })
 
     const newHash = await bcrypt.hash(newPassword, 10)
-    await sql`UPDATE users SET password_hash = ${newHash} WHERE id = ${user.id}`
+    const newVersion = user.session_version + 1
+    await sql`UPDATE users SET password_hash = ${newHash}, session_version = ${newVersion} WHERE id = ${user.id}`
+
+    // Bumping session_version invalidates every other outstanding session
+    // (e.g. a stolen cookie); re-issue a fresh one so this browser stays logged in.
+    await createSession(user.id, newVersion)
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

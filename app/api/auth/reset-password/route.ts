@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
@@ -19,11 +20,13 @@ export async function POST(req: Request) {
     }
 
     const newHash = await bcrypt.hash(password, 10)
-    await sql`UPDATE users SET password_hash = ${newHash} WHERE id = ${reset.user_id}`
+    // Bumps session_version too, so any session issued before this reset
+    // (e.g. one an attacker who triggered the reset already had) stops working.
+    await sql`UPDATE users SET password_hash = ${newHash}, session_version = session_version + 1 WHERE id = ${reset.user_id}`
     await sql`UPDATE password_reset_tokens SET used = true WHERE id = ${reset.id}`
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return errorResponse(err)
   }
 }

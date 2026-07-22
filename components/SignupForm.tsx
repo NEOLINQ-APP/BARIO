@@ -53,6 +53,11 @@ export default function SignupForm() {
       >
         {loading ? 'Creating account…' : 'Sign up'}
       </button>
+      <p className="text-xs text-zinc-500 mt-4 text-center">
+        By signing up you agree to our{' '}
+        <a href="/terms" className="underline">Terms</a> and{' '}
+        <a href="/privacy" className="underline">Privacy Policy</a>.
+      </p>
       <p className="text-sm text-zinc-400 mt-4 text-center">
         Already have an account?{' '}
         <a href={`/login${plan ? `?plan=${plan}` : ''}`} className="text-[#f59e0b]">Log in</a>

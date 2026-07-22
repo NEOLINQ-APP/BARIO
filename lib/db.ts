@@ -32,6 +32,8 @@ async function ensureSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_remaining INTEGER NOT NULL DEFAULT 0`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_reset_at TIMESTAMPTZ`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -90,6 +92,24 @@ async function ensureSchema() {
     )
   `
   await sql`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      key TEXT NOT NULL,
+      window_start TIMESTAMPTZ NOT NULL,
+      count INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (key, window_start)
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS gift_codes (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -131,6 +151,8 @@ export type User = {
   is_admin: boolean
   credits_remaining: number
   credits_reset_at: string | null
+  email_verified: boolean
+  session_version: number
 }
 
 export type Template = {
