@@ -2,6 +2,7 @@
 // Bario.ca – Nexus Build – Next.js 14 + Tailwind
 
 import PricingButton from '@/components/PricingButton'
+import DomainChecker from '@/components/DomainChecker'
 
 export const metadata = {
   title: "Bario — AI website builder & hosting for Canadian businesses",
@@ -98,6 +99,17 @@ export default function Home() {
             </div>
           </div>
 
+        </div>
+      </section>
+
+      {/* 1b. DOMAIN SEARCH */}
+      <section className="py-16 px-6 sm:px-12 border-b border-slate-800/80 bg-slate-900/30">
+        <div className="max-w-6xl mx-auto text-center space-y-6">
+          <h2 className="text-2xl sm:text-3xl font-extrabold">Find your domain</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Check if a domain is available. Already own one? Connect it to your Bario site free on Business and Agency plans.
+          </p>
+          <DomainChecker />
         </div>
       </section>
 
