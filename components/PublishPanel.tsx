@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import DnsManager from '@/components/DnsManager'
 
 export default function PublishPanel({
   onClose,
@@ -38,9 +39,11 @@ export default function PublishPanel({
   const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
   const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
   const [instructions, setInstructions] = useState<{ a: any; cname: any } | null>(null)
+  const [nameservers, setNameservers] = useState<string[] | null>(null)
   const [verification, setVerification] = useState<{ type: string; domain: string; value: string; reason: string }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [showDns, setShowDns] = useState(false)
   const [seoSaving, setSeoSaving] = useState(false)
   const [seoSaved, setSeoSaved] = useState(false)
   const [faviconUploading, setFaviconUploading] = useState(false)
@@ -77,6 +80,7 @@ export default function PublishPanel({
       if (!res.ok) throw new Error(data.error ?? 'Failed to connect domain')
       setDomainStatus('pending')
       setInstructions(data.instructions)
+      setNameservers(data.nameservers ?? null)
       setVerification([])
     } catch (err: any) {
       setError(err.message)
@@ -93,6 +97,7 @@ export default function PublishPanel({
       if (!res.ok) throw new Error(data.error ?? 'Verification check failed')
       setDomainStatus(data.verified ? 'verified' : 'pending')
       setVerification(data.verification ?? [])
+      if (data.nameservers) setNameservers(data.nameservers)
       if (!data.verified) {
         setError(
           data.verification?.length
@@ -146,6 +151,7 @@ export default function PublishPanel({
       setCustomDomain('')
       setDomainStatus('none')
       setInstructions(null)
+      setNameservers(null)
       setVerification([])
     } catch (err: any) {
       setError(err.message)
@@ -242,17 +248,29 @@ export default function PublishPanel({
                         Check verification
                       </button>
                     )}
+                    <button onClick={() => setShowDns(true)} className="text-[#f59e0b] underline">
+                      Manage DNS
+                    </button>
                     <button onClick={handleDisconnect} disabled={busy} className="text-red-400 underline">
                       Disconnect
                     </button>
                   </div>
                 </div>
-                {instructions && (
+                {nameservers && nameservers.length > 0 ? (
                   <div className="mt-2 space-y-1 text-zinc-400">
-                    <div>Add these DNS records at your registrar:</div>
-                    <div className="font-mono">A @ → {instructions.a.value}</div>
-                    <div className="font-mono">CNAME www → {instructions.cname.value}</div>
+                    <div>Set these as your domain's nameservers at your registrar — we'll handle DNS from there automatically:</div>
+                    {nameservers.map((ns) => (
+                      <div key={ns} className="font-mono">{ns}</div>
+                    ))}
                   </div>
+                ) : (
+                  instructions && (
+                    <div className="mt-2 space-y-1 text-zinc-400">
+                      <div>Add these DNS records at your registrar:</div>
+                      <div className="font-mono">A @ → {instructions.a.value}</div>
+                      <div className="font-mono">CNAME www → {instructions.cname.value}</div>
+                    </div>
+                  )
                 )}
                 {verification.length > 0 && (
                   <div className="mt-2 space-y-1 text-amber-300">
@@ -317,6 +335,8 @@ export default function PublishPanel({
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       </div>
+
+      {showDns && <DnsManager onClose={() => setShowDns(false)} />}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { getDomainStatus, getDomainConfig } from '@/lib/vercel'
+import { getZone } from '@/lib/cloudflare'
 import { errorResponse } from '@/lib/errors'
 
 export async function POST() {
@@ -17,14 +18,19 @@ export async function POST() {
       return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
       id: string
       custom_domain: string | null
+      cloudflare_zone_id: string | null
     }[]
     const site = rows[0]
     if (!site?.custom_domain) return NextResponse.json({ error: 'No custom domain connected yet' }, { status: 400 })
 
-    const [status, config] = await Promise.all([getDomainStatus(site.custom_domain), getDomainConfig(site.custom_domain)])
+    const [status, config, zone] = await Promise.all([
+      getDomainStatus(site.custom_domain),
+      getDomainConfig(site.custom_domain),
+      site.cloudflare_zone_id ? getZone(site.cloudflare_zone_id).catch(() => null) : Promise.resolve(null),
+    ])
     const reallyVerified = status.verified && !config.misconfigured
     if (reallyVerified) {
       await sql`UPDATE sites SET domain_status = 'verified' WHERE id = ${site.id}`
@@ -35,6 +41,8 @@ export async function POST() {
       ownershipVerified: status.verified,
       misconfigured: config.misconfigured,
       verification: status.verification ?? [],
+      zoneStatus: zone?.status ?? null,
+      nameservers: zone?.name_servers ?? null,
     })
   } catch (err: any) {
     return errorResponse(err)

@@ -3,7 +3,26 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { addDomainToVercel, removeDomainFromVercel, wwwSibling } from '@/lib/vercel'
+import { createZone, getZoneByDomain, deleteZone, createDnsRecord } from '@/lib/cloudflare'
 import { errorResponse } from '@/lib/errors'
+
+// Provisions a Cloudflare zone for the domain (or reuses one already sitting in
+// our account) and seeds the A/CNAME records that point it at Vercel, so once
+// the customer updates their nameservers the site just works with no manual
+// DNS entry required. Non-fatal on failure — callers fall back to the older
+// manual A/CNAME-at-current-registrar flow if Cloudflare isn't available.
+async function provisionCloudflareZone(domain: string): Promise<{ zoneId: string; nameservers: string[] } | null> {
+  try {
+    const zone = (await getZoneByDomain(domain)) ?? (await createZone(domain))
+    await Promise.all([
+      createDnsRecord(zone.id, { type: 'A', name: '@', content: '76.76.21.21', proxied: false }).catch(() => {}),
+      createDnsRecord(zone.id, { type: 'CNAME', name: 'www', content: 'cname.vercel-dns.com', proxied: false }).catch(() => {}),
+    ])
+    return { zoneId: zone.id, nameservers: zone.name_servers ?? [] }
+  } catch {
+    return null
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -23,9 +42,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Enter a valid domain, e.g. myrestaurant.com' }, { status: 400 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
       id: string
       custom_domain: string | null
+      cloudflare_zone_id: string | null
     }[]
     const site = rows[0]
     if (!site) return NextResponse.json({ error: 'Save your site before connecting a domain' }, { status: 400 })
@@ -48,6 +68,9 @@ export async function POST(req: Request) {
         // Non-fatal: proceed with connecting the new domain even if the old
         // one couldn't be released (e.g. it was already removed manually).
       }
+      if (site.cloudflare_zone_id) {
+        await deleteZone(site.cloudflare_zone_id).catch(() => {})
+      }
     }
 
     const vercelResult = await addDomainToVercel(clean)
@@ -61,11 +84,21 @@ export async function POST(req: Request) {
       }
     }
 
-    await sql`UPDATE sites SET custom_domain = ${clean}, domain_status = 'pending' WHERE id = ${site.id}`
+    const zone = await provisionCloudflareZone(clean)
+
+    await sql`
+      UPDATE sites
+      SET custom_domain = ${clean},
+          domain_status = 'pending',
+          cloudflare_zone_id = ${zone?.zoneId ?? null},
+          nameservers = ${zone ? zone.nameservers.join(',') : null}
+      WHERE id = ${site.id}
+    `
 
     return NextResponse.json({
       ok: true,
       verified: vercelResult.verified ?? false,
+      nameservers: zone?.nameservers ?? null,
       instructions: {
         a: { type: 'A', name: '@', value: '76.76.21.21' },
         cname: { type: 'CNAME', name: 'www', value: 'cname.vercel-dns.com' },
@@ -88,9 +121,10 @@ export async function DELETE() {
       return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
       id: string
       custom_domain: string | null
+      cloudflare_zone_id: string | null
     }[]
     const site = rows[0]
     if (!site?.custom_domain) return NextResponse.json({ error: 'No custom domain connected' }, { status: 400 })
@@ -104,8 +138,11 @@ export async function DELETE() {
         // Non-fatal cleanup — apex removal above is what matters.
       }
     }
+    if (site.cloudflare_zone_id) {
+      await deleteZone(site.cloudflare_zone_id).catch(() => {})
+    }
 
-    await sql`UPDATE sites SET custom_domain = NULL, domain_status = 'none' WHERE id = ${site.id}`
+    await sql`UPDATE sites SET custom_domain = NULL, domain_status = 'none', cloudflare_zone_id = NULL, nameservers = NULL WHERE id = ${site.id}`
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
