@@ -119,9 +119,9 @@ export default function Home() {
 
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-3 hover:border-slate-700 transition-colors">
             <div className="text-2xl">🌐</div>
-            <h3 className="font-bold text-lg text-white">Free hosting</h3>
+            <h3 className="font-bold text-lg text-white">Free hosting & DNS</h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Every site gets a free <code className="text-cyan-400 text-xs">yourbusiness.bario.ca</code> subdomain with SSL, or connect your own domain.
+              Every site gets a free <code className="text-cyan-400 text-xs">yourbusiness.bario.ca</code> subdomain with SSL. Connect your own domain and we manage its DNS records and nameservers for you.
             </p>
           </div>
 
@@ -214,7 +214,7 @@ export default function Home() {
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Can I use my own domain?</h3>
-            <p className="text-slate-400 text-sm">Yes, on Business and Agency. Every plan also gets a free bario.ca subdomain.</p>
+            <p className="text-slate-400 text-sm">Yes, on Business and Agency. Every plan also gets a free bario.ca subdomain. Point your domain's nameservers at us and we handle DNS from there — no manual record editing required.</p>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Where is data hosted?</h3>
