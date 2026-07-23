@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasPaidPlan } from '@/lib/access'
 import { addDomainToVercel, removeDomainFromVercel, wwwSibling } from '@/lib/vercel'
 import { createZone, getZoneByDomain, deleteZone, createDnsRecord } from '@/lib/cloudflare'
 import { errorResponse } from '@/lib/errors'
@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user || !hasPaidPlan(user)) {
+      return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
     const { domain } = await req.json()
@@ -117,8 +117,8 @@ export async function DELETE() {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user || !hasPaidPlan(user)) {
+      return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
     const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {

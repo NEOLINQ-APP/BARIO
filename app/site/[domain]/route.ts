@@ -1,5 +1,6 @@
 import { db, type Site } from '@/lib/db'
-import { buildSiteHtml, injectSeoIntoHtml, esc, type Section, type Theme } from '@/lib/renderSite'
+import { buildSiteHtml, injectSeoIntoHtml, injectBadgeIntoHtml, esc, type Section, type Theme } from '@/lib/renderSite'
+import { hasPaidPlan } from '@/lib/access'
 
 // Route Handlers are statically cached by default in the App Router. Without
 // this, the first successful render of a given hostname gets cached
@@ -17,17 +18,21 @@ export async function GET(req: Request, { params }: { params: { domain: string }
   const domain = params.domain.toLowerCase()
   const sql = await db()
 
-  let rows: Site[]
+  let rows: (Site & { subscription_status: string; is_admin: boolean })[]
   if (domain.endsWith('.bario.ca')) {
     const subdomain = domain.replace(/\.bario\.ca$/, '')
     rows = (await sql`
-      SELECT * FROM sites WHERE subdomain = ${subdomain} AND is_published = true
-    `) as unknown as Site[]
+      SELECT sites.*, users.subscription_status, users.is_admin FROM sites
+      JOIN users ON users.id = sites.user_id
+      WHERE sites.subdomain = ${subdomain} AND sites.is_published = true
+    `) as unknown as (Site & { subscription_status: string; is_admin: boolean })[]
   } else {
     const bareDomain = domain.startsWith('www.') ? domain.slice(4) : domain
     rows = (await sql`
-      SELECT * FROM sites WHERE custom_domain = ${bareDomain} AND domain_status = 'verified' AND is_published = true
-    `) as unknown as Site[]
+      SELECT sites.*, users.subscription_status, users.is_admin FROM sites
+      JOIN users ON users.id = sites.user_id
+      WHERE sites.custom_domain = ${bareDomain} AND sites.domain_status = 'verified' AND sites.is_published = true
+    `) as unknown as (Site & { subscription_status: string; is_admin: boolean })[]
   }
 
   const site = rows[0]
@@ -45,10 +50,14 @@ export async function GET(req: Request, { params }: { params: { domain: string }
     faviconUrl: site.favicon_url,
   }
 
+  // Badge is forced on unless the owner is actively paying AND has chosen
+  // to turn it off — free hosting for everyone, badge removal is the perk.
+  const showBadge = !hasPaidPlan(site) || site.show_badge
+
   const html =
     site.content_mode === 'template' && site.raw_html
-      ? injectSeoIntoHtml(site.raw_html, seo)
-      : buildSiteHtml(site.name, JSON.parse(site.sections_json) as Section[], JSON.parse(site.theme_json) as Theme, seo)
+      ? injectBadgeIntoHtml(injectSeoIntoHtml(site.raw_html, seo), showBadge)
+      : buildSiteHtml(site.name, JSON.parse(site.sections_json) as Section[], JSON.parse(site.theme_json) as Theme, seo, showBadge)
 
   return new Response(html, {
     status: 200,

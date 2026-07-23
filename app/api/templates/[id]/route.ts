@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
   const user = userRows[0]
   if (!user || !hasBuilderAccess(user)) {
-    return NextResponse.json({ error: 'An active subscription is required to use templates' }, { status: 403 })
+    return NextResponse.json({ error: 'Please verify your email to use templates' }, { status: 403 })
   }
 
   const rows = (await sql`SELECT * FROM templates WHERE id = ${params.id}`) as unknown as Template[]

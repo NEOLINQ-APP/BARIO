@@ -18,19 +18,6 @@ export async function POST(req: Request) {
 
   const sql = await db()
 
-  // Mirrors hasBuilderAccess(): any status other than 'active' means no
-  // builder access, so a live published site should come down with it.
-  // Admins are exempt since they get free access regardless of billing
-  // status. custom_domain/domain_status are left alone — unpublishing is
-  // fully reversible, and resubscribing shouldn't require reconnecting DNS.
-  async function unpublishForCustomer(stripeCustomerId: string) {
-    await sql`
-      UPDATE sites SET is_published = false
-      WHERE is_published = true
-        AND user_id IN (SELECT id FROM users WHERE stripe_customer_id = ${stripeCustomerId} AND is_admin = false)
-    `
-  }
-
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
@@ -53,13 +40,15 @@ export async function POST(req: Request) {
     }
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription
-      await sql`
-        UPDATE users
-        SET subscription_status = ${sub.status}
-        WHERE stripe_customer_id = ${String(sub.customer)}
-      `
-      if (sub.status !== 'active') {
-        await unpublishForCustomer(String(sub.customer))
+      // Building/hosting is free for everyone now — a lapsed subscription
+      // only affects paid perks (badge removal, custom domain, extra
+      // credits), never takes a site offline. Resetting plan to null on
+      // anything other than active means credits fall back to the free
+      // tier's allotment instead of staying at the old paid amount forever.
+      if (sub.status === 'active') {
+        await sql`UPDATE users SET subscription_status = ${sub.status} WHERE stripe_customer_id = ${String(sub.customer)}`
+      } else {
+        await sql`UPDATE users SET subscription_status = ${sub.status}, plan = NULL WHERE stripe_customer_id = ${String(sub.customer)}`
       }
       break
     }
@@ -67,20 +56,18 @@ export async function POST(req: Request) {
       const sub = event.data.object as Stripe.Subscription
       await sql`
         UPDATE users
-        SET subscription_status = 'canceled'
+        SET subscription_status = 'canceled', plan = NULL
         WHERE stripe_customer_id = ${String(sub.customer)}
       `
-      await unpublishForCustomer(String(sub.customer))
       break
     }
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice
       await sql`
         UPDATE users
-        SET subscription_status = 'past_due'
+        SET subscription_status = 'past_due', plan = NULL
         WHERE stripe_customer_id = ${String(invoice.customer)}
       `
-      await unpublishForCustomer(String(invoice.customer))
       break
     }
   }

@@ -124,7 +124,12 @@ export type SeoOptions = {
   faviconUrl?: string | null
 }
 
-export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions): string {
+// Free-tier sites always show this; paying accounts can toggle it off. Fixed
+// position + inline styles + a very high z-index so it survives regardless
+// of the site's own CSS (including raw-HTML template sites we don't control).
+const BADGE_HTML = `<a href="https://bario.ca" target="_blank" rel="noopener" style="position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#0b111c;color:#fff;font:600 12px/1 -apple-system,BlinkMacSystemFont,sans-serif;padding:9px 14px;border-radius:999px;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,.3);opacity:.92">Made with Bario</a>`
+
+export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions, showBadge = true): string {
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
   const primary = sanitizeColor(theme.primary, '#0A2342')
   const accent = sanitizeColor(theme.accent, '#1a56db')
@@ -148,9 +153,25 @@ ${validAnalyticsId ? `<script async src="https://www.googletagmanager.com/gtag/j
 </head>
 <body>
 ${body}
-<!-- Built with Bario — bario.ca -->
+${showBadge ? BADGE_HTML : '<!-- Built with Bario — bario.ca -->'}
 </body>
 </html>`
+}
+
+// Injects (or strips) the badge on a raw-HTML template site. Idempotent —
+// safe to call on every request rather than tracking whether it's already
+// there, since the marker comment makes the injected copy identifiable.
+const BADGE_MARKER = '<!-- bario-badge -->'
+export function injectBadgeIntoHtml(html: string, showBadge: boolean): string {
+  const withoutExisting = html.replace(
+    new RegExp(`${BADGE_MARKER}[\\s\\S]*?<\\/a>`, 'i'),
+    ''
+  )
+  if (!showBadge) return withoutExisting
+  const fragment = `${BADGE_MARKER}${BADGE_HTML}`
+  return /<\/body>/i.test(withoutExisting)
+    ? withoutExisting.replace(/<\/body>/i, `${fragment}\n</body>`)
+    : withoutExisting + fragment
 }
 
 // Templates arrive as a full, already-authored HTML document (their own

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User, type Template } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasPaidPlan } from '@/lib/access'
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getSession()
@@ -10,7 +10,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const sql = await db()
   const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
   const user = userRows[0]
-  if (!user || !hasBuilderAccess(user)) {
+  if (!user || !hasPaidPlan(user)) {
     return NextResponse.json({ error: 'An active subscription is required to export templates' }, { status: 403 })
   }
 

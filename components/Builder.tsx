@@ -74,6 +74,8 @@ export default function Builder({
   initialCustomDomain,
   initialDomainStatus,
   initialPublished,
+  isPaid,
+  initialShowBadge,
   initialMetaTitle,
   initialMetaDescription,
   initialAnalyticsId,
@@ -90,6 +92,8 @@ export default function Builder({
   initialCustomDomain: string | null
   initialDomainStatus: string
   initialPublished: boolean
+  isPaid: boolean
+  initialShowBadge: boolean
   initialMetaTitle: string
   initialMetaDescription: string
   initialAnalyticsId: string
@@ -392,6 +396,8 @@ export default function Builder({
           initialCustomDomain={initialCustomDomain}
           initialDomainStatus={initialDomainStatus}
           initialPublished={initialPublished}
+          isPaid={isPaid}
+          initialShowBadge={initialShowBadge}
           metaTitle={metaTitle}
           setMetaTitle={setMetaTitle}
           metaDescription={metaDescription}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasPaidPlan } from '@/lib/access'
 import { getDnsRecord, updateDnsRecord, deleteDnsRecord } from '@/lib/cloudflare'
 import { errorResponse } from '@/lib/errors'
 
@@ -15,7 +15,7 @@ async function loadSiteAndUser(userId: string) {
   const sql = await db()
   const userRows = (await sql`SELECT * FROM users WHERE id = ${userId}`) as unknown as User[]
   const user = userRows[0]
-  if (!user || !hasBuilderAccess(user)) return { user: null, site: null }
+  if (!user || !hasPaidPlan(user)) return { user: null, site: null }
 
   const rows = (await sql`
     SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${userId} LIMIT 1
@@ -29,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const { user, site } = await loadSiteAndUser(session.userId)
-    if (!user) return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user) return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     if (!site?.custom_domain || !site.cloudflare_zone_id) {
       return NextResponse.json({ error: 'Connect a custom domain before managing DNS' }, { status: 400 })
     }
@@ -53,7 +53,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const { user, site } = await loadSiteAndUser(session.userId)
-    if (!user) return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user) return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     if (!site?.custom_domain || !site.cloudflare_zone_id) {
       return NextResponse.json({ error: 'Connect a custom domain before managing DNS' }, { status: 400 })
     }

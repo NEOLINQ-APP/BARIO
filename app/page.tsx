@@ -146,17 +146,32 @@ export default function Home() {
             <p className="text-slate-400">Scale seamlessly as your site grows.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold text-white">Free</h3>
+                <div className="text-4xl font-extrabold text-white">$0 <span className="text-sm text-slate-400 font-normal">/mo</span></div>
+                <ul className="space-y-3 text-sm text-slate-300">
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 1 site</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Free bario.ca subdomain</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 15 AI credits/mo</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL</li>
+                  <li className="flex items-center gap-2 text-slate-500"><span className="text-slate-600">•</span> "Made with Bario" badge shown</li>
+                </ul>
+              </div>
+              <a href="/signup" className="w-full text-center px-4 py-2 rounded-xl font-semibold border border-slate-700 text-slate-200">Start free</a>
+            </div>
+
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between space-y-6">
               <div className="space-y-4">
                 <h3 className="text-xl font-bold text-white">Starter</h3>
                 <div className="text-4xl font-extrabold text-white">$19 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
                 <ul className="space-y-3 text-sm text-slate-300">
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 1 site</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 75 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Live editor</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Free bario.ca subdomain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Email support</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 75 AI credits/mo</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL &amp; Managed DNS</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
                 </ul>
               </div>
               <PricingButton plan="starter" label="Choose Starter" />
@@ -171,10 +186,10 @@ export default function Home() {
                 <div className="text-4xl font-extrabold text-white">$49 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
                 <ul className="space-y-3 text-sm text-slate-300">
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 5 sites</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain + subdomain</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 200 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Marketing asset pack</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Priority support</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL &amp; Managed DNS</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
                 </ul>
               </div>
               <PricingButton plan="business" label="Choose Business" />
@@ -186,16 +201,16 @@ export default function Home() {
                 <div className="text-4xl font-extrabold text-white">$149 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
                 <ul className="space-y-3 text-sm text-slate-300">
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Unlimited sites</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain + subdomain</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 750 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> White-label export</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Client seats</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> CA phone support</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> White-label HTML export</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
                 </ul>
               </div>
               <PricingButton plan="agency" label="Choose Agency" />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Zeus — manual text edits are always free.</p>
+          <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Zeus — manual text edits are always free. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
         </div>
       </section>
 
@@ -206,6 +221,10 @@ export default function Home() {
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Do I need to code?</h3>
             <p className="text-slate-400 text-sm">No. Bario is fully visual — describe what you want and Zeus builds it.</p>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
+            <h3 className="font-bold text-lg text-white">Is building and hosting actually free?</h3>
+            <p className="text-slate-400 text-sm">Yes — anyone can build and publish a site at no cost. Free sites show a small "Made with Bario" badge; any paid plan lets you remove it.</p>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Can I use my own domain?</h3>

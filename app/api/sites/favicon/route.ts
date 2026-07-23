@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
     if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+      return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
     const rows = (await sql`SELECT id, favicon_url FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {

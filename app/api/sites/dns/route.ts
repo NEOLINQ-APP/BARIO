@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasPaidPlan } from '@/lib/access'
 import { getZone, listDnsRecords, createDnsRecord, qualifyName } from '@/lib/cloudflare'
 import { errorResponse } from '@/lib/errors'
 
@@ -29,8 +29,8 @@ export async function GET() {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user || !hasPaidPlan(user)) {
+      return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
     const site = await loadSite(session.userId)
@@ -58,8 +58,8 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+    if (!user || !hasPaidPlan(user)) {
+      return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
     const site = await loadSite(session.userId)

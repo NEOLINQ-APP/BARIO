@@ -71,6 +71,7 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS raw_html TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS cloudflare_zone_id TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS nameservers TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS show_badge BOOLEAN NOT NULL DEFAULT true`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -210,6 +211,7 @@ export type Site = {
   raw_html: string | null
   cloudflare_zone_id: string | null
   nameservers: string | null
+  show_badge: boolean
 }
 
 export type MarketingPlatform = 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'google_business'

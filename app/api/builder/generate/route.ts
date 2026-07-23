@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = rows[0]
     if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+      return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
     if (!user.is_admin) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
@@ -19,10 +19,10 @@ export async function POST(req: Request) {
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
     if (!user || !hasBuilderAccess(user)) {
-      return NextResponse.json({ error: 'An active subscription is required to use the builder' }, { status: 403 })
+      return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const { subdomain, publish } = await req.json()
+    const { subdomain, publish, showBadge } = await req.json()
 
     const rows = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
     const site = rows[0]
@@ -47,7 +47,16 @@ export async function POST(req: Request) {
       await sql`UPDATE sites SET is_published = ${publish} WHERE id = ${site.id}`
     }
 
-    const updated = (await sql`SELECT subdomain, custom_domain, domain_status, is_published FROM sites WHERE id = ${site.id}`) as unknown as any[]
+    // Only a paying account can actually turn the badge off — enforced here,
+    // not just hidden in the UI, since this request is easy to replay.
+    if (typeof showBadge === 'boolean') {
+      if (!hasPaidPlan(user)) {
+        return NextResponse.json({ error: 'Upgrade to a paid plan to remove the Bario badge' }, { status: 403 })
+      }
+      await sql`UPDATE sites SET show_badge = ${showBadge} WHERE id = ${site.id}`
+    }
+
+    const updated = (await sql`SELECT subdomain, custom_domain, domain_status, is_published, show_badge FROM sites WHERE id = ${site.id}`) as unknown as any[]
     return NextResponse.json(updated[0])
   } catch (err: any) {
     return errorResponse(err)

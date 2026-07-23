@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import Builder from '@/components/Builder'
 import TemplateBuilder from '@/components/TemplateBuilder'
 
@@ -21,10 +21,11 @@ export default async function BuildPage() {
   if (!hasBuilderAccess(user)) redirect('/dashboard')
 
   const credits = user.is_admin ? -1 : await ensureCreditsRefreshed(sql, user)
+  const isPaid = hasPaidPlan(user)
 
   const siteRows = (await sql`
     SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
-           meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html
+           meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html, show_badge
     FROM sites WHERE user_id = ${session.userId} LIMIT 1
   `) as unknown as {
     name: string
@@ -40,6 +41,7 @@ export default async function BuildPage() {
     favicon_url: string | null
     content_mode: 'sections' | 'template'
     raw_html: string | null
+    show_badge: boolean
   }[]
   const site = siteRows[0]
 
@@ -55,6 +57,8 @@ export default async function BuildPage() {
         initialCustomDomain={site.custom_domain}
         initialDomainStatus={site.domain_status}
         initialPublished={site.is_published}
+        isPaid={isPaid}
+        initialShowBadge={site.show_badge}
         initialMetaTitle={site.meta_title ?? ''}
         initialMetaDescription={site.meta_description ?? ''}
         initialAnalyticsId={site.analytics_id ?? ''}
@@ -76,6 +80,8 @@ export default async function BuildPage() {
       initialCustomDomain={site?.custom_domain ?? null}
       initialDomainStatus={site?.domain_status ?? 'none'}
       initialPublished={site?.is_published ?? false}
+      isPaid={isPaid}
+      initialShowBadge={site?.show_badge ?? true}
       initialMetaTitle={site?.meta_title ?? ''}
       initialMetaDescription={site?.meta_description ?? ''}
       initialAnalyticsId={site?.analytics_id ?? ''}

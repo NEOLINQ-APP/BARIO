@@ -9,6 +9,8 @@ export default function PublishPanel({
   initialCustomDomain,
   initialDomainStatus,
   initialPublished,
+  isPaid,
+  initialShowBadge,
   metaTitle,
   setMetaTitle,
   metaDescription,
@@ -24,6 +26,8 @@ export default function PublishPanel({
   initialCustomDomain: string | null
   initialDomainStatus: string
   initialPublished: boolean
+  isPaid: boolean
+  initialShowBadge: boolean
   metaTitle: string
   setMetaTitle: (v: string) => void
   metaDescription: string
@@ -36,6 +40,8 @@ export default function PublishPanel({
 }) {
   const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
   const [published, setPublished] = useState(initialPublished)
+  const [showBadge, setShowBadgeState] = useState(initialShowBadge)
+  const [badgeSaving, setBadgeSaving] = useState(false)
   const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
   const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
   const [instructions, setInstructions] = useState<{ a: any; cname: any } | null>(null)
@@ -64,6 +70,26 @@ export default function PublishPanel({
       setError(err.message)
     }
     setBusy(false)
+  }
+
+  async function handleToggleBadge() {
+    if (!isPaid) return
+    const next = !showBadge
+    setBadgeSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/sites/publish', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ showBadge: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update')
+      setShowBadgeState(data.show_badge)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setBadgeSaving(false)
   }
 
   async function handleConnectDomain(e: React.FormEvent) {
@@ -207,6 +233,28 @@ export default function PublishPanel({
             >
               {published ? 'Unpublish' : 'Publish'}
             </button>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-zinc-800 p-3">
+            <div>
+              <div className="text-sm font-semibold">"Made with Bario" badge</div>
+              <div className="text-xs text-zinc-500">
+                {isPaid ? 'Remove it or keep it shown on your live site.' : 'Upgrade to a paid plan to remove this.'}
+              </div>
+            </div>
+            {isPaid ? (
+              <button
+                onClick={handleToggleBadge}
+                disabled={badgeSaving}
+                className="px-4 py-2 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50"
+              >
+                {badgeSaving ? 'Saving…' : showBadge ? 'Remove badge' : 'Badge removed — show it again'}
+              </button>
+            ) : (
+              <a href="/#pricing" className="px-4 py-2 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
+                Upgrade
+              </a>
+            )}
           </div>
 
           <div className="pt-4 border-t border-zinc-800">

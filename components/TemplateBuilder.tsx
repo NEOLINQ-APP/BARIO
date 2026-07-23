@@ -14,6 +14,8 @@ export default function TemplateBuilder({
   initialCustomDomain,
   initialDomainStatus,
   initialPublished,
+  isPaid,
+  initialShowBadge,
   initialMetaTitle,
   initialMetaDescription,
   initialAnalyticsId,
@@ -28,6 +30,8 @@ export default function TemplateBuilder({
   initialCustomDomain: string | null
   initialDomainStatus: string
   initialPublished: boolean
+  isPaid: boolean
+  initialShowBadge: boolean
   initialMetaTitle: string
   initialMetaDescription: string
   initialAnalyticsId: string
@@ -159,6 +163,8 @@ export default function TemplateBuilder({
           initialCustomDomain={initialCustomDomain}
           initialDomainStatus={initialDomainStatus}
           initialPublished={initialPublished}
+          isPaid={isPaid}
+          initialShowBadge={initialShowBadge}
           metaTitle={metaTitle}
           setMetaTitle={setMetaTitle}
           metaDescription={metaDescription}
