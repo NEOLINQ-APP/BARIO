@@ -13,6 +13,8 @@ type TemplateSummary = {
 export default function TemplateGallery() {
   const [templates, setTemplates] = useState<TemplateSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     fetch('/api/templates')
@@ -24,6 +26,25 @@ export default function TemplateGallery() {
       .catch((err) => setError(err.message))
   }, [])
 
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/sites/import-html', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to import HTML')
+      window.location.href = '/build'
+    } catch (err: any) {
+      setUploadError(err.message)
+      setUploading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
       <div className="max-w-6xl mx-auto">
@@ -33,8 +54,13 @@ export default function TemplateGallery() {
             <h1 className="text-2xl font-bold mt-2">Templates</h1>
             <p className="text-sm text-zinc-400 mt-1">Full custom designs, included free with your plan — pick one and start building.</p>
           </div>
+          <label className="shrink-0 px-4 py-2.5 rounded-xl border border-zinc-700 text-sm font-semibold text-zinc-200 cursor-pointer hover:border-zinc-600">
+            {uploading ? 'Uploading…' : 'Upload your own HTML site'}
+            <input type="file" accept=".html,.htm" onChange={handleUpload} disabled={uploading} className="hidden" />
+          </label>
         </div>
 
+        {uploadError && <p className="text-red-400 text-sm mb-4">{uploadError}</p>}
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {!templates && !error && <p className="text-zinc-500 text-sm">Loading…</p>}
         {templates?.length === 0 && <p className="text-zinc-500 text-sm">No templates available yet — check back soon.</p>}
