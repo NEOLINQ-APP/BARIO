@@ -15,7 +15,7 @@ type Site = {
 
 export default function SitesList() {
   const [sites, setSites] = useState<Site[] | null>(null)
-  const [limit, setLimit] = useState<number>(1)
+  const [limit, setLimit] = useState<number | null>(1)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -68,7 +68,7 @@ export default function SitesList() {
 
   if (!sites) return <p className="text-sm text-zinc-500">Loading your sites…</p>
 
-  const atLimit = limit !== Infinity && sites.length >= limit
+  const atLimit = limit !== null && sites.length >= limit
 
   return (
     <div className="space-y-3">

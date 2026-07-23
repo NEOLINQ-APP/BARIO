@@ -23,7 +23,10 @@ export async function GET() {
       FROM sites WHERE user_id = ${session.userId} ORDER BY updated_at DESC
     `) as unknown as unknown[]
 
-    return NextResponse.json({ sites, limit: maxSitesForPlan(user.plan, user.is_admin) })
+    // Infinity doesn't survive JSON (becomes null) — send null explicitly
+    // for "unlimited" so the client isn't relying on that silently happening.
+    const limit = maxSitesForPlan(user.plan, user.is_admin)
+    return NextResponse.json({ sites, limit: limit === Infinity ? null : limit })
   } catch (err: any) {
     return errorResponse(err)
   }
