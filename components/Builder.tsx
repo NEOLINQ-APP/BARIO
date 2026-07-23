@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, createElement } from 'react'
 import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
+import BusinessProfilePanel from '@/components/BusinessProfilePanel'
 import { buildSiteHtml } from '@/lib/renderSite'
 
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer'
@@ -81,6 +82,10 @@ export default function Builder({
   initialMetaDescription,
   initialAnalyticsId,
   initialFaviconUrl,
+  initialBusinessName,
+  initialBusinessCategory,
+  initialBusinessHours,
+  initialBusinessLocation,
 }: {
   siteId: string | null
   initialName: string
@@ -100,6 +105,10 @@ export default function Builder({
   initialMetaDescription: string
   initialAnalyticsId: string
   initialFaviconUrl: string
+  initialBusinessName: string
+  initialBusinessCategory: string
+  initialBusinessHours: string
+  initialBusinessLocation: string
 }) {
   const [currentSiteId, setCurrentSiteId] = useState(siteId)
   const [siteName, setSiteName] = useState(initialName)
@@ -108,6 +117,11 @@ export default function Builder({
   const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
   const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
   const [faviconUrl, setFaviconUrl] = useState(initialFaviconUrl)
+  const [businessName, setBusinessName] = useState(initialBusinessName)
+  const [businessCategory, setBusinessCategory] = useState(initialBusinessCategory)
+  const [businessHours, setBusinessHours] = useState(initialBusinessHours)
+  const [businessLocation, setBusinessLocation] = useState(initialBusinessLocation)
+  const [showProfile, setShowProfile] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
@@ -198,6 +212,10 @@ export default function Builder({
           sections: sections.map((s) => ({ type: s.type, data: s.data })),
           theme,
           isNew,
+          businessName,
+          businessCategory,
+          businessHours,
+          businessLocation,
         }),
       })
       const d = await res.json()
@@ -227,6 +245,10 @@ export default function Builder({
           metaTitle,
           metaDescription,
           analyticsId,
+          businessName,
+          businessCategory,
+          businessHours,
+          businessLocation,
         }),
       })
       const d = await res.json()
@@ -287,6 +309,9 @@ export default function Builder({
             />
           </label>
           {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
+          <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
+            Business Profile
+          </button>
           <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
@@ -413,6 +438,24 @@ export default function Builder({
           faviconUrl={faviconUrl}
           setFaviconUrl={setFaviconUrl}
           onSaveSeo={handleSave}
+        />
+      )}
+
+      {showProfile && (
+        <BusinessProfilePanel
+          onClose={() => setShowProfile(false)}
+          businessName={businessName}
+          setBusinessName={setBusinessName}
+          businessCategory={businessCategory}
+          setBusinessCategory={setBusinessCategory}
+          businessHours={businessHours}
+          setBusinessHours={setBusinessHours}
+          businessLocation={businessLocation}
+          setBusinessLocation={setBusinessLocation}
+          onSave={async () => {
+            await handleSave()
+            setShowProfile(false)
+          }}
         />
       )}
     </main>

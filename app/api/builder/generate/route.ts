@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { prompt, sections, theme, isNew } = await req.json()
+    const { prompt, sections, theme, isNew, businessName, businessCategory, businessHours, businessLocation } = await req.json()
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
       return NextResponse.json({ error: 'A description is required' }, { status: 400 })
@@ -69,9 +69,21 @@ export async function POST(req: Request) {
 
     const currentTheme = theme ?? { primary: '#0A2342', accent: '#1a56db' }
 
+    // Persistent per-site facts, injected on every request so the user never
+    // has to repeat their business name/category/hours/location or brand
+    // colors mid-conversation — Zeus just already knows them.
+    const profileLines = [
+      businessName && `Business name: ${businessName}`,
+      businessCategory && `Category: ${businessCategory}`,
+      businessLocation && `Location: ${businessLocation}`,
+      businessHours && `Hours: ${businessHours}`,
+      `Brand colors: primary ${currentTheme.primary}, accent ${currentTheme.accent}`,
+    ].filter(Boolean)
+    const businessContext = `Business context — use this to inform tone, content, and defaults; don't ask the user to repeat it:\n${profileLines.join('\n')}`
+
     const userPrompt = isNew
-      ? `Build a new website. The user wants: "${prompt}"`
-      : `Edit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
+      ? `${businessContext}\n\nBuild a new website. The user wants: "${prompt}"`
+      : `${businessContext}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
 
     // gpt-4o-mini's 128k-token context has to fit the system prompt, this prompt, and the
     // response. A site that has grown very large (many sections/edits) can blow past that;

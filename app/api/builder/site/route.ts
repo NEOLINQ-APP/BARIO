@@ -33,6 +33,10 @@ export async function GET(req: Request) {
         meta_description: string | null
         analytics_id: string | null
         favicon_url: string | null
+        business_name: string | null
+        business_category: string | null
+        business_hours: string | null
+        business_location: string | null
       }[])
     : []
   const site = rows[0]
@@ -46,6 +50,10 @@ export async function GET(req: Request) {
     metaDescription: site?.meta_description ?? '',
     analyticsId: site?.analytics_id ?? '',
     faviconUrl: site?.favicon_url ?? '',
+    businessName: site?.business_name ?? '',
+    businessCategory: site?.business_category ?? '',
+    businessHours: site?.business_hours ?? '',
+    businessLocation: site?.business_location ?? '',
   })
 }
 
@@ -61,7 +69,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const { siteId: requestedSiteId, name, sections, theme, metaTitle, metaDescription, analyticsId } = await req.json()
+    const {
+      siteId: requestedSiteId,
+      name,
+      sections,
+      theme,
+      metaTitle,
+      metaDescription,
+      analyticsId,
+      businessName,
+      businessCategory,
+      businessHours,
+      businessLocation,
+    } = await req.json()
     if (!Array.isArray(sections)) {
       return NextResponse.json({ error: 'sections must be an array' }, { status: 400 })
     }
@@ -77,6 +97,10 @@ export async function POST(req: Request) {
     const siteName = typeof name === 'string' && name.trim() ? name.trim() : 'My Site'
     const cleanMetaTitle = typeof metaTitle === 'string' && metaTitle.trim() ? metaTitle.trim() : null
     const cleanMetaDescription = typeof metaDescription === 'string' && metaDescription.trim() ? metaDescription.trim() : null
+    const cleanBusinessName = typeof businessName === 'string' && businessName.trim() ? businessName.trim() : null
+    const cleanBusinessCategory = typeof businessCategory === 'string' && businessCategory.trim() ? businessCategory.trim() : null
+    const cleanBusinessHours = typeof businessHours === 'string' && businessHours.trim() ? businessHours.trim() : null
+    const cleanBusinessLocation = typeof businessLocation === 'string' && businessLocation.trim() ? businessLocation.trim() : null
 
     let finalId = siteId
     if (siteId) {
@@ -84,14 +108,23 @@ export async function POST(req: Request) {
         UPDATE sites SET
           name = ${siteName}, sections_json = ${sectionsJson}, theme_json = ${themeJson},
           meta_title = ${cleanMetaTitle}, meta_description = ${cleanMetaDescription},
-          analytics_id = ${cleanAnalyticsId || null}, updated_at = now()
+          analytics_id = ${cleanAnalyticsId || null},
+          business_name = ${cleanBusinessName}, business_category = ${cleanBusinessCategory},
+          business_hours = ${cleanBusinessHours}, business_location = ${cleanBusinessLocation},
+          updated_at = now()
         WHERE id = ${siteId}
       `
     } else {
       finalId = randomUUID()
       await sql`
-        INSERT INTO sites (id, user_id, name, sections_json, theme_json, meta_title, meta_description, analytics_id)
-        VALUES (${finalId}, ${session.userId}, ${siteName}, ${sectionsJson}, ${themeJson}, ${cleanMetaTitle}, ${cleanMetaDescription}, ${cleanAnalyticsId || null})
+        INSERT INTO sites (
+          id, user_id, name, sections_json, theme_json, meta_title, meta_description, analytics_id,
+          business_name, business_category, business_hours, business_location
+        )
+        VALUES (
+          ${finalId}, ${session.userId}, ${siteName}, ${sectionsJson}, ${themeJson}, ${cleanMetaTitle}, ${cleanMetaDescription}, ${cleanAnalyticsId || null},
+          ${cleanBusinessName}, ${cleanBusinessCategory}, ${cleanBusinessHours}, ${cleanBusinessLocation}
+        )
       `
     }
 

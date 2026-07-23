@@ -42,12 +42,17 @@ export default async function BuildPage({ searchParams }: { searchParams: { site
     content_mode: 'sections' | 'template'
     raw_html: string | null
     show_badge: boolean
+    business_name: string | null
+    business_category: string | null
+    business_hours: string | null
+    business_location: string | null
   }
 
   const siteRows = resolvedSiteId
     ? ((await sql`
         SELECT id, name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
-               meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html, show_badge
+               meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html, show_badge,
+               business_name, business_category, business_hours, business_location
         FROM sites WHERE id = ${resolvedSiteId}
       `) as unknown as SiteRow[])
     : []
@@ -96,6 +101,10 @@ export default async function BuildPage({ searchParams }: { searchParams: { site
       initialMetaDescription={site?.meta_description ?? ''}
       initialAnalyticsId={site?.analytics_id ?? ''}
       initialFaviconUrl={site?.favicon_url ?? ''}
+      initialBusinessName={site?.business_name ?? ''}
+      initialBusinessCategory={site?.business_category ?? ''}
+      initialBusinessHours={site?.business_hours ?? ''}
+      initialBusinessLocation={site?.business_location ?? ''}
     />
   )
 }
