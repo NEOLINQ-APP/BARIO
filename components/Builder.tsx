@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, createElement } from 'react'
+import { upload } from '@vercel/blob/client'
 import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
@@ -144,6 +145,10 @@ export default function Builder({
     { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it. Try: \"Build a modern site for a Calgary plumbing company.\"" },
   ])
   const [input, setInput] = useState('')
+  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'video' | 'audio'; name: string } | null>(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -194,11 +199,38 @@ export default function Builder({
     addMsg('zeus', `${name.charAt(0).toUpperCase() + name.slice(1)} template loaded. Click any text to edit it directly, or ask me to change anything.`)
   }
 
+  async function handleAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : null
+    if (!kind) {
+      setUploadError('Only image, video, or audio files are supported')
+      return
+    }
+
+    setUploadingFile(true)
+    setUploadError(null)
+    try {
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/sites/upload-asset',
+      })
+      setAttachment({ url: blob.url, kind, name: file.name })
+    } catch (err: any) {
+      setUploadError(err.message ?? 'Upload failed')
+    }
+    setUploadingFile(false)
+  }
+
   async function handleSend() {
     const text = input.trim()
-    if (!text || busy) return
+    if ((!text && !attachment) || busy) return
     setInput('')
-    addMsg('user', text)
+    const currentAttachment = attachment
+    setAttachment(null)
+    addMsg('user', currentAttachment ? `${text} 📎 ${currentAttachment.name}` : text)
     setBusy(true)
 
     const isNew = sections.length === 0 || /build|create|make|generate|new site/i.test(text)
@@ -208,7 +240,7 @@ export default function Builder({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          prompt: text,
+          prompt: text || `Use this attached ${currentAttachment?.kind} where it fits best.`,
           sections: sections.map((s) => ({ type: s.type, data: s.data })),
           theme,
           isNew,
@@ -216,6 +248,8 @@ export default function Builder({
           businessCategory,
           businessHours,
           businessLocation,
+          attachmentUrl: currentAttachment?.url,
+          attachmentKind: currentAttachment?.kind,
         }),
       })
       const d = await res.json()
@@ -357,7 +391,30 @@ export default function Builder({
                 </button>
               ))}
             </div>
+            {uploadError && <div className="text-xs text-red-400 mb-2">{uploadError}</div>}
+            {attachment && (
+              <div className="flex items-center gap-2 mb-2 text-xs bg-zinc-800 rounded-lg px-2.5 py-1.5 w-fit">
+                <span>{attachment.kind === 'image' ? '🖼️' : attachment.kind === 'video' ? '🎬' : '🎵'}</span>
+                <span className="text-zinc-300 max-w-[160px] truncate">{attachment.name}</span>
+                <button onClick={() => setAttachment(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+              </div>
+            )}
             <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,audio/*"
+                onChange={handleAttachFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingFile || outOfCredits}
+                title="Attach an image, video, or audio file"
+                className="w-8 h-8 shrink-0 self-end rounded-xl border border-zinc-700 text-zinc-300 hover:text-white disabled:opacity-50 flex items-center justify-center"
+              >
+                {uploadingFile ? '…' : '+'}
+              </button>
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -367,12 +424,12 @@ export default function Builder({
                     handleSend()
                   }
                 }}
-                placeholder="Describe your website or ask for changes…"
+                placeholder={attachment ? 'Say what to do with this file (optional)…' : 'Describe your website or ask for changes…'}
                 rows={2}
                 disabled={outOfCredits}
                 className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
               />
-              <button onClick={handleSend} disabled={busy || outOfCredits} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
+              <button onClick={handleSend} disabled={busy || outOfCredits || uploadingFile} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
                 Send
               </button>
             </div>

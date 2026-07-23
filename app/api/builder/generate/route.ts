@@ -21,6 +21,8 @@ You build and edit websites as a theme plus a list of sections. The allowed sect
 
 Image fields (hero.image, features.f1img/f2img/f3img) are OPTIONAL. There is no real photo search or AI image generation wired up yet — if the user asks for images, set these fields to a placehold.co URL styled to match the site's theme colors and describing the subject, e.g. "https://placehold.co/800x500/1a56db/ffffff?text=Restaurant+Interior". Leave the field empty/omitted if no image was requested. Never claim you added a real photo — say plainly that these are styled placeholder images until real photo integration is added.
 
+If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
+
 Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex" }. Default is { "primary": "#0A2342", "accent": "#1a56db" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged.
 
 Always respond with a single JSON object of the shape:
@@ -61,7 +63,18 @@ export async function POST(req: Request) {
       }
     }
 
-    const { prompt, sections, theme, isNew, businessName, businessCategory, businessHours, businessLocation } = await req.json()
+    const {
+      prompt,
+      sections,
+      theme,
+      isNew,
+      businessName,
+      businessCategory,
+      businessHours,
+      businessLocation,
+      attachmentUrl,
+      attachmentKind,
+    } = await req.json()
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
       return NextResponse.json({ error: 'A description is required' }, { status: 400 })
@@ -81,9 +94,14 @@ export async function POST(req: Request) {
     ].filter(Boolean)
     const businessContext = `Business context — use this to inform tone, content, and defaults; don't ask the user to repeat it:\n${profileLines.join('\n')}`
 
+    const attachmentLine =
+      typeof attachmentUrl === 'string' && attachmentUrl
+        ? `\n\nThe user attached a real ${attachmentKind} file at this URL: ${attachmentUrl}`
+        : ''
+
     const userPrompt = isNew
-      ? `${businessContext}\n\nBuild a new website. The user wants: "${prompt}"`
-      : `${businessContext}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
+      ? `${businessContext}${attachmentLine}\n\nBuild a new website. The user wants: "${prompt}"`
+      : `${businessContext}${attachmentLine}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
 
     // gpt-4o-mini's 128k-token context has to fit the system prompt, this prompt, and the
     // response. A site that has grown very large (many sections/edits) can blow past that;
