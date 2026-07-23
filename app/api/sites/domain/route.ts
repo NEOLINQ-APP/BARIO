@@ -4,6 +4,7 @@ import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
 import { addDomainToVercel, removeDomainFromVercel, wwwSibling } from '@/lib/vercel'
 import { createZone, getZoneByDomain, deleteZone, createDnsRecord } from '@/lib/cloudflare'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 // Provisions a Cloudflare zone for the domain (or reuses one already sitting in
@@ -36,19 +37,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
-    const { domain } = await req.json()
+    const { siteId: requestedSiteId, domain } = await req.json()
     const clean = String(domain ?? '').trim().toLowerCase()
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(clean)) {
       return NextResponse.json({ error: 'Enter a valid domain, e.g. myrestaurant.com' }, { status: 400 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!siteId) return NextResponse.json({ error: 'Save your site before connecting a domain' }, { status: 400 })
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE id = ${siteId}`) as unknown as {
       id: string
       custom_domain: string | null
       cloudflare_zone_id: string | null
     }[]
     const site = rows[0]
-    if (!site) return NextResponse.json({ error: 'Save your site before connecting a domain' }, { status: 400 })
 
     if (site.custom_domain === clean) {
       return NextResponse.json({ error: 'That domain is already connected to this site' }, { status: 409 })
@@ -109,7 +111,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -121,7 +123,10 @@ export async function DELETE() {
       return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const { siteId: requestedSiteId } = await req.json().catch(() => ({}))
+    const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!siteId) return NextResponse.json({ error: 'No custom domain connected' }, { status: 400 })
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE id = ${siteId}`) as unknown as {
       id: string
       custom_domain: string | null
       cloudflare_zone_id: string | null

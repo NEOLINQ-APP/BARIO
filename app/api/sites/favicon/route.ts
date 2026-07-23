@@ -3,6 +3,7 @@ import { put, del } from '@vercel/blob'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 const ALLOWED_TYPES: Record<string, string> = {
@@ -25,14 +26,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const rows = (await sql`SELECT id, favicon_url FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const form = await req.formData()
+    const requestedSiteId = form.get('siteId')
+    const siteId = await resolveSiteId(sql, session.userId, typeof requestedSiteId === 'string' ? requestedSiteId : null)
+    if (!siteId) return NextResponse.json({ error: 'Save your site before uploading a favicon' }, { status: 400 })
+    const rows = (await sql`SELECT id, favicon_url FROM sites WHERE id = ${siteId}`) as unknown as {
       id: string
       favicon_url: string | null
     }[]
     const site = rows[0]
-    if (!site) return NextResponse.json({ error: 'Save your site before uploading a favicon' }, { status: 400 })
 
-    const form = await req.formData()
     const file = form.get('file')
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })

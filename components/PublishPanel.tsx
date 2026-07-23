@@ -4,6 +4,7 @@ import { useState } from 'react'
 import DnsManager from '@/components/DnsManager'
 
 export default function PublishPanel({
+  siteId,
   onClose,
   initialSubdomain,
   initialCustomDomain,
@@ -21,6 +22,7 @@ export default function PublishPanel({
   setFaviconUrl,
   onSaveSeo,
 }: {
+  siteId: string | null
   onClose: () => void
   initialSubdomain: string | null
   initialCustomDomain: string | null
@@ -61,7 +63,7 @@ export default function PublishPanel({
       const res = await fetch('/api/sites/publish', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ subdomain, publish: nextPublished }),
+        body: JSON.stringify({ siteId, subdomain, publish: nextPublished }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to update')
@@ -81,7 +83,7 @@ export default function PublishPanel({
       const res = await fetch('/api/sites/publish', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ showBadge: next }),
+        body: JSON.stringify({ siteId, showBadge: next }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to update')
@@ -100,7 +102,7 @@ export default function PublishPanel({
       const res = await fetch('/api/sites/domain', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ domain: customDomain }),
+        body: JSON.stringify({ siteId, domain: customDomain }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to connect domain')
@@ -118,7 +120,11 @@ export default function PublishPanel({
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/sites/domain/verify', { method: 'POST' })
+      const res = await fetch('/api/sites/domain/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Verification check failed')
       setDomainStatus(data.verified ? 'verified' : 'pending')
@@ -157,6 +163,7 @@ export default function PublishPanel({
     try {
       const form = new FormData()
       form.append('file', file)
+      if (siteId) form.append('siteId', siteId)
       const res = await fetch('/api/sites/favicon', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to upload favicon')
@@ -171,7 +178,11 @@ export default function PublishPanel({
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/sites/domain', { method: 'DELETE' })
+      const res = await fetch('/api/sites/domain', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to disconnect domain')
       setCustomDomain('')
@@ -384,7 +395,7 @@ export default function PublishPanel({
         </div>
       </div>
 
-      {showDns && <DnsManager onClose={() => setShowDns(false)} />}
+      {showDns && <DnsManager siteId={siteId} onClose={() => setShowDns(false)} />}
     </div>
   )
 }

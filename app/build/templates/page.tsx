@@ -6,7 +6,7 @@ import TemplateGallery from '@/components/TemplateGallery'
 
 export const dynamic = 'force-dynamic'
 
-export default async function TemplatesGalleryPage() {
+export default async function TemplatesGalleryPage({ searchParams }: { searchParams: { site?: string } }) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -16,5 +16,5 @@ export default async function TemplatesGalleryPage() {
   if (!user) redirect('/login')
   if (!hasBuilderAccess(user)) redirect('/dashboard')
 
-  return <TemplateGallery />
+  return <TemplateGallery siteId={searchParams.site ?? null} />
 }

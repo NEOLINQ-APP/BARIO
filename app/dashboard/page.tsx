@@ -7,6 +7,7 @@ import LogoutButton from '@/components/LogoutButton'
 import ChangePasswordForm from '@/components/ChangePasswordForm'
 import RedeemGiftCode from '@/components/RedeemGiftCode'
 import ResendVerificationButton from '@/components/ResendVerificationButton'
+import SitesList from '@/components/SitesList'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,11 +29,6 @@ export default async function Dashboard() {
 
   const builderAccess = hasBuilderAccess(user)
   const credits = user.is_admin ? -1 : builderAccess ? await ensureCreditsRefreshed(sql, user) : 0
-
-  const siteRows = (await sql`
-    SELECT subdomain, custom_domain, domain_status, is_published FROM sites WHERE user_id = ${session.userId} LIMIT 1
-  `) as unknown as { subdomain: string | null; custom_domain: string | null; domain_status: string; is_published: boolean }[]
-  const site = siteRows[0] ?? null
 
   return (
     <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
@@ -93,50 +89,10 @@ export default async function Dashboard() {
           )}
         </div>
 
-        {builderAccess && site && (site.subdomain || site.custom_domain) && (
+        {builderAccess && (
           <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
-            <h2 className="text-sm font-semibold mb-4">Hosting</h2>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-500">Status</div>
-                <div className={`text-sm mt-1 font-semibold ${site.is_published ? 'text-emerald-400' : 'text-zinc-400'}`}>
-                  {site.is_published ? 'Live' : 'Not published'}
-                </div>
-              </div>
-              {site.is_published && site.subdomain && (
-                <a
-                  href={`https://${site.subdomain}.bario.ca`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-[#f59e0b] underline"
-                >
-                  {site.subdomain}.bario.ca ↗
-                </a>
-              )}
-            </div>
-
-            {site.custom_domain && (
-              <div className="mt-4">
-                <div className="text-xs uppercase tracking-wide text-zinc-500">Custom domain</div>
-                <div className="text-sm mt-1 flex items-center gap-2">
-                  <span>{site.custom_domain}</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      site.domain_status === 'verified'
-                        ? 'bg-emerald-500/10 text-emerald-400'
-                        : 'bg-amber-500/10 text-amber-400'
-                    }`}
-                  >
-                    {site.domain_status === 'verified' ? 'Connected' : 'Pending DNS'}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <a href="/build" className="inline-block mt-5 px-4 py-2 rounded-lg border border-zinc-700 text-sm font-semibold text-zinc-200">
-              Manage domain & DNS →
-            </a>
+            <h2 className="text-sm font-semibold mb-4">Your sites</h2>
+            <SitesList />
           </div>
         )}
 

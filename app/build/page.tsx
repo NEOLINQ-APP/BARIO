@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
+import { resolveSiteId } from '@/lib/siteAccess'
 import Builder from '@/components/Builder'
 import TemplateBuilder from '@/components/TemplateBuilder'
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db' }
 
-export default async function BuildPage() {
+export default async function BuildPage({ searchParams }: { searchParams: { site?: string } }) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -23,11 +24,10 @@ export default async function BuildPage() {
   const credits = user.is_admin ? -1 : await ensureCreditsRefreshed(sql, user)
   const isPaid = hasPaidPlan(user)
 
-  const siteRows = (await sql`
-    SELECT name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
-           meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html, show_badge
-    FROM sites WHERE user_id = ${session.userId} LIMIT 1
-  `) as unknown as {
+  const resolvedSiteId = await resolveSiteId(sql, session.userId, searchParams.site)
+
+  type SiteRow = {
+    id: string
     name: string
     sections_json: string
     theme_json: string
@@ -42,12 +42,21 @@ export default async function BuildPage() {
     content_mode: 'sections' | 'template'
     raw_html: string | null
     show_badge: boolean
-  }[]
+  }
+
+  const siteRows = resolvedSiteId
+    ? ((await sql`
+        SELECT id, name, sections_json, theme_json, subdomain, custom_domain, domain_status, is_published,
+               meta_title, meta_description, analytics_id, favicon_url, content_mode, raw_html, show_badge
+        FROM sites WHERE id = ${resolvedSiteId}
+      `) as unknown as SiteRow[])
+    : []
   const site = siteRows[0]
 
   if (site?.content_mode === 'template' && site.raw_html) {
     return (
       <TemplateBuilder
+        siteId={site.id}
         initialName={site.name}
         initialHtml={site.raw_html}
         userEmail={user.email}
@@ -69,6 +78,7 @@ export default async function BuildPage() {
 
   return (
     <Builder
+      siteId={site?.id ?? null}
       initialName={site?.name ?? 'My Site'}
       initialSections={site ? JSON.parse(site.sections_json) : []}
       initialTheme={site ? JSON.parse(site.theme_json) : DEFAULT_THEME}

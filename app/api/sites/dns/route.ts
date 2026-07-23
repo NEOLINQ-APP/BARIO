@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
 import { getZone, listDnsRecords, createDnsRecord, qualifyName } from '@/lib/cloudflare'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 const ALLOWED_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT']
@@ -13,15 +14,16 @@ function isManaged(domain: string, r: { type: string; name: string; content: str
   return false
 }
 
-async function loadSite(userId: string) {
-  const sql = await db()
+async function loadSite(sql: any, userId: string, requestedSiteId?: string | null) {
+  const siteId = await resolveSiteId(sql, userId, requestedSiteId)
+  if (!siteId) return null
   const rows = (await sql`
-    SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${userId} LIMIT 1
+    SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE id = ${siteId}
   `) as unknown as { id: string; custom_domain: string | null; cloudflare_zone_id: string | null }[]
   return rows[0] ?? null
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -33,7 +35,8 @@ export async function GET() {
       return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
-    const site = await loadSite(session.userId)
+    const requestedSiteId = new URL(req.url).searchParams.get('site')
+    const site = await loadSite(sql, session.userId, requestedSiteId)
     if (!site?.custom_domain || !site.cloudflare_zone_id) {
       return NextResponse.json({ error: 'Connect a custom domain before managing DNS' }, { status: 400 })
     }
@@ -62,12 +65,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
-    const site = await loadSite(session.userId)
+    const body = await req.json()
+    const site = await loadSite(sql, session.userId, body.siteId)
     if (!site?.custom_domain || !site.cloudflare_zone_id) {
       return NextResponse.json({ error: 'Connect a custom domain before managing DNS' }, { status: 400 })
     }
 
-    const body = await req.json()
     const type = String(body.type ?? '').toUpperCase()
     const name = String(body.name ?? '').trim()
     const content = String(body.content ?? '').trim()

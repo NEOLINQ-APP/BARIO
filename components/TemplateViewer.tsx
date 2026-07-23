@@ -10,7 +10,7 @@ type TemplateDetail = {
   html: string
 }
 
-export default function TemplateViewer({ templateId }: { templateId: string }) {
+export default function TemplateViewer({ templateId, siteId }: { templateId: string; siteId: string | null }) {
   const [template, setTemplate] = useState<TemplateDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [usingTemplate, setUsingTemplate] = useState(false)
@@ -45,11 +45,11 @@ export default function TemplateViewer({ templateId }: { templateId: string }) {
       const res = await fetch('/api/sites/use-template', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ templateId }),
+        body: JSON.stringify({ templateId, siteId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to use template')
-      window.location.href = '/build'
+      window.location.href = `/build${siteId ? `?site=${siteId}` : ''}`
     } catch (err: any) {
       setError(err.message)
       setUsingTemplate(false)
@@ -62,7 +62,7 @@ export default function TemplateViewer({ templateId }: { templateId: string }) {
   return (
     <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
       <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
-        <a href="/build/templates" className="text-sm text-zinc-400 hover:text-zinc-200">← Templates</a>
+        <a href={`/build/templates${siteId ? `?site=${siteId}` : ''}`} className="text-sm text-zinc-400 hover:text-zinc-200">← Templates</a>
         <div>
           <div className="text-sm font-semibold">{template.title}</div>
           <div className="text-xs text-zinc-500">{template.category}</div>

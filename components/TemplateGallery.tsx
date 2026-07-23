@@ -10,7 +10,7 @@ type TemplateSummary = {
   description: string
 }
 
-export default function TemplateGallery() {
+export default function TemplateGallery({ siteId }: { siteId: string | null }) {
   const [templates, setTemplates] = useState<TemplateSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -35,10 +35,11 @@ export default function TemplateGallery() {
     try {
       const form = new FormData()
       form.append('file', file)
+      if (siteId) form.append('siteId', siteId)
       const res = await fetch('/api/sites/import-html', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to import HTML')
-      window.location.href = '/build'
+      window.location.href = `/build?site=${data.id}`
     } catch (err: any) {
       setUploadError(err.message)
       setUploading(false)
@@ -50,7 +51,7 @@ export default function TemplateGallery() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <a href="/build" className="text-sm text-zinc-400 hover:text-zinc-200">← Back to builder</a>
+            <a href={`/build${siteId ? `?site=${siteId}` : ''}`} className="text-sm text-zinc-400 hover:text-zinc-200">← Back to builder</a>
             <h1 className="text-2xl font-bold mt-2">Templates</h1>
             <p className="text-sm text-zinc-400 mt-1">Full custom designs, included free with your plan — pick one and start building.</p>
           </div>
@@ -69,7 +70,7 @@ export default function TemplateGallery() {
           {templates?.map((t) => (
             <a
               key={t.id}
-              href={`/build/templates/${t.id}`}
+              href={`/build/templates/${t.id}${siteId ? `?site=${siteId}` : ''}`}
               className="block rounded-2xl border border-zinc-800 bg-[#131b2a] p-4 hover:border-zinc-600 transition-colors"
             >
               <TemplateThumbnail templateId={t.id} title={t.title} />

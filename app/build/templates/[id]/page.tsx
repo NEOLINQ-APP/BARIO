@@ -6,7 +6,7 @@ import TemplateViewer from '@/components/TemplateViewer'
 
 export const dynamic = 'force-dynamic'
 
-export default async function TemplateViewerPage({ params }: { params: { id: string } }) {
+export default async function TemplateViewerPage({ params, searchParams }: { params: { id: string }; searchParams: { site?: string } }) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -16,5 +16,5 @@ export default async function TemplateViewerPage({ params }: { params: { id: str
   if (!user) redirect('/login')
   if (!hasBuilderAccess(user)) redirect('/dashboard')
 
-  return <TemplateViewer templateId={params.id} />
+  return <TemplateViewer templateId={params.id} siteId={searchParams.site ?? null} />
 }

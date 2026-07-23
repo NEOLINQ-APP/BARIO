@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 // Lets a user switch a site back to the AI-built sections model after having
@@ -19,16 +20,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const { mode } = await req.json()
+    const { mode, siteId: requestedSiteId } = await req.json()
     if (mode !== 'sections') {
       return NextResponse.json({ error: 'Only switching back to the AI builder is supported here' }, { status: 400 })
     }
 
-    const rows = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
-    const site = rows[0]
-    if (!site) return NextResponse.json({ error: 'No site found' }, { status: 400 })
+    const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!siteId) return NextResponse.json({ error: 'No site found' }, { status: 400 })
 
-    await sql`UPDATE sites SET content_mode = 'sections' WHERE id = ${site.id}`
+    await sql`UPDATE sites SET content_mode = 'sections' WHERE id = ${siteId}`
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {

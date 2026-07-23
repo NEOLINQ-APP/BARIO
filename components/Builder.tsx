@@ -63,6 +63,7 @@ function newId() {
 }
 
 export default function Builder({
+  siteId,
   initialName,
   initialSections,
   initialTheme,
@@ -81,6 +82,7 @@ export default function Builder({
   initialAnalyticsId,
   initialFaviconUrl,
 }: {
+  siteId: string | null
   initialName: string
   initialSections: { type: SectionType; data: SectionData }[]
   initialTheme: Theme
@@ -99,6 +101,7 @@ export default function Builder({
   initialAnalyticsId: string
   initialFaviconUrl: string
 }) {
+  const [currentSiteId, setCurrentSiteId] = useState(siteId)
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [metaTitle, setMetaTitle] = useState(initialMetaTitle)
@@ -217,6 +220,7 @@ export default function Builder({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
+          siteId: currentSiteId,
           name: siteName,
           sections: sections.map((s) => ({ type: s.type, data: s.data })),
           theme,
@@ -227,6 +231,7 @@ export default function Builder({
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
+      if (d.id) setCurrentSiteId(d.id)
       setSaveMsg('Saved')
     } catch (err: any) {
       setSaveMsg(`Failed: ${err.message}`)
@@ -253,7 +258,7 @@ export default function Builder({
     <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
       <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
         <a href="/dashboard" className="text-sm text-zinc-400 hover:text-zinc-200">← Dashboard</a>
-        <a href="/build/templates" className="text-sm text-zinc-400 hover:text-zinc-200">Premium Templates</a>
+        <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-sm text-zinc-400 hover:text-zinc-200">Premium Templates</a>
         <input
           value={siteName}
           onChange={(e) => setSiteName(e.target.value)}
@@ -391,6 +396,7 @@ export default function Builder({
 
       {showPublish && (
         <PublishPanel
+          siteId={currentSiteId}
           onClose={() => setShowPublish(false)}
           initialSubdomain={initialSubdomain}
           initialCustomDomain={initialCustomDomain}

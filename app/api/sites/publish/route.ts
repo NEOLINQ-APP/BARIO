@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 const SUBDOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
@@ -22,11 +23,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const { subdomain, publish, showBadge } = await req.json()
+    const { siteId: requestedSiteId, subdomain, publish, showBadge } = await req.json()
 
-    const rows = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
-    const site = rows[0]
-    if (!site) return NextResponse.json({ error: 'Save your site before publishing' }, { status: 400 })
+    const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!siteId) return NextResponse.json({ error: 'Save your site before publishing' }, { status: 400 })
 
     if (subdomain !== undefined) {
       const clean = String(subdomain).trim().toLowerCase()
@@ -36,15 +36,15 @@ export async function POST(req: Request) {
       if (RESERVED_SUBDOMAINS.has(clean)) {
         return NextResponse.json({ error: 'That subdomain is reserved' }, { status: 409 })
       }
-      const taken = (await sql`SELECT id FROM sites WHERE subdomain = ${clean} AND id != ${site.id}`) as unknown as { id: string }[]
+      const taken = (await sql`SELECT id FROM sites WHERE subdomain = ${clean} AND id != ${siteId}`) as unknown as { id: string }[]
       if (taken[0]) {
         return NextResponse.json({ error: 'That subdomain is already taken' }, { status: 409 })
       }
-      await sql`UPDATE sites SET subdomain = ${clean} WHERE id = ${site.id}`
+      await sql`UPDATE sites SET subdomain = ${clean} WHERE id = ${siteId}`
     }
 
     if (typeof publish === 'boolean') {
-      await sql`UPDATE sites SET is_published = ${publish} WHERE id = ${site.id}`
+      await sql`UPDATE sites SET is_published = ${publish} WHERE id = ${siteId}`
     }
 
     // Only a paying account can actually turn the badge off — enforced here,
@@ -53,10 +53,10 @@ export async function POST(req: Request) {
       if (!hasPaidPlan(user)) {
         return NextResponse.json({ error: 'Upgrade to a paid plan to remove the Bario badge' }, { status: 403 })
       }
-      await sql`UPDATE sites SET show_badge = ${showBadge} WHERE id = ${site.id}`
+      await sql`UPDATE sites SET show_badge = ${showBadge} WHERE id = ${siteId}`
     }
 
-    const updated = (await sql`SELECT subdomain, custom_domain, domain_status, is_published, show_badge FROM sites WHERE id = ${site.id}`) as unknown as any[]
+    const updated = (await sql`SELECT id, subdomain, custom_domain, domain_status, is_published, show_badge FROM sites WHERE id = ${siteId}`) as unknown as any[]
     return NextResponse.json(updated[0])
   } catch (err: any) {
     return errorResponse(err)

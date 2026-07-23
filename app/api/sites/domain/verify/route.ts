@@ -4,9 +4,10 @@ import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
 import { getDomainStatus, getDomainConfig } from '@/lib/vercel'
 import { getZone } from '@/lib/cloudflare'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -18,7 +19,10 @@ export async function POST() {
       return NextResponse.json({ error: 'Upgrade to a paid plan to use this feature' }, { status: 403 })
     }
 
-    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as {
+    const { siteId: requestedSiteId } = await req.json().catch(() => ({}))
+    const resolvedId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!resolvedId) return NextResponse.json({ error: 'No custom domain connected yet' }, { status: 400 })
+    const rows = (await sql`SELECT id, custom_domain, cloudflare_zone_id FROM sites WHERE id = ${resolvedId}`) as unknown as {
       id: string
       custom_domain: string | null
       cloudflare_zone_id: string | null

@@ -5,6 +5,7 @@ import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 
 export default function TemplateBuilder({
+  siteId,
   initialName,
   initialHtml,
   userEmail,
@@ -21,6 +22,7 @@ export default function TemplateBuilder({
   initialAnalyticsId,
   initialFaviconUrl,
 }: {
+  siteId: string
   initialName: string
   initialHtml: string
   userEmail: string
@@ -77,7 +79,7 @@ export default function TemplateBuilder({
       const res = await fetch('/api/sites/template-content', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ html, metaTitle, metaDescription, analyticsId }),
+        body: JSON.stringify({ siteId, html, metaTitle, metaDescription, analyticsId }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
@@ -105,7 +107,7 @@ export default function TemplateBuilder({
       const res = await fetch('/api/sites/mode', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mode: 'sections' }),
+        body: JSON.stringify({ mode: 'sections', siteId }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Failed to switch')
@@ -120,7 +122,7 @@ export default function TemplateBuilder({
     <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
       <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
         <a href="/dashboard" className="text-sm text-zinc-400 hover:text-zinc-200">← Dashboard</a>
-        <a href="/build/templates" className="text-sm text-zinc-400 hover:text-zinc-200">Switch Template</a>
+        <a href={`/build/templates?site=${siteId}`} className="text-sm text-zinc-400 hover:text-zinc-200">Switch Template</a>
         <button
           onClick={handleSwitchToAiBuilder}
           disabled={switching}
@@ -158,6 +160,7 @@ export default function TemplateBuilder({
 
       {showPublish && (
         <PublishPanel
+          siteId={siteId}
           onClose={() => setShowPublish(false)}
           initialSubdomain={initialSubdomain}
           initialCustomDomain={initialCustomDomain}

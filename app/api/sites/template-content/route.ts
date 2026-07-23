@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { isValidGa4Id } from '@/lib/renderSite'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use templates' }, { status: 403 })
     }
 
-    const { html, metaTitle, metaDescription, analyticsId } = await req.json()
+    const { html, metaTitle, metaDescription, analyticsId, siteId: requestedSiteId } = await req.json()
     if (typeof html !== 'string' || !html.trim()) {
       return NextResponse.json({ error: 'html is required' }, { status: 400 })
     }
@@ -29,11 +30,14 @@ export async function POST(req: Request) {
     const cleanMetaTitle = typeof metaTitle === 'string' && metaTitle.trim() ? metaTitle.trim() : null
     const cleanMetaDescription = typeof metaDescription === 'string' && metaDescription.trim() ? metaDescription.trim() : null
 
+    const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
+    if (!siteId) return NextResponse.json({ error: 'No template site found — pick a template first' }, { status: 404 })
+
     const rows = (await sql`
       UPDATE sites SET
         raw_html = ${html}, meta_title = ${cleanMetaTitle}, meta_description = ${cleanMetaDescription},
         analytics_id = ${cleanAnalyticsId || null}, updated_at = now()
-      WHERE user_id = ${session.userId} AND content_mode = 'template'
+      WHERE id = ${siteId} AND content_mode = 'template'
       RETURNING id
     `) as unknown as { id: string }[]
 

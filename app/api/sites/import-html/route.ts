@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
+import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB — generous for a static site page, bounds Postgres row size
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     }
 
     const form = await req.formData()
+    const requestedSiteId = form.get('siteId')
     const file = form.get('file')
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -43,22 +45,24 @@ export async function POST(req: Request) {
     }
 
     const name = extractTitle(html)
-    const existing = (await sql`SELECT id FROM sites WHERE user_id = ${session.userId} LIMIT 1`) as unknown as { id: string }[]
+    const siteId = await resolveSiteId(sql, session.userId, typeof requestedSiteId === 'string' ? requestedSiteId : null)
 
-    if (existing[0]) {
+    let finalId = siteId
+    if (siteId) {
       await sql`
         UPDATE sites SET
           name = ${name}, raw_html = ${html}, content_mode = 'template', updated_at = now()
-        WHERE id = ${existing[0].id}
+        WHERE id = ${siteId}
       `
     } else {
+      finalId = randomUUID()
       await sql`
         INSERT INTO sites (id, user_id, name, raw_html, content_mode)
-        VALUES (${randomUUID()}, ${session.userId}, ${name}, ${html}, 'template')
+        VALUES (${finalId}, ${session.userId}, ${name}, ${html}, 'template')
       `
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, id: finalId })
   } catch (err: any) {
     return errorResponse(err)
   }

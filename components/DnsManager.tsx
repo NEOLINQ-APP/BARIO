@@ -14,7 +14,7 @@ type DnsRecord = {
 
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT']
 
-export default function DnsManager({ onClose }: { onClose: () => void }) {
+export default function DnsManager({ siteId, onClose }: { siteId: string | null; onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [nameservers, setNameservers] = useState<string[]>([])
@@ -32,7 +32,7 @@ export default function DnsManager({ onClose }: { onClose: () => void }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/sites/dns')
+      const res = await fetch(`/api/sites/dns${siteId ? `?site=${siteId}` : ''}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to load DNS records')
       setNameservers(data.nameservers ?? [])
@@ -57,6 +57,7 @@ export default function DnsManager({ onClose }: { onClose: () => void }) {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
+          siteId,
           type: newType,
           name: newName,
           content: newContent,
@@ -79,7 +80,11 @@ export default function DnsManager({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/sites/dns/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/sites/dns/${id}`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to delete record')
       await load()
