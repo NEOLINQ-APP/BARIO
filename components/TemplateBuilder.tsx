@@ -41,6 +41,7 @@ export default function TemplateBuilder({
   const [showPublish, setShowPublish] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [switching, setSwitching] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const lastHtmlRef = useRef(initialHtml)
 
@@ -93,11 +94,36 @@ export default function TemplateBuilder({
     a.click()
   }
 
+  async function handleSwitchToAiBuilder() {
+    if (!confirm('Switch back to the AI builder? Your current HTML template stays saved if you want to return to it later.')) return
+    setSwitching(true)
+    try {
+      const res = await fetch('/api/sites/mode', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'sections' }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Failed to switch')
+      window.location.href = '/build'
+    } catch (err: any) {
+      setSaveMsg(`Failed: ${err.message}`)
+      setSwitching(false)
+    }
+  }
+
   return (
     <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
       <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
         <a href="/dashboard" className="text-sm text-zinc-400 hover:text-zinc-200">← Dashboard</a>
         <a href="/build/templates" className="text-sm text-zinc-400 hover:text-zinc-200">Switch Template</a>
+        <button
+          onClick={handleSwitchToAiBuilder}
+          disabled={switching}
+          className="text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50"
+        >
+          {switching ? 'Switching…' : 'Switch to AI Builder'}
+        </button>
         <span className="text-sm font-semibold">{siteName}</span>
         <div className="ml-auto flex items-center gap-3">
           {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
