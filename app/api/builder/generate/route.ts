@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { getOpenAI, SECTION_TYPES } from '@/lib/openai'
+import { getOpenAI, SECTION_TYPES, type Section } from '@/lib/openai'
+import { searchImage } from '@/lib/unsplash'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
@@ -19,7 +20,7 @@ You build and edit websites as a theme plus a list of sections. The allowed sect
 - cta: { "headline": string, "sub": string, "cta": string }
 - footer: { "logo": string, "copy": string }
 
-Image fields (hero.image, features.f1img/f2img/f3img) are OPTIONAL. There is no real photo search or AI image generation wired up yet — if the user asks for images, set these fields to a placehold.co URL styled to match the site's theme colors and describing the subject, e.g. "https://placehold.co/800x500/1a56db/ffffff?text=Restaurant+Interior". Leave the field empty/omitted if no image was requested. Never claim you added a real photo — say plainly that these are styled placeholder images until real photo integration is added.
+Image fields (hero.image, features.f1img/f2img/f3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. Leave the field empty/omitted if no image was requested.
 
 If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
@@ -154,6 +155,8 @@ export async function POST(req: Request) {
       accent: HEX_RE.test(parsed.theme?.accent) ? parsed.theme.accent : currentTheme.accent,
     }
 
+    const resolvedSections = await resolveImageFields(cleaned, theme_out)
+
     let creditsRemaining = -1
     if (!user.is_admin) {
       const creditRows = (await sql`
@@ -166,10 +169,47 @@ export async function POST(req: Request) {
     return NextResponse.json({
       explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
       theme: theme_out,
-      sections: cleaned,
+      sections: resolvedSections,
       creditsRemaining,
     })
   } catch (err: any) {
     return errorResponse(err)
   }
+}
+
+// Which data fields on each section type hold an image. The model is
+// prompted to put a short search phrase in these fields (not a URL); we
+// resolve that phrase to a real photo here rather than trusting the model
+// to know actual image URLs.
+const IMAGE_FIELDS: Partial<Record<Section['type'], string[]>> = {
+  hero: ['image'],
+  features: ['f1img', 'f2img', 'f3img'],
+}
+
+async function resolveImageFields(
+  sections: Section[],
+  theme: { primary: string; accent: string }
+): Promise<Section[]> {
+  return Promise.all(
+    sections.map(async (section) => {
+      const fields = IMAGE_FIELDS[section.type]
+      if (!fields) return section
+
+      const data = { ...section.data }
+      await Promise.all(
+        fields.map(async (field) => {
+          const value = data[field]
+          // Empty, or already a real URL (e.g. a user-attached photo the
+          // model was told to pass through as-is) — leave untouched.
+          if (!value || value.startsWith('http')) return
+
+          const realPhoto = await searchImage(value)
+          data[field] =
+            realPhoto ??
+            `https://placehold.co/800x500/${theme.primary.slice(1)}/ffffff?text=${encodeURIComponent(value)}`
+        })
+      )
+      return { ...section, data }
+    })
+  )
 }
