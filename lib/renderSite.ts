@@ -2,7 +2,7 @@
 // builder's "Export HTML" button (client-side) and the live /site/[domain]
 // page (server-side), so a published site always matches what gets exported.
 
-export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer'
+export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
 export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
 export type Theme = { primary: string; accent: string }
@@ -38,6 +38,18 @@ function sectionToHtml(type: SectionType, data: SectionData): string {
       return `<div class="s-cta"><h2>${esc(data.headline)}</h2><p>${esc(data.sub)}</p><div class="s-cta-btn">${esc(data.cta)}</div></div>`
     case 'footer':
       return `<div class="s-footer"><div class="s-footer-logo">${esc(data.logo)}</div><div class="s-footer-links"><span>Privacy</span><span>Terms</span><span>Contact</span></div><div class="s-footer-copy">${esc(data.copy)}</div></div>`
+    case 'gallery':
+      return `<div class="s-gallery"><h2>${esc(data.title)}</h2><div class="s-gallery-grid">${[1, 2, 3, 4, 5, 6].filter((n) => data[`g${n}img`]).map((n) => `<img src="${esc(data[`g${n}img`])}" alt="" class="s-gallery-img">`).join('')}</div></div>`
+    case 'team':
+      return `<div class="s-team"><h2>${esc(data.title)}</h2><div class="s-team-grid">${[1, 2, 3].filter((n) => data[`m${n}n`]).map((n) => `<div class="s-team-card">${data[`m${n}img`] ? `<img src="${esc(data[`m${n}img`])}" alt="" class="s-team-img">` : '<div class="s-team-placeholder">👤</div>'}<div class="s-team-name">${esc(data[`m${n}n`])}</div><div class="s-team-role">${esc(data[`m${n}r`])}</div></div>`).join('')}</div></div>`
+    case 'faq':
+      return `<div class="s-faq"><h2>${esc(data.title)}</h2><div class="s-faq-list">${[1, 2, 3, 4].filter((n) => data[`q${n}q`]).map((n) => `<details class="s-faq-item"><summary>${esc(data[`q${n}q`])}</summary><p>${esc(data[`q${n}a`])}</p></details>`).join('')}</div></div>`
+    case 'contact':
+      return `<div class="s-contact"><h2>${esc(data.title)}</h2><p>${esc(data.sub)}</p><div class="s-contact-details">${data.email ? `<div>✉️ ${esc(data.email)}</div>` : ''}${data.phone ? `<div>📞 ${esc(data.phone)}</div>` : ''}${data.address ? `<div>📍 ${esc(data.address)}</div>` : ''}</div>${data.email ? `<a href="mailto:${esc(data.email)}" class="s-contact-btn">Send us an email</a>` : ''}</div>`
+    case 'map':
+      return `<div class="s-map"><h2>${esc(data.title)}</h2><iframe class="s-map-frame" src="https://www.google.com/maps?q=${encodeURIComponent(data.address || '')}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
+    case 'logos':
+      return `<div class="s-logos"><h2>${esc(data.title)}</h2><div class="s-logos-row">${[1, 2, 3, 4, 5, 6].filter((n) => data[`l${n}n`]).map((n) => `<div class="s-logo-item">${esc(data[`l${n}n`])}</div>`).join('')}</div></div>`
   }
 }
 
@@ -89,7 +101,42 @@ body{font-family:'Inter',sans-serif}
 .s-footer-logo{font-size:18px;font-weight:800;opacity:0.9}
 .s-footer-links{display:flex;gap:24px;font-size:13px;opacity:0.5}
 .s-footer-copy{font-size:12px;opacity:0.4}
+.s-gallery{padding:88px 64px;background:white}
+.s-gallery h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.s-gallery-img{width:100%;height:220px;object-fit:cover;border-radius:16px;display:block}
+.s-team{padding:88px 64px;background:#f8faff}
+.s-team h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.s-team-card{background:white;border-radius:20px;padding:32px;text-align:center;box-shadow:0 4px 24px rgba(10,35,66,0.06)}
+.s-team-img{width:100px;height:100px;object-fit:cover;border-radius:50%;margin:0 auto 18px;display:block}
+.s-team-placeholder{width:100px;height:100px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 18px}
+.s-team-name{font-size:17px;font-weight:700;color:var(--b-primary)}
+.s-team-role{font-size:13px;color:#64748b;margin-top:4px}
+.s-faq{padding:88px 64px;background:white;max-width:800px;margin:0 auto}
+.s-faq h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:40px;color:var(--b-primary)}
+.s-faq-item{border-bottom:1px solid #e2e8f0;padding:20px 0}
+.s-faq-item summary{font-size:17px;font-weight:700;color:var(--b-primary);cursor:pointer}
+.s-faq-item p{font-size:14px;color:#64748b;margin-top:12px;line-height:1.65}
+.s-contact{padding:88px 64px;background:#f0f4ff;text-align:center}
+.s-contact h2{font-size:38px;font-weight:800;margin-bottom:14px;color:var(--b-primary)}
+.s-contact p{font-size:16px;color:#64748b;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto}
+.s-contact-details{display:flex;justify-content:center;gap:32px;flex-wrap:wrap;font-size:15px;color:var(--b-primary);font-weight:600;margin-bottom:28px}
+.s-contact-btn{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
+.s-map{padding:88px 64px;background:white;text-align:center}
+.s-map h2{font-size:38px;font-weight:800;margin-bottom:32px;color:var(--b-primary)}
+.s-map-frame{width:100%;max-width:900px;height:400px;border:0;border-radius:16px}
+.s-logos{padding:64px;background:#f8faff}
+.s-logos h2{text-align:center;font-size:28px;font-weight:800;margin-bottom:36px;color:var(--b-primary);opacity:0.7}
+.s-logos-row{display:flex;justify-content:center;align-items:center;gap:40px;flex-wrap:wrap}
+.s-logo-item{font-size:20px;font-weight:800;color:#94a3b8;letter-spacing:0.02em}
 @media(max-width:768px){
+  .s-gallery{padding:60px 24px}.s-gallery-grid{grid-template-columns:1fr}
+  .s-team{padding:60px 24px}.s-team-grid{grid-template-columns:1fr}
+  .s-faq{padding:60px 24px}
+  .s-contact{padding:60px 24px}.s-contact-details{flex-direction:column;gap:12px}
+  .s-map{padding:60px 24px}.s-map-frame{height:280px}
+  .s-logos{padding:40px 24px}.s-logos-row{gap:24px}
   .s-nav{flex-direction:column;gap:12px;padding:16px 20px;text-align:center}
   .s-hero{padding:60px 24px}.s-hero h1{font-size:32px}
   .s-features{padding:60px 24px}.s-features-grid{grid-template-columns:1fr}

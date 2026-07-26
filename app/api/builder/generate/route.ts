@@ -19,8 +19,14 @@ You build and edit websites as a theme plus a list of sections. The allowed sect
 - pricing: { "title": string, "p1n": string, "p1p": string, "p1f": string, "p2n": string, "p2p": string, "p2f": string, "p3n": string, "p3p": string, "p3f": string } (the *f fields are comma-separated feature lists)
 - cta: { "headline": string, "sub": string, "cta": string }
 - footer: { "logo": string, "copy": string }
+- gallery: { "title": string, "g1img": string, "g2img": string, "g3img": string, "g4img": string, "g5img": string, "g6img": string } (2-6 images; omit/empty unused slots rather than always filling all 6)
+- team: { "title": string, "m1img": string, "m1n": string, "m1r": string, "m2img": string, "m2n": string, "m2r": string, "m3img": string, "m3n": string, "m3r": string } (up to 3 members: photo, name, role/title)
+- faq: { "title": string, "q1q": string, "q1a": string, "q2q": string, "q2a": string, "q3q": string, "q3a": string, "q4q": string, "q4a": string } (up to 4 question/answer pairs; omit unused ones)
+- contact: { "title": string, "sub": string, "email": string, "phone": string, "address": string } (a "get in touch" section with contact details; do not invent a real phone/email/address the user never gave you — leave those fields empty rather than making something up, and say so in your explanation)
+- map: { "title": string, "address": string } (embeds a map for the given address — only use this if the user gave you a real address; never invent one)
+- logos: { "title": string, "l1n": string, "l2n": string, "l3n": string, "l4n": string, "l5n": string, "l6n": string } (a row of client/partner names, text only — there's no logo image search, so only use this if the user tells you real names to feature)
 
-Image fields (hero.image, features.f1img/f2img/f3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. Leave the field empty/omitted if no image was requested.
+Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.m1img/m2img/m3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. For team member photos, search for a generic professional headshot style (e.g. "smiling professional headshot man") since there's no way to find a photo of a specific real person. Leave the field empty/omitted if no image was requested.
 
 If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
@@ -184,6 +190,8 @@ export async function POST(req: Request) {
 const IMAGE_FIELDS: Partial<Record<Section['type'], string[]>> = {
   hero: ['image'],
   features: ['f1img', 'f2img', 'f3img'],
+  gallery: ['g1img', 'g2img', 'g3img', 'g4img', 'g5img', 'g6img'],
+  team: ['m1img', 'm2img', 'm3img'],
 }
 
 async function resolveImageFields(

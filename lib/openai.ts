@@ -18,6 +18,12 @@ export const SECTION_TYPES = [
   'pricing',
   'cta',
   'footer',
+  'gallery',
+  'team',
+  'faq',
+  'contact',
+  'map',
+  'logos',
 ] as const
 
 export type SectionType = (typeof SECTION_TYPES)[number]

@@ -8,7 +8,7 @@ import PublishPanel from '@/components/PublishPanel'
 import BusinessProfilePanel from '@/components/BusinessProfilePanel'
 import { buildSiteHtml } from '@/lib/renderSite'
 
-type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer'
+type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type ChatMsg = { role: 'zeus' | 'user'; text: string }
@@ -17,6 +17,7 @@ type Theme = { primary: string; accent: string }
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
   testimonial: 'Testimonials', pricing: 'Pricing', cta: 'CTA', footer: 'Footer',
+  gallery: 'Gallery', team: 'Team', faq: 'FAQ', contact: 'Contact', map: 'Map', logos: 'Logo Cloud',
 }
 
 const DEFAULTS: Record<SectionType, SectionData> = {
@@ -28,6 +29,12 @@ const DEFAULTS: Record<SectionType, SectionData> = {
   pricing: { title: 'Simple, Transparent Pricing', p1n: 'Basic', p1p: '$99', p1f: 'Feature 1,Feature 2,Feature 3', p2n: 'Pro', p2p: '$199', p2f: 'Feature 1,Feature 2,Feature 3,Feature 4', p3n: 'Enterprise', p3p: '$499', p3f: 'Feature 1,Feature 2,Feature 3,Feature 4,Feature 5' },
   cta: { headline: 'Ready to Get Started?', sub: 'Join thousands of businesses already growing with us.', cta: 'Start Free Today' },
   footer: { logo: '⚡ YourBrand', copy: '© 2026 YourBrand. All rights reserved.' },
+  gallery: { title: 'Our Work', g1img: '', g2img: '', g3img: '', g4img: '', g5img: '', g6img: '' },
+  team: { title: 'Meet The Team', m1img: '', m1n: 'Jamie Lee', m1r: 'Founder & CEO', m2img: '', m2n: 'Alex Rivera', m2r: 'Head of Operations', m3img: '', m3n: 'Sam Chen', m3r: 'Lead Designer' },
+  faq: { title: 'Frequently Asked Questions', q1q: 'How does it work?', q1a: 'Answer this common question clearly and simply.', q2q: 'What is included?', q2a: 'Describe what customers get.', q3q: 'How do I get started?', q3a: 'Explain the first step.', q4q: '', q4a: '' },
+  contact: { title: 'Get In Touch', sub: "We'd love to hear from you.", email: '', phone: '', address: '' },
+  map: { title: 'Find Us', address: '' },
+  logos: { title: 'Trusted By', l1n: 'Company A', l2n: 'Company B', l3n: 'Company C', l4n: 'Company D', l5n: '', l6n: '' },
 }
 
 const TEMPLATES: Record<string, { type: SectionType; data: SectionData }[]> = {
@@ -675,13 +682,113 @@ function SectionView({
       </div>
     )
   }
-  // footer
+  if (type === 'footer') {
+    return (
+      <div className={`${wrapperClass} s-footer`} onClick={onSelect}>
+        {toolbar}
+        <Editable value={data.logo} onCommit={(v) => onCommit('logo', v)} className="s-footer-logo" />
+        <div className="s-footer-links"><span>Privacy</span><span>Terms</span><span>Contact</span></div>
+        <Editable value={data.copy} onCommit={(v) => onCommit('copy', v)} className="s-footer-copy" />
+      </div>
+    )
+  }
+  if (type === 'gallery') {
+    return (
+      <div className={`${wrapperClass} s-gallery`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        <div className="s-gallery-grid">
+          {[1, 2, 3, 4, 5, 6].filter((n) => data[`g${n}img`]).map((n) => (
+            <img key={n} src={data[`g${n}img`]} alt="" className="s-gallery-img" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (type === 'team') {
+    return (
+      <div className={`${wrapperClass} s-team`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        <div className="s-team-grid">
+          {[1, 2, 3].map((n) => (
+            <div className="s-team-card" key={n}>
+              {data[`m${n}img`] ? (
+                <img src={data[`m${n}img`]} alt="" className="s-team-img" />
+              ) : (
+                <div className="s-team-placeholder">👤</div>
+              )}
+              <Editable value={data[`m${n}n`]} onCommit={(v) => onCommit(`m${n}n`, v)} className="s-team-name" />
+              <Editable value={data[`m${n}r`]} onCommit={(v) => onCommit(`m${n}r`, v)} className="s-team-role" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (type === 'faq') {
+    return (
+      <div className={`${wrapperClass} s-faq`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        <div className="s-faq-list">
+          {[1, 2, 3, 4].filter((n) => data[`q${n}q`]).map((n) => (
+            <details className="s-faq-item" key={n}>
+              <summary>
+                <Editable value={data[`q${n}q`]} onCommit={(v) => onCommit(`q${n}q`, v)} />
+              </summary>
+              <Editable tag="p" value={data[`q${n}a`]} onCommit={(v) => onCommit(`q${n}a`, v)} />
+            </details>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (type === 'contact') {
+    return (
+      <div className={`${wrapperClass} s-contact`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        <Editable tag="p" value={data.sub} onCommit={(v) => onCommit('sub', v)} />
+        <div className="s-contact-details">
+          <Editable value={data.email} onCommit={(v) => onCommit('email', v)} className="s-contact-field" />
+          <Editable value={data.phone} onCommit={(v) => onCommit('phone', v)} className="s-contact-field" />
+          <Editable value={data.address} onCommit={(v) => onCommit('address', v)} className="s-contact-field" />
+        </div>
+        {data.email && <div className="s-contact-btn">Send us an email</div>}
+      </div>
+    )
+  }
+  if (type === 'map') {
+    return (
+      <div className={`${wrapperClass} s-map`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        {data.address ? (
+          <iframe
+            className="s-map-frame"
+            src={`https://www.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed`}
+            loading="lazy"
+          />
+        ) : (
+          <div className="s-map-frame" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f4ff', color: '#94a3b8' }}>
+            Add an address via chat to show a map
+          </div>
+        )}
+        <Editable value={data.address} onCommit={(v) => onCommit('address', v)} className="s-contact-field" />
+      </div>
+    )
+  }
+  // logos
   return (
-    <div className={`${wrapperClass} s-footer`} onClick={onSelect}>
+    <div className={`${wrapperClass} s-logos`} onClick={onSelect}>
       {toolbar}
-      <Editable value={data.logo} onCommit={(v) => onCommit('logo', v)} className="s-footer-logo" />
-      <div className="s-footer-links"><span>Privacy</span><span>Terms</span><span>Contact</span></div>
-      <Editable value={data.copy} onCommit={(v) => onCommit('copy', v)} className="s-footer-copy" />
+      <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+      <div className="s-logos-row">
+        {[1, 2, 3, 4, 5, 6].filter((n) => data[`l${n}n`]).map((n) => (
+          <Editable key={n} value={data[`l${n}n`]} onCommit={(v) => onCommit(`l${n}n`, v)} className="s-logo-item" />
+        ))}
+      </div>
     </div>
   )
 }
