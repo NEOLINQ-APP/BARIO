@@ -377,6 +377,13 @@ export default function Builder({
 
     const isNew = sections.length === 0 || /build|create|make|generate|new site/i.test(text)
 
+    // A killed serverless function (timeout) sends no response at all, so
+    // without this the fetch just hangs forever with nothing to catch,
+    // leaving the UI stuck on "Zeus is building…" indefinitely. Give up
+    // client-side slightly before the server's own 60s limit so there's
+    // always a definite answer.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 55_000)
     try {
       const res = await fetch('/api/builder/generate', {
         method: 'POST',
@@ -393,6 +400,7 @@ export default function Builder({
           attachmentUrl: currentAttachment?.url,
           attachmentKind: currentAttachment?.kind,
         }),
+        signal: controller.signal,
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Generation failed')
@@ -401,8 +409,9 @@ export default function Builder({
       if (typeof d.creditsRemaining === 'number') setCredits(d.creditsRemaining)
       addMsg('zeus', d.explanation ?? 'Done.')
     } catch (err: any) {
-      addMsg('zeus', `⚠️ ${err.message}`)
+      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long and timed out. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
     }
+    clearTimeout(timeout)
     setBusy(false)
   }
 

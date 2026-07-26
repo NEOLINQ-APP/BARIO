@@ -223,11 +223,19 @@ export default function TemplateBuilder({
     addMsg('user', text)
     setBusy(true)
     const currentHtml = getEditedHtml()
+    // A killed serverless function (timeout) sends no response at all, so
+    // without this the fetch just hangs forever with nothing to catch —
+    // exactly what "Zeus frozen" turned out to be. Give up client-side
+    // slightly before the server's own 60s limit so there's always a
+    // definite answer instead of an indefinite spinner.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 55_000)
     try {
       const res = await fetch('/api/builder/generate-html', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ prompt: text, html: currentHtml }),
+        signal: controller.signal,
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Generation failed')
@@ -237,8 +245,9 @@ export default function TemplateBuilder({
       addMsg('zeus', d.explanation ?? 'Done.')
       scheduleAutosave()
     } catch (err: any) {
-      addMsg('zeus', `⚠️ ${err.message}`)
+      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long and timed out. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
     }
+    clearTimeout(timeout)
     setBusy(false)
   }
 

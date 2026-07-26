@@ -8,6 +8,13 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
+// No route in this app set this before, so every AI call ran on Vercel's
+// platform default duration. Usually fine for this route's compact JSON
+// output, but worth the same headroom as generate-html for consistency and
+// to handle occasional slow OpenAI responses without the function getting
+// killed mid-flight (which sends no response at all — the client just hangs).
+export const maxDuration = 60
+
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
 You build and edit websites as a theme plus a list of sections. The allowed section types and their data fields are:

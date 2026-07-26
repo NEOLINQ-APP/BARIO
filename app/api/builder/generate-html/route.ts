@@ -6,6 +6,16 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
+// Full-HTML-document round trips through the model are genuinely slower
+// than the sections endpoint's compact JSON, and no route in this app set
+// a duration before — meaning this ran on Vercel's platform default, which
+// a large template page can exceed. When that happens the function is
+// killed with no response sent at all, and the client just hangs forever
+// ("Zeus frozen") since there's nothing to catch. This is very likely what
+// was actually happening — confirmed via Vercel logs showing this route
+// returning responseStatusCode 0 (function killed mid-flight, no response).
+export const maxDuration = 60
+
 // Zeus editing for raw-HTML sites (a Premium Template, or a user's own
 // uploaded HTML file) — a different job than app/api/builder/generate,
 // which only ever produces Bario's fixed section schema. Here the model
