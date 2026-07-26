@@ -22,6 +22,7 @@ export default function Home() {
         <div className="flex items-center gap-6 text-sm font-medium">
           <a href="#domains" className="text-slate-400 hover:text-white transition-colors">Domains &amp; DNS</a>
           <a href="#features" className="text-slate-400 hover:text-white transition-colors">Hosting</a>
+          <a href="#media-library" className="text-slate-400 hover:text-white transition-colors">Media Library</a>
           <a href="#pricing" className="text-slate-400 hover:text-white transition-colors">Pricing</a>
           <a href="#faq" className="text-slate-400 hover:text-white transition-colors">FAQ</a>
           <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors">
@@ -138,6 +139,92 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 2.5 MEDIA LIBRARY SPOTLIGHT */}
+      <section id="media-library" className="py-20 px-6 sm:px-12 border-t border-slate-800/80 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-cyan-500/5 blur-[140px] rounded-full pointer-events-none" />
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-14 items-center relative z-10">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-widest mb-5">
+              🆕 New
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight mb-4">
+              Your Media Library — <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">every photo and video, in one place.</span>
+            </h2>
+            <p className="text-slate-400 mb-6 leading-relaxed">
+              Upload once, use anywhere on your Bario site. Install it to your phone's home screen for quick uploads on the go, and share your storage with your family at no extra cost.
+            </p>
+            <ul className="space-y-3 text-sm text-slate-300 mb-8">
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Starts free — 2GB, no credit card</li>
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Upgrade anytime, from 20GB up to 20TB</li>
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Family Sharing — up to 5 people, one plan, no extra cost</li>
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Installs like an app — no App Store needed</li>
+            </ul>
+            <div className="flex flex-wrap gap-4">
+              <a href="/media" className="px-6 py-3 rounded-xl font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-colors">
+                Open Media Library
+              </a>
+              <a href="#media-pricing" className="px-6 py-3 rounded-xl font-semibold border border-slate-700 text-slate-200 hover:border-slate-600 transition-colors">
+                See storage plans
+              </a>
+            </div>
+            <p className="text-xs text-slate-500 mt-4">
+              How to get it: log in → Dashboard → <span className="text-slate-300">Media Library</span>. Already have an account? <a href="/login" className="underline hover:text-slate-300">Log in</a> to start uploading.
+            </p>
+          </div>
+
+          {/* Illustrative preview of the Media Library UI */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-2xl backdrop-blur-md space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                <div className="w-3 h-3 rounded-full bg-green-500/80" />
+              </div>
+              <span className="text-xs text-slate-500 font-mono">bario.ca/media</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-200">Plus plan <span className="text-cyan-400">(family)</span></span>
+              <span className="text-slate-500">34 GB of 100 GB used</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full bg-cyan-400" style={{ width: '34%' }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-slate-800 flex items-center justify-center text-lg">🖼️</div>
+              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-slate-800 flex items-center justify-center text-lg">🎬</div>
+              <div className="aspect-square rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-lg text-slate-500">📁</div>
+              <div className="aspect-square rounded-lg bg-gradient-to-br from-blue-600/20 to-cyan-500/30 border border-slate-800 flex items-center justify-center text-lg">🖼️</div>
+              <div className="aspect-square rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-lg text-slate-500">📁</div>
+              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-slate-800 flex items-center justify-center text-lg">🎬</div>
+            </div>
+            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-2 text-cyan-300 text-xs">
+              Installed to Home Screen — tap to upload a new photo
+            </div>
+          </div>
+        </div>
+
+        {/* Compact tier strip */}
+        <div id="media-pricing" className="max-w-6xl mx-auto mt-14 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {[
+            { label: 'Free', size: '2GB', price: '$0' },
+            { label: 'Starter', size: '20GB', price: '$2.99' },
+            { label: 'Plus', size: '100GB', price: '$7.99' },
+            { label: 'Pro', size: '500GB', price: '$19.99' },
+            { label: 'Ultra', size: '1TB', price: '$29.99' },
+            { label: 'Max', size: '5TB', price: '$79.99' },
+            { label: 'Elite', size: '10TB', price: '$119.99' },
+            { label: 'Enterprise', size: '20TB', price: '$179.99' },
+          ].map((t) => (
+            <div key={t.label} className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center hover:border-cyan-500/30 transition-colors">
+              <div className="text-xs font-bold text-white">{t.label}</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">{t.size}</div>
+              <div className="text-sm font-extrabold text-cyan-400 mt-1">{t.price}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500 mt-4 text-center">Prices in CAD, billed monthly. Family Sharing included free on every paid tier.</p>
+      </section>
+
       {/* 3. PRICING SECTION */}
       <section id="pricing" className="py-20 px-6 sm:px-12 border-t border-slate-800/80 bg-slate-900/30">
         <div className="max-w-6xl mx-auto">
@@ -241,6 +328,12 @@ export default function Home() {
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Do you offer business email?</h3>
             <p className="text-slate-400 text-sm">Not yet — custom email addresses on your domain (like you@yourbusiness.com) are coming soon.</p>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
+            <h3 className="font-bold text-lg text-white">What's the Media Library?</h3>
+            <p className="text-slate-400 text-sm">
+              Storage for your photos and videos — upload once, use them anywhere on your site. Starts free (2GB), with paid tiers up to 20TB, and Family Sharing (up to 5 people) included free on any paid plan. Install it to your phone's home screen and it works like a real app. Log in, then open <span className="text-slate-300">Dashboard → Media Library</span> to get started.
+            </p>
           </div>
         </div>
       </section>
