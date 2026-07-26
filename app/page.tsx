@@ -172,33 +172,39 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Illustrative preview of the Media Library UI */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-2xl backdrop-blur-md space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                <div className="w-3 h-3 rounded-full bg-green-500/80" />
+          {/* Real photo (family sharing photos together) with the product preview layered on top */}
+          <div className="relative pb-8 pr-6">
+            <div className="rounded-2xl overflow-hidden border border-slate-800 shadow-2xl relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1713942590392-598b193afb1a?auto=format&fit=crop&w=1200&q=80&crop=faces,entropy"
+                alt="A family looking through shared photos together on a phone"
+                className="w-full h-[420px] object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/5 to-transparent" />
+            </div>
+
+            <div className="absolute -bottom-2 -right-2 sm:right-0 w-64 bg-slate-900/95 border border-slate-800 rounded-xl p-4 shadow-2xl backdrop-blur-md space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-red-500/80" />
+                  <div className="w-2 h-2 rounded-full bg-yellow-500/80" />
+                  <div className="w-2 h-2 rounded-full bg-green-500/80" />
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">bario.ca/media</span>
               </div>
-              <span className="text-xs text-slate-500 font-mono">bario.ca/media</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-200">Plus plan <span className="text-cyan-400">(family)</span></span>
-              <span className="text-slate-500">34 GB of 100 GB used</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
-              <div className="h-full bg-cyan-400" style={{ width: '34%' }} />
-            </div>
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-slate-800 flex items-center justify-center text-lg">🖼️</div>
-              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-slate-800 flex items-center justify-center text-lg">🎬</div>
-              <div className="aspect-square rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-lg text-slate-500">📁</div>
-              <div className="aspect-square rounded-lg bg-gradient-to-br from-blue-600/20 to-cyan-500/30 border border-slate-800 flex items-center justify-center text-lg">🖼️</div>
-              <div className="aspect-square rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-lg text-slate-500">📁</div>
-              <div className="aspect-square rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-slate-800 flex items-center justify-center text-lg">🎬</div>
-            </div>
-            <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-2 text-cyan-300 text-xs">
-              Installed to Home Screen — tap to upload a new photo
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-slate-200">Plus <span className="text-cyan-400">(family)</span></span>
+                <span className="text-slate-500">34/100 GB</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-full bg-cyan-400" style={{ width: '34%' }} />
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                <div className="aspect-square rounded-md bg-gradient-to-br from-cyan-500/30 to-blue-600/20 border border-slate-800 flex items-center justify-center text-sm">🖼️</div>
+                <div className="aspect-square rounded-md bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-slate-800 flex items-center justify-center text-sm">🎬</div>
+                <div className="aspect-square rounded-md bg-slate-800 border border-slate-700 flex items-center justify-center text-sm text-slate-500">📁</div>
+              </div>
             </div>
           </div>
         </div>
