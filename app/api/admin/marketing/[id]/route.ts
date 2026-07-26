@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/admin'
 import { errorResponse } from '@/lib/errors'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 
@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 

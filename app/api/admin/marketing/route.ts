@@ -6,8 +6,8 @@ import { ALL_PLATFORMS, isPlatformConnected } from '@/lib/marketing/platforms'
 import { generateDrafts } from '@/lib/marketing/generate'
 import { errorResponse } from '@/lib/errors'
 
-export async function GET() {
-  const auth = await requireAdmin()
+export async function GET(req: Request) {
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 
@@ -17,9 +17,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { user, sql } = auth
+  if (!user) return NextResponse.json({ error: 'This action requires a logged-in admin session' }, { status: 403 })
 
   try {
     const { platforms, topic } = await req.json()

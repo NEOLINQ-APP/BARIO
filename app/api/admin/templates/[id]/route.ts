@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 

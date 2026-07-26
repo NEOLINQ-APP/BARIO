@@ -10,6 +10,10 @@ export default function AdminHome() {
             <div className="font-semibold">Templates</div>
             <p className="text-xs text-zinc-400 mt-2">Add or remove the free templates available to every subscriber.</p>
           </a>
+          <a href="/admin/storage" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Storage</div>
+            <p className="text-xs text-zinc-400 mt-2">Shared file storage — folders of images, videos, and other assets.</p>
+          </a>
           <a href="/admin/marketing" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Marketing Posts</div>
             <p className="text-xs text-zinc-400 mt-2">Generate and approve AI-drafted social/marketing posts.</p>

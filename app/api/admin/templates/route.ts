@@ -4,8 +4,8 @@ import { requireAdmin } from '@/lib/admin'
 import type { Template } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
-export async function GET() {
-  const auth = await requireAdmin()
+export async function GET(req: Request) {
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 

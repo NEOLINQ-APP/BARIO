@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/errors'
 // Approval IS the publish trigger — there's no separate scheduler, so clicking
 // "Approve" in the admin panel immediately posts to the real platform.
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const auth = await requireAdmin()
+  const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
 

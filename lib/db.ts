@@ -101,6 +101,18 @@ async function ensureSchema() {
     )
   `
   await sql`
+    CREATE TABLE IF NOT EXISTS assets (
+      id TEXT PRIMARY KEY,
+      folder TEXT NOT NULL DEFAULT '',
+      filename TEXT NOT NULL,
+      url TEXT NOT NULL,
+      content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      uploaded_by TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
@@ -195,6 +207,17 @@ export type Template = {
   html: string
   is_premium: boolean
   price_cents: number
+}
+
+export type Asset = {
+  id: string
+  folder: string
+  filename: string
+  url: string
+  content_type: string
+  size_bytes: number
+  uploaded_by: string | null
+  created_at: string
 }
 
 export type Site = {
