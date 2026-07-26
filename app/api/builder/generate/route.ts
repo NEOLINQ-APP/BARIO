@@ -183,15 +183,18 @@ export async function POST(req: Request) {
   }
 }
 
-// Which data fields on each section type hold an image. The model is
-// prompted to put a short search phrase in these fields (not a URL); we
-// resolve that phrase to a real photo here rather than trusting the model
-// to know actual image URLs.
-const IMAGE_FIELDS: Partial<Record<Section['type'], string[]>> = {
-  hero: ['image'],
-  features: ['f1img', 'f2img', 'f3img'],
-  gallery: ['g1img', 'g2img', 'g3img', 'g4img', 'g5img', 'g6img'],
-  team: ['m1img', 'm2img', 'm3img'],
+// Which data fields on each section type hold an image, and how to search
+// for them. The model is prompted to put a short search phrase in these
+// fields (not a URL); we resolve that phrase to a real photo here rather
+// than trusting the model to know actual image URLs. Team photos need a
+// squarish, face-cropped search — they render in a small circle, and a
+// landscape photo crammed into a circle tends to cut off the top of the
+// head or miss the face entirely.
+const IMAGE_FIELDS: Partial<Record<Section['type'], { fields: string[]; options?: Parameters<typeof searchImage>[1] }>> = {
+  hero: { fields: ['image'] },
+  features: { fields: ['f1img', 'f2img', 'f3img'] },
+  gallery: { fields: ['g1img', 'g2img', 'g3img', 'g4img', 'g5img', 'g6img'] },
+  team: { fields: ['m1img', 'm2img', 'm3img'], options: { orientation: 'squarish', faceCrop: true } },
 }
 
 async function resolveImageFields(
@@ -200,18 +203,18 @@ async function resolveImageFields(
 ): Promise<Section[]> {
   return Promise.all(
     sections.map(async (section) => {
-      const fields = IMAGE_FIELDS[section.type]
-      if (!fields) return section
+      const config = IMAGE_FIELDS[section.type]
+      if (!config) return section
 
       const data = { ...section.data }
       await Promise.all(
-        fields.map(async (field) => {
+        config.fields.map(async (field) => {
           const value = data[field]
           // Empty, or already a real URL (e.g. a user-attached photo the
           // model was told to pass through as-is) — leave untouched.
           if (!value || value.startsWith('http')) return
 
-          const realPhoto = await searchImage(value)
+          const realPhoto = await searchImage(value, config.options)
           data[field] =
             realPhoto ??
             `https://placehold.co/800x500/${theme.primary.slice(1)}/ffffff?text=${encodeURIComponent(value)}`
