@@ -64,6 +64,7 @@ export default async function BuildPage({ searchParams }: { searchParams: { site
         siteId={site.id}
         initialName={site.name}
         initialHtml={site.raw_html}
+        initialCredits={credits}
         userEmail={user.email}
         userPlan={user.plan}
         isAdmin={user.is_admin}

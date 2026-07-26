@@ -20,6 +20,18 @@ export default function AdminTemplates() {
   const [description, setDescription] = useState('')
   const [html, setHtml] = useState('')
 
+  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const text = await file.text()
+    setHtml(text)
+    if (!title.trim()) {
+      const match = text.match(/<title[^>]*>([^<]*)<\/title>/i)
+      if (match?.[1]?.trim()) setTitle(match[1].trim())
+    }
+  }
+
   function load() {
     fetch('/api/admin/templates')
       .then((res) => res.json())
@@ -81,7 +93,11 @@ export default function AdminTemplates() {
             <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Category (e.g. Restaurant)" className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm" />
           </div>
           <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description shown in the gallery" className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm" />
-          <textarea value={html} onChange={(e) => setHtml(e.target.value)} placeholder="Full HTML content" required rows={6} className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm font-mono" />
+          <label className="inline-block px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold cursor-pointer text-zinc-200">
+            Load from .html file
+            <input type="file" accept=".html,.htm" onChange={handleFilePick} className="hidden" />
+          </label>
+          <textarea value={html} onChange={(e) => setHtml(e.target.value)} placeholder="Full HTML content (or load a file above)" required rows={6} className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm font-mono" />
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={creating} className="px-4 py-2 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold disabled:opacity-50">
             {creating ? 'Adding…' : 'Add Template'}
