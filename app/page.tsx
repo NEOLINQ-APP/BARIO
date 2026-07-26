@@ -163,12 +163,12 @@ export default function Home() {
               <a href="/media" className="px-6 py-3 rounded-xl font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-colors">
                 Open Media Library
               </a>
-              <a href="#media-pricing" className="px-6 py-3 rounded-xl font-semibold border border-slate-700 text-slate-200 hover:border-slate-600 transition-colors">
+              <a href="/storage" className="px-6 py-3 rounded-xl font-semibold border border-slate-700 text-slate-200 hover:border-slate-600 transition-colors">
                 See storage plans
               </a>
             </div>
             <p className="text-xs text-slate-500 mt-4">
-              How to get it: log in → Dashboard → <span className="text-slate-300">Media Library</span>. Already have an account? <a href="/login" className="underline hover:text-slate-300">Log in</a> to start uploading.
+              How to get it: log in → Dashboard → <span className="text-slate-300">Media Library</span>. Already have an account? <a href="/login" className="underline hover:text-slate-300">Log in</a> to start uploading. Storage is billed separately from your <a href="/#pricing" className="underline hover:text-slate-300">hosting plan</a>.
             </p>
           </div>
 
@@ -208,27 +208,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* Compact tier strip */}
-        <div id="media-pricing" className="max-w-6xl mx-auto mt-14 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          {[
-            { label: 'Free', size: '2GB', price: '$0' },
-            { label: 'Starter', size: '20GB', price: '$2.99' },
-            { label: 'Plus', size: '100GB', price: '$7.99' },
-            { label: 'Pro', size: '500GB', price: '$19.99' },
-            { label: 'Ultra', size: '1TB', price: '$29.99' },
-            { label: 'Max', size: '5TB', price: '$79.99' },
-            { label: 'Elite', size: '10TB', price: '$119.99' },
-            { label: 'Enterprise', size: '20TB', price: '$179.99' },
-          ].map((t) => (
-            <div key={t.label} className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center hover:border-cyan-500/30 transition-colors">
-              <div className="text-xs font-bold text-white">{t.label}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">{t.size}</div>
-              <div className="text-sm font-extrabold text-cyan-400 mt-1">{t.price}</div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-slate-500 mt-4 text-center">Prices in CAD, billed monthly. Family Sharing included free on every paid tier.</p>
       </section>
 
       {/* 3. PRICING SECTION */}
