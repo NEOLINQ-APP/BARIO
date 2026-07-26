@@ -2,10 +2,12 @@
 // builder's "Export HTML" button (client-side) and the live /site/[domain]
 // page (server-side), so a published site always matches what gets exported.
 
+import { STYLE_PRESETS, DEFAULT_STYLE_PRESET, isStylePresetKey, presetVarsToCss } from './stylePresets'
+
 export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
 export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
-export type Theme = { primary: string; accent: string }
+export type Theme = { primary: string; accent: string; style?: string }
 
 // All section data is user- (or AI-) authored and ends up on a publicly
 // served page, so every value must be escaped before interpolation — this
@@ -53,81 +55,88 @@ function sectionToHtml(type: SectionType, data: SectionData): string {
   }
 }
 
+// Shared heading treatment, mixed into every rule below that styles a
+// heading/display element — font-family/weight/letter-spacing/transform all
+// come from preset vars, with fallbacks matching the "modern" preset so a
+// site with no preset set (or the raw-HTML/template path, which never sets
+// these) still renders exactly as before.
+const H = `font-family:var(--b-font-heading,'Inter',sans-serif);letter-spacing:var(--b-heading-ls,normal);text-transform:var(--b-heading-tt,none)`
+
 export const EXPORT_CSS = `
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif}
+body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-nav{background:var(--b-primary);color:white;padding:16px 48px;display:flex;align-items:center;justify-content:space-between}
-.s-nav-logo{font-size:20px;font-weight:800}
+.s-nav-logo{font-size:20px;font-weight:var(--b-heading-weight,800);${H}}
 .s-nav-links{display:flex;gap:28px;font-size:13px;opacity:0.8}
 .s-hero{background:linear-gradient(135deg,var(--b-primary) 0%,#1e3a6e 60%,var(--b-accent) 100%);color:white;padding:96px 64px;text-align:center}
-.s-hero h1{font-size:52px;font-weight:800;margin-bottom:18px;line-height:1.15}
+.s-hero h1{font-size:52px;font-weight:var(--b-heading-weight,800);margin-bottom:18px;line-height:1.15;${H}}
 .s-hero p{font-size:19px;opacity:0.85;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto}
-.s-hero-btn{background:linear-gradient(135deg,#fbbf24,#f97316);color:white;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
+.s-hero-btn{background:linear-gradient(135deg,#fbbf24,#f97316);color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
 .s-features{padding:88px 64px;background:#f8faff}
-.s-features h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:56px;color:var(--b-primary)}
+.s-features h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:56px;color:var(--b-primary);${H}}
 .s-features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
-.s-feat-card{background:white;border-radius:20px;padding:36px;box-shadow:0 4px 24px rgba(10,35,66,0.06);text-align:center}
+.s-feat-card{background:white;border-radius:var(--b-radius-lg,20px);border:var(--b-card-border,none);padding:36px;box-shadow:var(--b-shadow,0 4px 24px rgba(10,35,66,0.06));text-align:center}
 .s-feat-icon{font-size:44px;margin-bottom:18px}
-.s-feat-card h3{font-size:19px;font-weight:700;margin-bottom:10px;color:var(--b-primary)}
+.s-feat-card h3{font-size:19px;font-weight:var(--b-heading-weight,700);margin-bottom:10px;color:var(--b-primary);${H}}
 .s-feat-card p{font-size:14px;color:#64748b;line-height:1.65}
 .s-stats{padding:56px 64px;background:white}
 .s-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;text-align:center}
-.s-stat-num{font-size:42px;font-weight:800;color:var(--b-accent)}
+.s-stat-num{font-size:42px;font-weight:var(--b-heading-weight,800);color:var(--b-accent);${H}}
 .s-stat-label{font-size:13px;color:#64748b;margin-top:6px}
 .s-testimonial{padding:88px 64px;background:#f0f4ff}
-.s-testimonial h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-testimonial h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:48px;color:var(--b-primary);${H}}
 .s-test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.s-test-card{background:white;border-radius:16px;padding:28px;box-shadow:0 4px 16px rgba(10,35,66,0.06)}
+.s-test-card{background:white;border-radius:var(--b-radius-lg,16px);border:var(--b-card-border,none);padding:28px;box-shadow:var(--b-shadow,0 4px 16px rgba(10,35,66,0.06))}
 .s-test-quote{font-size:14px;color:#64748b;line-height:1.7;margin-bottom:20px;font-style:italic}
 .s-test-author{display:flex;align-items:center;gap:10px}
 .s-test-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--b-accent),var(--b-primary));display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700}
-.s-test-name{font-size:13px;font-weight:700;color:var(--b-primary)}
+.s-test-name{font-size:13px;font-weight:var(--b-heading-weight,700);color:var(--b-primary);${H}}
 .s-test-role{font-size:11px;color:#94a3b8}
 .s-pricing{padding:88px 64px;background:white}
-.s-pricing h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-pricing h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:48px;color:var(--b-primary);${H}}
 .s-price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.s-price-card{border:2px solid #e2e8f0;border-radius:20px;padding:36px;text-align:center}
+.s-price-card{border:2px solid #e2e8f0;border-radius:var(--b-radius-lg,20px);padding:36px;text-align:center}
 .s-price-card.featured{border-color:var(--b-accent);background:#f0f4ff;transform:scale(1.04)}
-.s-price-name{font-size:16px;font-weight:700;color:var(--b-primary);margin-bottom:8px}
-.s-price-num{font-size:42px;font-weight:800;color:var(--b-accent);margin-bottom:4px}
+.s-price-name{font-size:16px;font-weight:var(--b-heading-weight,700);color:var(--b-primary);margin-bottom:8px;${H}}
+.s-price-num{font-size:42px;font-weight:var(--b-heading-weight,800);color:var(--b-accent);margin-bottom:4px;${H}}
 .s-price-per{font-size:13px;color:#94a3b8;margin-bottom:24px}
 .s-price-features{list-style:none;text-align:left;margin-bottom:28px}
 .s-price-features li{font-size:13px;color:#64748b;padding:6px 0;border-bottom:1px solid #e2e8f0}
 .s-cta{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:88px 64px;text-align:center}
-.s-cta h2{font-size:42px;font-weight:800;margin-bottom:18px}
+.s-cta h2{font-size:42px;font-weight:var(--b-heading-weight,800);margin-bottom:18px;${H}}
 .s-cta p{font-size:19px;opacity:0.88;margin-bottom:36px;max-width:560px;margin-left:auto;margin-right:auto}
-.s-cta-btn{background:white;color:var(--b-accent);padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
+.s-cta-btn{background:white;color:var(--b-accent);padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
 .s-footer{background:#0f0f1a;color:white;padding:48px 64px;display:flex;align-items:center;justify-content:space-between}
-.s-footer-logo{font-size:18px;font-weight:800;opacity:0.9}
+.s-footer-logo{font-size:18px;font-weight:var(--b-heading-weight,800);opacity:0.9;${H}}
 .s-footer-links{display:flex;gap:24px;font-size:13px;opacity:0.5}
 .s-footer-copy{font-size:12px;opacity:0.4}
 .s-gallery{padding:88px 64px;background:white}
-.s-gallery h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-gallery h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:48px;color:var(--b-primary);${H}}
 .s-gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.s-gallery-img{width:100%;height:220px;object-fit:cover;border-radius:16px;display:block}
+.s-gallery-img{width:100%;height:220px;object-fit:cover;border-radius:var(--b-radius-lg,16px);display:block}
 .s-team{padding:88px 64px;background:#f8faff}
-.s-team h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:48px;color:var(--b-primary)}
+.s-team h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:48px;color:var(--b-primary);${H}}
 .s-team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
-.s-team-card{background:white;border-radius:20px;padding:32px;text-align:center;box-shadow:0 4px 24px rgba(10,35,66,0.06)}
+.s-team-card{background:white;border-radius:var(--b-radius-lg,20px);border:var(--b-card-border,none);padding:32px;text-align:center;box-shadow:var(--b-shadow,0 4px 24px rgba(10,35,66,0.06))}
 .s-team-img{width:100px;height:100px;object-fit:cover;border-radius:50%;margin:0 auto 18px;display:block}
 .s-team-placeholder{width:100px;height:100px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 18px}
-.s-team-name{font-size:17px;font-weight:700;color:var(--b-primary)}
+.s-team-name{font-size:17px;font-weight:var(--b-heading-weight,700);color:var(--b-primary);${H}}
 .s-team-role{font-size:13px;color:#64748b;margin-top:4px}
 .s-faq{padding:88px 64px;background:white;max-width:800px;margin:0 auto}
-.s-faq h2{text-align:center;font-size:38px;font-weight:800;margin-bottom:40px;color:var(--b-primary)}
+.s-faq h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:40px;color:var(--b-primary);${H}}
 .s-faq-item{border-bottom:1px solid #e2e8f0;padding:20px 0}
-.s-faq-item summary{font-size:17px;font-weight:700;color:var(--b-primary);cursor:pointer}
+.s-faq-item summary{font-size:17px;font-weight:var(--b-heading-weight,700);color:var(--b-primary);cursor:pointer;${H}}
 .s-faq-item p{font-size:14px;color:#64748b;margin-top:12px;line-height:1.65}
 .s-contact{padding:88px 64px;background:#f0f4ff;text-align:center}
-.s-contact h2{font-size:38px;font-weight:800;margin-bottom:14px;color:var(--b-primary)}
+.s-contact h2{font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:14px;color:var(--b-primary);${H}}
 .s-contact p{font-size:16px;color:#64748b;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto}
 .s-contact-details{display:flex;justify-content:center;gap:32px;flex-wrap:wrap;font-size:15px;color:var(--b-primary);font-weight:600;margin-bottom:28px}
-.s-contact-btn{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700;display:inline-block}
+.s-contact-btn{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
 .s-map{padding:88px 64px;background:white;text-align:center}
-.s-map h2{font-size:38px;font-weight:800;margin-bottom:32px;color:var(--b-primary)}
-.s-map-frame{width:100%;max-width:900px;height:400px;border:0;border-radius:16px}
+.s-map h2{font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:32px;color:var(--b-primary);${H}}
+.s-map-frame{width:100%;max-width:900px;height:400px;border:0;border-radius:var(--b-radius-lg,16px)}
 .s-logos{padding:64px;background:#f8faff}
-.s-logos h2{text-align:center;font-size:28px;font-weight:800;margin-bottom:36px;color:var(--b-primary);opacity:0.7}
+.s-logos h2{text-align:center;font-size:28px;font-weight:var(--b-heading-weight,800);margin-bottom:36px;color:var(--b-primary);opacity:0.7;${H}}
 .s-logos-row{display:flex;justify-content:center;align-items:center;gap:40px;flex-wrap:wrap}
 .s-logo-item{font-size:20px;font-weight:800;color:#94a3b8;letter-spacing:0.02em}
 @media(max-width:768px){
@@ -180,6 +189,7 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme, s
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
   const primary = sanitizeColor(theme.primary, '#0A2342')
   const accent = sanitizeColor(theme.accent, '#1a56db')
+  const preset = STYLE_PRESETS[isStylePresetKey(theme.style) ? theme.style : DEFAULT_STYLE_PRESET]
   const title = seo?.metaTitle?.trim() || `${name} — Built with Bario`
   const description = seo?.metaDescription?.trim()
   const analyticsId = seo?.analyticsId?.trim()
@@ -193,8 +203,8 @@ export function buildSiteHtml(name: string, sections: Section[], theme: Theme, s
 <title>${esc(title)}</title>
 ${description ? `<meta name="description" content="${esc(description)}">` : ''}
 ${faviconUrl ? `<link rel="icon" href="${esc(faviconUrl)}">` : ''}
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>:root{--b-primary:${primary};--b-accent:${accent}}${EXPORT_CSS}</style>
+<link href="${preset.googleFontsHref}" rel="stylesheet">
+<style>:root{--b-primary:${primary};--b-accent:${accent};${presetVarsToCss(preset)}}${EXPORT_CSS}</style>
 ${validAnalyticsId ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${validAnalyticsId}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${validAnalyticsId}');</script>` : ''}
 </head>

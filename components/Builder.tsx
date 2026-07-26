@@ -7,12 +7,13 @@ import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 import BusinessProfilePanel from '@/components/BusinessProfilePanel'
 import { buildSiteHtml } from '@/lib/renderSite'
+import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey, type StylePresetKey } from '@/lib/stylePresets'
 
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type ChatMsg = { role: 'zeus' | 'user'; text: string }
-type Theme = { primary: string; accent: string }
+type Theme = { primary: string; accent: string; style?: string }
 
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
@@ -148,6 +149,24 @@ export default function Builder({
     }
     sectionsLengthRef.current = sections.length
   }, [sections])
+
+  const activeStyle: StylePresetKey = isStylePresetKey(theme.style) ? theme.style : DEFAULT_STYLE_PRESET
+
+  // The canvas can show any of a handful of style presets, each needing its
+  // own Google Font family — load (or swap) a single <link> tag for whichever
+  // preset is currently active rather than loading every preset's fonts
+  // up front.
+  useEffect(() => {
+    const href = STYLE_PRESETS[activeStyle].googleFontsHref
+    let link = document.getElementById('b-preset-font') as HTMLLinkElement | null
+    if (!link) {
+      link = document.createElement('link')
+      link.id = 'b-preset-font'
+      link.rel = 'stylesheet'
+      document.head.appendChild(link)
+    }
+    if (link.href !== href) link.href = href
+  }, [activeStyle])
   const [messages, setMessages] = useState<ChatMsg[]>([
     { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it. Try: \"Build a modern site for a Calgary plumbing company.\"" },
   ])
@@ -349,6 +368,18 @@ export default function Builder({
               className="w-6 h-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
             />
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Visual style — fonts, corner rounding, shadows">
+            Style
+            <select
+              value={activeStyle}
+              onChange={(e) => setTheme((t) => ({ ...t, style: e.target.value }))}
+              className="bg-[#131b2a] border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 outline-none cursor-pointer"
+            >
+              {STYLE_PRESET_KEYS.map((k) => (
+                <option key={k} value={k}>{STYLE_PRESETS[k].label}</option>
+              ))}
+            </select>
+          </label>
           {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
           <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
             Business Profile
@@ -455,7 +486,7 @@ export default function Builder({
           <div ref={canvasScrollRef} className="flex-1 overflow-y-auto p-6">
             <div
               className="b-canvas bg-white rounded-lg shadow-2xl max-w-5xl mx-auto overflow-hidden min-h-[400px]"
-              style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent }}
+              style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent, ...STYLE_PRESETS[activeStyle].vars }}
             >
               {sections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">

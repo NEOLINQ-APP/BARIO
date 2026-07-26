@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getOpenAI, SECTION_TYPES, type Section } from '@/lib/openai'
 import { searchImage } from '@/lib/unsplash'
+import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey } from '@/lib/stylePresets'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
@@ -30,7 +31,12 @@ Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.
 
 If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
-Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex" }. Default is { "primary": "#0A2342", "accent": "#1a56db" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged.
+Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex", "style": "preset-key" }. Default is { "primary": "#0A2342", "accent": "#1a56db", "style": "modern" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged.
+
+"style" picks the site's overall visual personality — fonts, corner rounding, shadows vs. borders, button shape. It is NOT a per-section setting; one value themes the whole site. The options are:
+${STYLE_PRESET_KEYS.map((k) => `- "${k}": ${STYLE_PRESETS[k].vibe}`).join('\n')}
+
+When building a NEW site, pick whichever preset best fits the business described (e.g. a law firm or wedding venue → elegant; a gym or nightclub → bold; a dev tool or architecture studio → minimal; a daycare or pet groomer → friendly; anything else → modern). When EDITING an existing site, keep the current style unless the user explicitly asks for a different look/vibe/style — never change it just because they asked to edit text or colors.
 
 Always respond with a single JSON object of the shape:
 {
@@ -87,7 +93,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'A description is required' }, { status: 400 })
     }
 
-    const currentTheme = theme ?? { primary: '#0A2342', accent: '#1a56db' }
+    const currentTheme = {
+      primary: theme?.primary ?? '#0A2342',
+      accent: theme?.accent ?? '#1a56db',
+      style: isStylePresetKey(theme?.style) ? theme.style : DEFAULT_STYLE_PRESET,
+    }
 
     // Persistent per-site facts, injected on every request so the user never
     // has to repeat their business name/category/hours/location or brand
@@ -98,6 +108,7 @@ export async function POST(req: Request) {
       businessLocation && `Location: ${businessLocation}`,
       businessHours && `Hours: ${businessHours}`,
       `Brand colors: primary ${currentTheme.primary}, accent ${currentTheme.accent}`,
+      `Current style: ${currentTheme.style}`,
     ].filter(Boolean)
     const businessContext = `Business context — use this to inform tone, content, and defaults; don't ask the user to repeat it:\n${profileLines.join('\n')}`
 
@@ -159,6 +170,7 @@ export async function POST(req: Request) {
     const theme_out = {
       primary: HEX_RE.test(parsed.theme?.primary) ? parsed.theme.primary : currentTheme.primary,
       accent: HEX_RE.test(parsed.theme?.accent) ? parsed.theme.accent : currentTheme.accent,
+      style: isStylePresetKey(parsed.theme?.style) ? parsed.theme.style : currentTheme.style,
     }
 
     const resolvedSections = await resolveImageFields(cleaned, theme_out)

@@ -9,7 +9,7 @@ import TemplateBuilder from '@/components/TemplateBuilder'
 
 export const dynamic = 'force-dynamic'
 
-const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db' }
+const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db', style: 'modern' }
 
 export default async function BuildPage({ searchParams }: { searchParams: { site?: string } }) {
   const session = await getSession()
