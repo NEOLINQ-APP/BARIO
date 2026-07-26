@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
-import { STORAGE_TIERS, isStorageTierKey } from '@/lib/storageTiers'
+import { STORAGE_TIERS, isStorageTierKey, formatBytes } from '@/lib/storageTiers'
 import { getStripe } from '@/lib/stripe'
 import { errorResponse } from '@/lib/errors'
 
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
           currency: 'cad',
           unit_amount: tierInfo.priceCentsCad,
           recurring: { interval: 'month' },
-          product_data: { name: `Bario Storage — ${tierInfo.label} (${tierInfo.bytes / 1024 ** 3}GB)` },
+          product_data: { name: `Bario Storage — ${tierInfo.label} (${formatBytes(tierInfo.bytes)})` },
         },
         quantity: 1,
       }],
