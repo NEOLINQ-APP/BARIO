@@ -1,0 +1,14 @@
+{
+  "name": "Bario Media Library",
+  "short_name": "Bario Media",
+  "description": "Upload and manage the photos and videos for your Bario website.",
+  "start_url": "/media",
+  "scope": "/media",
+  "display": "standalone",
+  "background_color": "#0b111c",
+  "theme_color": "#0b111c",
+  "icons": [
+    { "src": "/media-icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/media-icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

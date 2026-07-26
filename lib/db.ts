@@ -44,6 +44,43 @@ async function ensureSchema() {
     END $$
   `
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`
+  // Personal media-library storage (separate product from the site plan —
+  // a user can be on any site plan and independently subscribe for more
+  // storage, same as Google One stacking on a free Google account).
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS storage_tier TEXT NOT NULL DEFAULT 'free'`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS storage_subscription_status TEXT NOT NULL DEFAULT 'none'`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_storage_subscription_id TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS family_group_id TEXT`
+  await sql`
+    CREATE TABLE IF NOT EXISTS family_groups (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS family_invites (
+      id TEXT PRIMARY KEY,
+      family_group_id TEXT NOT NULL REFERENCES family_groups(id),
+      email TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS media_assets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      folder TEXT NOT NULL DEFAULT '',
+      filename TEXT NOT NULL,
+      url TEXT NOT NULL,
+      content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -197,6 +234,37 @@ export type User = {
   credits_reset_at: string | null
   email_verified: boolean
   session_version: number
+  storage_tier: string
+  storage_subscription_status: string
+  stripe_storage_subscription_id: string | null
+  family_group_id: string | null
+}
+
+export type MediaAsset = {
+  id: string
+  user_id: string
+  folder: string
+  filename: string
+  url: string
+  content_type: string
+  size_bytes: number
+  created_at: string
+}
+
+export type FamilyGroup = {
+  id: string
+  owner_user_id: string
+  created_at: string
+}
+
+export type FamilyInvite = {
+  id: string
+  family_group_id: string
+  email: string
+  token: string
+  status: string
+  created_at: string
+  expires_at: string
 }
 
 export type Template = {

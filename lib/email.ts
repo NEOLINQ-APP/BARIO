@@ -36,3 +36,16 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
     `,
   })
 }
+
+export async function sendFamilyInviteEmail(to: string, inviterEmail: string, acceptUrl: string) {
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `${inviterEmail} invited you to share their Bario storage plan`,
+    html: `
+      <p>${inviterEmail} invited you to join their family storage plan on Bario — you'll share their storage space at no extra cost.</p>
+      <p><a href="${acceptUrl}">Click here to accept the invite</a> (this link expires in 7 days). You'll need a Bario account with this email address, or you can create one.</p>
+      <p>If you weren't expecting this, you can safely ignore this email.</p>
+    `,
+  })
+}

@@ -73,6 +73,9 @@ export default async function Dashboard() {
               <a href="/build/templates" className="px-5 py-3 rounded-xl font-semibold border border-zinc-700 text-zinc-200">
                 Premium Templates
               </a>
+              <a href="/media" className="px-5 py-3 rounded-xl font-semibold border border-zinc-700 text-zinc-200">
+                Media Library
+              </a>
             </div>
           ) : user.subscription_status === 'active' && !user.email_verified ? (
             <p className="mt-6 text-sm text-zinc-400">Verify your email above to unlock the builder.</p>
