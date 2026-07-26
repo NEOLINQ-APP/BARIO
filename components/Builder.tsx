@@ -711,7 +711,7 @@ function SectionView({
         {toolbar}
         <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
         <div className="s-team-grid">
-          {[1, 2, 3].map((n) => (
+          {[1, 2, 3].filter((n) => data[`m${n}n`]).map((n) => (
             <div className="s-team-card" key={n}>
               {data[`m${n}img`] ? (
                 <img src={data[`m${n}img`]} alt="" className="s-team-img" />
