@@ -38,15 +38,16 @@ Rules for edits:
 - If the request doesn't require changing the HTML at all (e.g. a question), return an empty "edits" array and explain in "explanation".`
 
 type Edit = { find: string; replace: string }
+type FailedEdit = { find: string; replace: string; occurrences: number }
 
-function applyEdits(html: string, edits: Edit[]): { result: string; failed: string[] } {
+function applyEdits(html: string, edits: Edit[]): { result: string; failed: FailedEdit[] } {
   let result = html
-  const failed: string[] = []
+  const failed: FailedEdit[] = []
   for (const edit of edits) {
     if (typeof edit.find !== 'string' || typeof edit.replace !== 'string' || !edit.find) continue
     const occurrences = result.split(edit.find).length - 1
     if (occurrences !== 1) {
-      failed.push(edit.find.slice(0, 60))
+      failed.push({ find: edit.find, replace: edit.replace, occurrences })
       continue
     }
     result = result.replace(edit.find, edit.replace)
@@ -132,8 +133,50 @@ export async function POST(req: Request) {
 
     const parsed = JSON.parse(raw)
     const edits: Edit[] = Array.isArray(parsed.edits) ? parsed.edits : []
+    const baseExplanation = typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
 
-    const { result, failed } = applyEdits(html, edits)
+    let { result, failed } = applyEdits(html, edits)
+
+    // A failed edit is usually fixable with better context, not a dead end
+    // — most often the exact text also appears somewhere else (e.g. the
+    // same logo markup in both the nav and the footer), so the model just
+    // needs to be told that and given another shot at making it unique.
+    // One retry only, and only for the edits that actually failed.
+    if (failed.length > 0) {
+      const retryPrompt = `Some of your edits didn't apply to this HTML page:\n${failed
+        .map(
+          (f, i) =>
+            `${i + 1}. find: ${JSON.stringify(f.find)} — ${f.occurrences === 0 ? 'not found anywhere in the page' : `found ${f.occurrences} times (must be exactly 1) — likely appears in more than one place, e.g. both a header and a footer`}`
+        )
+        .join(
+          '\n'
+        )}\n\nLook at the current HTML below and fix ONLY these failed edits — for "found more than once" cases, add more surrounding text to "find" so it's unique to just the one spot you actually mean. Respond with the same JSON shape, but "edits" should contain ONLY the corrected replacements for the failed ones above (skip ones that already worked).\n\nCurrent HTML:\n${result}`
+
+      try {
+        const retryCompletion = await getOpenAI().chat.completions.create({
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+            { role: 'assistant', content: raw },
+            { role: 'user', content: retryPrompt },
+          ],
+        })
+        const retryRaw = retryCompletion.choices[0]?.message?.content
+        if (retryRaw) {
+          const retryParsed = JSON.parse(retryRaw)
+          const retryEdits: Edit[] = Array.isArray(retryParsed.edits) ? retryParsed.edits : []
+          const retryApplied = applyEdits(result, retryEdits)
+          result = retryApplied.result
+          failed = retryApplied.failed
+        }
+      } catch {
+        // Retry is best-effort — if it fails, fall through with whatever
+        // the first pass already applied plus the original failure list.
+      }
+    }
+
     if (!/<html[\s>]/i.test(result)) {
       throw new Error("Something went wrong applying that change — nothing was modified. Try rephrasing your request.")
     }
@@ -146,13 +189,13 @@ export async function POST(req: Request) {
     const nothingChanged = result === html
     let explanation: string
     if (nothingChanged && edits.length > 0) {
-      explanation = `I couldn't find the exact text to change — "${failed[0]?.slice(0, 60) ?? edits[0].find.slice(0, 60)}${(failed[0]?.length ?? edits[0].find.length) >= 60 ? '…' : ''}" doesn't appear in the page as I expected. Try describing it differently, or click directly on the text on the canvas to edit it.`
+      explanation = `I couldn't find the exact text to change — "${failed[0]?.find.slice(0, 60) ?? edits[0].find.slice(0, 60)}${(failed[0]?.find.length ?? edits[0].find.length) >= 60 ? '…' : ''}" doesn't appear in the page as I expected. Try describing it differently, or click directly on the text on the canvas to edit it.`
     } else if (nothingChanged) {
-      explanation = typeof parsed.explanation === 'string' ? parsed.explanation : "I didn't make any changes — could you describe what you'd like differently?"
+      explanation = baseExplanation === 'Done.' ? "I didn't make any changes — could you describe what you'd like differently?" : baseExplanation
     } else {
-      explanation = typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+      explanation = baseExplanation
       if (failed.length > 0) {
-        explanation += ` (One part of this didn't apply — couldn't find an exact match for "${failed[0].slice(0, 60)}${failed[0].length >= 60 ? '…' : ''}".)`
+        explanation += ` (One part of this didn't apply — couldn't find an exact match for "${failed[0].find.slice(0, 60)}${failed[0].find.length >= 60 ? '…' : ''}".)`
       }
     }
 
