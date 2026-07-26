@@ -138,6 +138,7 @@ export default function Builder({
   const [sections, setSections] = useState<Section[]>(() =>
     initialSections.map((s) => ({ id: newId(), type: s.type, data: s.data }))
   )
+  const [dirty, setDirty] = useState(false)
   const canvasScrollRef = useRef<HTMLDivElement>(null)
   const sectionsLengthRef = useRef(sections.length)
 
@@ -167,6 +168,40 @@ export default function Builder({
     }
     if (link.href !== href) link.href = href
   }, [activeStyle])
+
+  // Autosave: previously the only way work landed in the database was the
+  // manual Save button, so a refresh mid-session (or Zeus generating a site
+  // the user never explicitly clicked Save on) silently threw everything
+  // away. Debounce a save shortly after any real change to sections/theme/
+  // name instead — short enough that a refresh can't land in the gap for
+  // long, long enough not to fire on every keystroke (field edits only
+  // commit on blur, so this mostly debounces distinct edits, not typing).
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
+    if (sections.length === 0 && !currentSiteId) return
+    setDirty(true)
+    const t = setTimeout(() => { handleSave() }, 1200)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections, theme, siteName])
+
+  // Second line of defense: if a save is still pending (debounce window or
+  // in-flight request) when the user tries to close/refresh the tab, warn
+  // them instead of silently losing the last few edits.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
   const [messages, setMessages] = useState<ChatMsg[]>([
     { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it. Try: \"Build a modern site for a Calgary plumbing company.\"" },
   ])
@@ -315,6 +350,7 @@ export default function Builder({
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
       if (d.id) setCurrentSiteId(d.id)
       setSaveMsg('Saved')
+      setDirty(false)
     } catch (err: any) {
       setSaveMsg(`Failed: ${err.message}`)
     }
