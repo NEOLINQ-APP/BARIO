@@ -64,6 +64,29 @@ const TEMPLATES: Record<string, { type: SectionType; data: SectionData }[]> = {
   ],
 }
 
+// What each quick template actually covers, so a chat message like "use the
+// restaurant template" can be matched to a real template instead of being
+// sent to the AI, which has no concept of these local templates and would
+// just free-generate something loosely related — which is exactly the
+// "random website instead of the template I asked for" bug this avoids.
+const TEMPLATE_ALIASES: Record<string, string[]> = {
+  business: ['business', 'corporate', 'professional services', 'consulting'],
+  restaurant: ['restaurant', 'cafe', 'café', 'dining', 'food'],
+  agency: ['agency', 'marketing agency', 'digital agency', 'creative agency'],
+}
+// Requires an actual "apply an existing template" verb near the word
+// "template" (not just any mention of it — e.g. "no template, build from
+// scratch" shouldn't trigger this).
+const TEMPLATE_INTENT_RE = /\b(use|load|apply|switch to|upload|import|give me|show me|open|pick|choose)\b[\s\S]{0,40}\btemplate/i
+
+function matchTemplateAlias(text: string): string | null {
+  const lower = text.toLowerCase()
+  for (const [key, aliases] of Object.entries(TEMPLATE_ALIASES)) {
+    if (aliases.some((a) => lower.includes(a))) return key
+  }
+  return null
+}
+
 function renderFieldsFromModel(sections: { type: SectionType; data: SectionData }[]): Section[] {
   return sections.map((s) => ({ id: crypto.randomUUID(), type: s.type, data: s.data }))
 }
@@ -210,6 +233,9 @@ export default function Builder({
   const [uploadingFile, setUploadingFile] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const htmlFileInputRef = useRef<HTMLInputElement>(null)
+  const [importingHtml, setImportingHtml] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -285,6 +311,36 @@ export default function Builder({
     setUploadingFile(false)
   }
 
+  // Brings in a user's own already-built HTML file. This switches the site
+  // to raw-HTML/template mode (same as picking a Premium Template), which is
+  // a different editing experience than Zeus's section canvas — confirm
+  // first if there's real work on the canvas that would no longer be shown.
+  async function handleImportHtml(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (sections.length > 0) {
+      const ok = window.confirm(
+        "This replaces the current site with your uploaded HTML file and switches to raw-HTML editing mode (Zeus's chat builder won't apply anymore). Continue?"
+      )
+      if (!ok) return
+    }
+    setImportingHtml(true)
+    setImportError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      if (currentSiteId) form.append('siteId', currentSiteId)
+      const res = await fetch('/api/sites/import-html', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to import HTML')
+      window.location.href = `/build?site=${data.id}`
+    } catch (err: any) {
+      setImportError(err.message)
+      setImportingHtml(false)
+    }
+  }
+
   async function handleSend() {
     const text = input.trim()
     if ((!text && !attachment) || busy) return
@@ -292,6 +348,20 @@ export default function Builder({
     const currentAttachment = attachment
     setAttachment(null)
     addMsg('user', currentAttachment ? `${text} 📎 ${currentAttachment.name}` : text)
+
+    if (!currentAttachment && TEMPLATE_INTENT_RE.test(text)) {
+      const matchedKey = matchTemplateAlias(text)
+      if (matchedKey) {
+        loadTemplate(matchedKey)
+        return
+      }
+      addMsg(
+        'zeus',
+        "I can't pull in a premium template through chat yet. Click \"Premium Templates\" at the top of the screen to browse full custom designs, or \"Upload your own HTML\" below to bring in a site file you already have. I do have business, restaurant, and agency quick-start templates ready right now though — click one below, or tell me what to build and I'll design it from scratch."
+      )
+      return
+    }
+
     setBusy(true)
 
     const isNew = sections.length === 0 || /build|create|make|generate|new site/i.test(text)
@@ -464,7 +534,25 @@ export default function Builder({
                   {t} template
                 </button>
               ))}
+              <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200">
+                Premium templates
+              </a>
+              <input
+                ref={htmlFileInputRef}
+                type="file"
+                accept=".html,.htm"
+                onChange={handleImportHtml}
+                className="hidden"
+              />
+              <button
+                onClick={() => htmlFileInputRef.current?.click()}
+                disabled={importingHtml}
+                className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200 disabled:opacity-50"
+              >
+                {importingHtml ? 'Uploading…' : 'Upload your own HTML'}
+              </button>
             </div>
+            {importError && <div className="text-xs text-red-400 mb-2">{importError}</div>}
             {uploadError && <div className="text-xs text-red-400 mb-2">{uploadError}</div>}
             {attachment && (
               <div className="flex items-center gap-2 mb-2 text-xs bg-zinc-800 rounded-lg px-2.5 py-1.5 w-fit">
