@@ -7,6 +7,8 @@ type Template = {
   title: string
   category: string
   description: string
+  is_premium: boolean
+  price_cents: number
 }
 
 export default function AdminTemplates() {
@@ -19,6 +21,8 @@ export default function AdminTemplates() {
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [html, setHtml] = useState('')
+  const [isPremium, setIsPremium] = useState(true)
+  const [price, setPrice] = useState('49')
 
   async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -54,7 +58,14 @@ export default function AdminTemplates() {
       const res = await fetch('/api/admin/templates', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title, category, description, html }),
+        body: JSON.stringify({
+          title,
+          category,
+          description,
+          html,
+          isPremium,
+          priceCents: isPremium ? Math.round(parseFloat(price || '0') * 100) : 0,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to create template')
@@ -62,6 +73,8 @@ export default function AdminTemplates() {
       setCategory('')
       setDescription('')
       setHtml('')
+      setIsPremium(true)
+      setPrice('49')
       load()
     } catch (err: any) {
       setError(err.message)
@@ -98,6 +111,25 @@ export default function AdminTemplates() {
             <input type="file" accept=".html,.htm" onChange={handleFilePick} className="hidden" />
           </label>
           <textarea value={html} onChange={(e) => setHtml(e.target.value)} placeholder="Full HTML content (or load a file above)" required rows={6} className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm font-mono" />
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs text-zinc-300">
+              <input type="checkbox" checked={isPremium} onChange={(e) => setIsPremium(e.target.checked)} className="accent-[#f59e0b]" />
+              Premium (requires a paid plan or individual purchase)
+            </label>
+            {isPremium && (
+              <label className="flex items-center gap-2 text-xs text-zinc-400">
+                Price ($)
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-20 px-2 py-1.5 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                />
+              </label>
+            )}
+          </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={creating} className="px-4 py-2 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold disabled:opacity-50">
             {creating ? 'Adding…' : 'Add Template'}
@@ -109,7 +141,14 @@ export default function AdminTemplates() {
           {templates?.map((t) => (
             <div key={t.id} className="rounded-xl border border-zinc-800 bg-[#131b2a] p-4 flex items-center justify-between gap-4">
               <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-500">{t.category}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase tracking-wide text-zinc-500">{t.category}</span>
+                  {t.is_premium ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] font-semibold">${(t.price_cents / 100).toFixed(0)}</span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">Free</span>
+                  )}
+                </div>
                 <div className="font-semibold text-sm mt-0.5">{t.title}</div>
                 <div className="text-xs text-zinc-400 mt-1">{t.description}</div>
               </div>

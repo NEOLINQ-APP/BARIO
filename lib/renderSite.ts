@@ -180,10 +180,12 @@ export type SeoOptions = {
   faviconUrl?: string | null
 }
 
-// Free-tier sites always show this; paying accounts can toggle it off. Fixed
+// Free-tier sites always show this; paying accounts can toggle it off. A
+// full-width bottom bar rather than a small corner pill — a badge easy to
+// ignore doesn't give a free-tier owner any real reason to upgrade. Fixed
 // position + inline styles + a very high z-index so it survives regardless
 // of the site's own CSS (including raw-HTML template sites we don't control).
-const BADGE_HTML = `<a href="https://bario.ca" target="_blank" rel="noopener" style="position:fixed;bottom:16px;right:16px;z-index:2147483647;background:#0b111c;color:#fff;font:600 12px/1 -apple-system,BlinkMacSystemFont,sans-serif;padding:9px 14px;border-radius:999px;text-decoration:none;box-shadow:0 2px 12px rgba(0,0,0,.3);opacity:.92">Made with Bario</a>`
+const BADGE_HTML = `<a href="https://bario.ca" target="_blank" rel="noopener" style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#0b111c;color:#fff;font:700 13px/1 -apple-system,BlinkMacSystemFont,sans-serif;padding:13px 16px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 -2px 20px rgba(0,0,0,.35);border-top:2px solid #f59e0b">⚡ Built with <span style="color:#f59e0b">Bario</span> — Create your own free website</a>`
 
 export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions, showBadge = true): string {
   const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')

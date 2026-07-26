@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User, type Template } from '@/lib/db'
-import { hasPaidPlan } from '@/lib/access'
+import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
@@ -14,8 +14,8 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasPaidPlan(user)) {
-      return NextResponse.json({ error: 'Upgrade to a paid plan to use premium templates' }, { status: 403 })
+    if (!user || !hasBuilderAccess(user)) {
+      return NextResponse.json({ error: 'Please verify your email to use templates' }, { status: 403 })
     }
 
     const { templateId, siteId: requestedSiteId } = await req.json()
@@ -26,6 +26,18 @@ export async function POST(req: Request) {
     const templateRows = (await sql`SELECT * FROM templates WHERE id = ${templateId}`) as unknown as Template[]
     const template = templateRows[0]
     if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+
+    if (template.is_premium && !hasPaidPlan(user)) {
+      const licenseRows = (await sql`
+        SELECT 1 FROM template_licenses WHERE template_id = ${templateId} AND user_id = ${user.id} AND status = 'active'
+      `) as unknown as unknown[]
+      if (licenseRows.length === 0) {
+        return NextResponse.json(
+          { error: `This is a premium template. Upgrade to a paid plan, or buy just this one for $${(template.price_cents / 100).toFixed(0)}.`, premium: true, priceCents: template.price_cents },
+          { status: 403 }
+        )
+      }
+    }
 
     const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
 

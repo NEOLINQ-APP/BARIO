@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { getStripe } from '@/lib/stripe'
 import { db } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
@@ -21,8 +22,18 @@ export async function POST(req: Request) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
-
       const userId = session.client_reference_id ?? session.metadata?.userId
+      const templateId = session.metadata?.templateId
+
+      if (session.mode === 'payment' && userId && templateId) {
+        // One-time template purchase — never touches plan/subscription_status.
+        await sql`
+          INSERT INTO template_licenses (id, user_id, template_id, license_key, status, stripe_payment_intent)
+          VALUES (${randomUUID()}, ${userId}, ${templateId}, ${randomUUID()}, 'active', ${String(session.payment_intent)})
+        `
+        break
+      }
+
       const plan = session.metadata?.plan
       if (userId) {
         await sql`

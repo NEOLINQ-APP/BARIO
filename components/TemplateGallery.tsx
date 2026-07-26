@@ -8,6 +8,9 @@ type TemplateSummary = {
   title: string
   category: string
   description: string
+  is_premium: boolean
+  price_cents: number
+  unlocked: boolean
 }
 
 export default function TemplateGallery({ siteId }: { siteId: string | null }) {
@@ -74,7 +77,16 @@ export default function TemplateGallery({ siteId }: { siteId: string | null }) {
               className="block rounded-2xl border border-zinc-800 bg-[#131b2a] p-4 hover:border-zinc-600 transition-colors"
             >
               <TemplateThumbnail templateId={t.id} title={t.title} />
-              <div className="text-xs uppercase tracking-wide text-zinc-500 mt-3">{t.category}</div>
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-xs uppercase tracking-wide text-zinc-500">{t.category}</span>
+                {t.is_premium ? (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${t.unlocked ? 'bg-emerald-500/10 text-emerald-400' : 'bg-[#f59e0b]/10 text-[#f59e0b]'}`}>
+                    {t.unlocked ? 'Unlocked' : `$${(t.price_cents / 100).toFixed(0)}`}
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">Free</span>
+                )}
+              </div>
               <h3 className="text-lg font-semibold mt-1">{t.title}</h3>
               <p className="text-sm text-zinc-400 mt-2">{t.description}</p>
               <div className="mt-4 text-sm font-semibold text-[#f59e0b]">Preview & use →</div>
