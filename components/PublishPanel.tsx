@@ -6,12 +6,17 @@ import DnsManager from '@/components/DnsManager'
 export default function PublishPanel({
   siteId,
   onClose,
-  initialSubdomain,
-  initialCustomDomain,
-  initialDomainStatus,
-  initialPublished,
+  subdomain,
+  setSubdomain,
+  published,
+  setPublished,
+  customDomain,
+  setCustomDomain,
+  domainStatus,
+  setDomainStatus,
   isPaid,
-  initialShowBadge,
+  showBadge,
+  setShowBadge,
   metaTitle,
   setMetaTitle,
   metaDescription,
@@ -24,12 +29,17 @@ export default function PublishPanel({
 }: {
   siteId: string | null
   onClose: () => void
-  initialSubdomain: string | null
-  initialCustomDomain: string | null
-  initialDomainStatus: string
-  initialPublished: boolean
+  subdomain: string
+  setSubdomain: (v: string) => void
+  published: boolean
+  setPublished: (v: boolean) => void
+  customDomain: string
+  setCustomDomain: (v: string) => void
+  domainStatus: string
+  setDomainStatus: (v: string) => void
   isPaid: boolean
-  initialShowBadge: boolean
+  showBadge: boolean
+  setShowBadge: (v: boolean) => void
   metaTitle: string
   setMetaTitle: (v: string) => void
   metaDescription: string
@@ -40,12 +50,7 @@ export default function PublishPanel({
   setFaviconUrl: (v: string) => void
   onSaveSeo: () => void | Promise<void>
 }) {
-  const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
-  const [published, setPublished] = useState(initialPublished)
-  const [showBadge, setShowBadgeState] = useState(initialShowBadge)
   const [badgeSaving, setBadgeSaving] = useState(false)
-  const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
-  const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
   const [instructions, setInstructions] = useState<{ a: any; cname: any } | null>(null)
   const [nameservers, setNameservers] = useState<string[] | null>(null)
   const [verification, setVerification] = useState<{ type: string; domain: string; value: string; reason: string }[]>([])
@@ -87,7 +92,7 @@ export default function PublishPanel({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to update')
-      setShowBadgeState(data.show_badge)
+      setShowBadge(data.show_badge)
     } catch (err: any) {
       setError(err.message)
     }

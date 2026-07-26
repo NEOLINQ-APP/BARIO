@@ -44,6 +44,14 @@ export default function TemplateBuilder({
   const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
   const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
   const [faviconUrl, setFaviconUrl] = useState(initialFaviconUrl)
+  // Lifted (not PublishPanel-local) so the panel doesn't forget a subdomain
+  // you just published the moment you close and reopen it — see the same
+  // fix in Builder.tsx for the full explanation.
+  const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
+  const [published, setPublished] = useState(initialPublished)
+  const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
+  const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
+  const [showBadge, setShowBadge] = useState(initialShowBadge)
   const [showPublish, setShowPublish] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
@@ -162,12 +170,17 @@ export default function TemplateBuilder({
         <PublishPanel
           siteId={siteId}
           onClose={() => setShowPublish(false)}
-          initialSubdomain={initialSubdomain}
-          initialCustomDomain={initialCustomDomain}
-          initialDomainStatus={initialDomainStatus}
-          initialPublished={initialPublished}
+          subdomain={subdomain}
+          setSubdomain={setSubdomain}
+          published={published}
+          setPublished={setPublished}
+          customDomain={customDomain}
+          setCustomDomain={setCustomDomain}
+          domainStatus={domainStatus}
+          setDomainStatus={setDomainStatus}
           isPaid={isPaid}
-          initialShowBadge={initialShowBadge}
+          showBadge={showBadge}
+          setShowBadge={setShowBadge}
           metaTitle={metaTitle}
           setMetaTitle={setMetaTitle}
           metaDescription={metaDescription}

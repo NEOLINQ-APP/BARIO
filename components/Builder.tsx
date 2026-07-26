@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, createElement } from 'react'
+import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
 import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
@@ -142,6 +143,7 @@ export default function Builder({
   initialBusinessHours: string
   initialBusinessLocation: string
 }) {
+  const router = useRouter()
   const [currentSiteId, setCurrentSiteId] = useState(siteId)
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
@@ -149,6 +151,15 @@ export default function Builder({
   const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
   const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
   const [faviconUrl, setFaviconUrl] = useState(initialFaviconUrl)
+  // Lifted up (rather than left as PublishPanel-local state) because the
+  // panel unmounts on close — local state there would forget a subdomain
+  // you'd just published the moment you closed and reopened the panel,
+  // making it look like you had to type it in again.
+  const [subdomain, setSubdomain] = useState(initialSubdomain ?? '')
+  const [published, setPublished] = useState(initialPublished)
+  const [customDomain, setCustomDomain] = useState(initialCustomDomain ?? '')
+  const [domainStatus, setDomainStatus] = useState(initialDomainStatus)
+  const [showBadge, setShowBadge] = useState(initialShowBadge)
   const [businessName, setBusinessName] = useState(initialBusinessName)
   const [businessCategory, setBusinessCategory] = useState(initialBusinessCategory)
   const [businessHours, setBusinessHours] = useState(initialBusinessHours)
@@ -418,7 +429,15 @@ export default function Builder({
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
-      if (d.id) setCurrentSiteId(d.id)
+      if (d.id && d.id !== currentSiteId) {
+        // Keep the URL pointing at this exact site — otherwise a refresh
+        // (or reopening the tab later) has no ?site= to go on and falls
+        // back to "whichever site you last touched," which is usually
+        // right but not guaranteed, and briefly wasn't even that (see the
+        // resolveSiteId fix above).
+        setCurrentSiteId(d.id)
+        router.replace(`/build?site=${d.id}`, { scroll: false })
+      }
       setSaveMsg('Saved')
       setDirty(false)
     } catch (err: any) {
@@ -642,12 +661,17 @@ export default function Builder({
         <PublishPanel
           siteId={currentSiteId}
           onClose={() => setShowPublish(false)}
-          initialSubdomain={initialSubdomain}
-          initialCustomDomain={initialCustomDomain}
-          initialDomainStatus={initialDomainStatus}
-          initialPublished={initialPublished}
+          subdomain={subdomain}
+          setSubdomain={setSubdomain}
+          published={published}
+          setPublished={setPublished}
+          customDomain={customDomain}
+          setCustomDomain={setCustomDomain}
+          domainStatus={domainStatus}
+          setDomainStatus={setDomainStatus}
           isPaid={isPaid}
-          initialShowBadge={initialShowBadge}
+          showBadge={showBadge}
+          setShowBadge={setShowBadge}
           metaTitle={metaTitle}
           setMetaTitle={setMetaTitle}
           metaDescription={metaDescription}
