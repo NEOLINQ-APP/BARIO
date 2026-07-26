@@ -22,6 +22,10 @@ export default function AdminHome() {
             <div className="font-semibold">Gift & Promo Codes</div>
             <p className="text-xs text-zinc-400 mt-2">Create codes that grant users free AI-builder credits.</p>
           </a>
+          <a href="/admin/users" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Grant a Plan</div>
+            <p className="text-xs text-zinc-400 mt-2">Comp a paid plan onto an account — no payment, e.g. for family.</p>
+          </a>
         </div>
       </div>
     </main>
