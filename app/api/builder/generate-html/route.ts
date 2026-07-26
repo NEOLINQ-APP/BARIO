@@ -28,8 +28,9 @@ Always respond with a single JSON object of this shape:
 { "explanation": "one or two plain-language sentences describing what you changed and why", "edits": [ { "find": "exact text to find", "replace": "text to replace it with" } ] }
 
 Rules for edits:
-- "find" must be copied VERBATIM from the current HTML — exact characters, exact whitespace, no paraphrasing.
-- "find" must be unique: include enough surrounding context (a few extra words, a nearby attribute, whatever it takes) that it matches exactly one place in the document. A "find" that matches zero times or more than once will be rejected and that change won't apply.
+- "find" must be copied VERBATIM from the raw HTML text given below — exact characters, exact whitespace, no paraphrasing. Copy it from the actual source, not from how the text would visually render.
+- Text that looks like one continuous phrase on the page is often split across nested tags in the source (e.g. a logo reading "APEX MOTORS" might actually be written as APEX<span class="...">MOTORS</span> with no literal "APEX MOTORS" substring anywhere). If the visible phrase you want to change isn't one unbroken string in the source, find and edit each piece separately instead of trying to match the whole phrase at once.
+- "find" must be unique: include enough surrounding context (a few extra words, a nearby attribute, whatever it takes) that it matches exactly one place in the document. A "find" that matches zero times or more than once will be rejected and that change won't apply — so when in doubt, double-check the exact text against the source before writing it.
 - Keep each edit small and targeted — one "find"/"replace" pair per distinct change, not one giant block covering the whole page.
 - Never invent or change an existing image's "src" attribute. The user can click any image directly on the canvas to replace it with a real upload — if they ask for a different image via chat, say so in your explanation and leave the src untouched.
 - Never invent contact details (phone/email/address) the user hasn't given you.
@@ -137,9 +138,22 @@ export async function POST(req: Request) {
       throw new Error("Something went wrong applying that change — nothing was modified. Try rephrasing your request.")
     }
 
-    let explanation = typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
-    if (failed.length > 0) {
-      explanation += ` (Couldn't find an exact match for: "${failed[0]}${failed[0].length >= 60 ? '…' : ''}" — try describing that part more specifically.)`
+    // The model can (and did, in testing) describe a change in prose while
+    // the actual find/replace silently failed to match — never let a
+    // no-op masquerade as success. If nothing in the document actually
+    // changed, the message reflects that plainly instead of the model's
+    // possibly-false claim.
+    const nothingChanged = result === html
+    let explanation: string
+    if (nothingChanged && edits.length > 0) {
+      explanation = `I couldn't find the exact text to change — "${failed[0]?.slice(0, 60) ?? edits[0].find.slice(0, 60)}${(failed[0]?.length ?? edits[0].find.length) >= 60 ? '…' : ''}" doesn't appear in the page as I expected. Try describing it differently, or click directly on the text on the canvas to edit it.`
+    } else if (nothingChanged) {
+      explanation = typeof parsed.explanation === 'string' ? parsed.explanation : "I didn't make any changes — could you describe what you'd like differently?"
+    } else {
+      explanation = typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+      if (failed.length > 0) {
+        explanation += ` (One part of this didn't apply — couldn't find an exact match for "${failed[0].slice(0, 60)}${failed[0].length >= 60 ? '…' : ''}".)`
+      }
     }
 
     let creditsRemaining = -1
