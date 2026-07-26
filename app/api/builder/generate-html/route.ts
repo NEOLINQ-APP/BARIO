@@ -6,32 +6,52 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
-// Full-HTML-document round trips through the model are genuinely slower
-// than the sections endpoint's compact JSON, and no route in this app set
-// a duration before — meaning this ran on Vercel's platform default, which
-// a large template page can exceed. When that happens the function is
-// killed with no response sent at all, and the client just hangs forever
-// ("Zeus frozen") since there's nothing to catch. This is very likely what
-// was actually happening — confirmed via Vercel logs showing this route
-// returning responseStatusCode 0 (function killed mid-flight, no response).
 export const maxDuration = 60
 
 // Zeus editing for raw-HTML sites (a Premium Template, or a user's own
 // uploaded HTML file) — a different job than app/api/builder/generate,
-// which only ever produces Bario's fixed section schema. Here the model
-// edits a real, already-designed HTML document directly and must hand the
-// whole thing back, since there's no structured schema to patch fields on.
+// which only ever produces Bario's fixed section schema.
+//
+// This used to ask the model to return the FULL edited document on every
+// request. For a small change ("change the site name") that meant
+// regenerating an entire multi-KB page — thousands of output tokens for a
+// two-word edit, which for larger templates (lots of inline JS/data, e.g.
+// a dealership inventory script) was slow enough to exceed the function's
+// execution time and get killed with no response at all (confirmed via
+// Vercel logs: responseStatusCode 0, i.e. "Zeus frozen", not a timeout that
+// just needed a longer budget). The actual fix is generating less: the
+// model now returns small find/replace edits applied server-side, so
+// output size — and therefore latency — no longer scales with page size.
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario. You're editing a complete, already-designed HTML page — its own custom CSS, layout, and possibly JavaScript — rather than one of Bario's own section templates. Preserve its existing visual style, structure, and design language; only change what the user actually asked for.
 
 Always respond with a single JSON object of this shape:
-{ "explanation": "one or two plain-language sentences describing what you changed and why", "html": "the FULL updated HTML document, starting with <!DOCTYPE html>" }
+{ "explanation": "one or two plain-language sentences describing what you changed and why", "edits": [ { "find": "exact text to find", "replace": "text to replace it with" } ] }
 
-Rules:
-- Return the complete HTML document every time, not a diff or a fragment — anything you leave out is deleted from the page.
-- Copy everything not related to the request byte-for-byte: unrelated text, structure, styling, and scripts must come back exactly as given.
+Rules for edits:
+- "find" must be copied VERBATIM from the current HTML — exact characters, exact whitespace, no paraphrasing.
+- "find" must be unique: include enough surrounding context (a few extra words, a nearby attribute, whatever it takes) that it matches exactly one place in the document. A "find" that matches zero times or more than once will be rejected and that change won't apply.
+- Keep each edit small and targeted — one "find"/"replace" pair per distinct change, not one giant block covering the whole page.
 - Never invent or change an existing image's "src" attribute. The user can click any image directly on the canvas to replace it with a real upload — if they ask for a different image via chat, say so in your explanation and leave the src untouched.
 - Never invent contact details (phone/email/address) the user hasn't given you.
-- Keep existing <script> tags and interactive behavior (menus, forms, etc.) intact unless the user asked you to change that behavior specifically.`
+- Don't touch <script> tags or interactive behavior unless the user specifically asked to change that behavior.
+- If the request doesn't require changing the HTML at all (e.g. a question), return an empty "edits" array and explain in "explanation".`
+
+type Edit = { find: string; replace: string }
+
+function applyEdits(html: string, edits: Edit[]): { result: string; failed: string[] } {
+  let result = html
+  const failed: string[] = []
+  for (const edit of edits) {
+    if (typeof edit.find !== 'string' || typeof edit.replace !== 'string' || !edit.find) continue
+    const occurrences = result.split(edit.find).length - 1
+    if (occurrences !== 1) {
+      failed.push(edit.find.slice(0, 60))
+      continue
+    }
+    result = result.replace(edit.find, edit.replace)
+  }
+  return { result, failed }
+}
 
 export async function POST(req: Request) {
   try {
@@ -69,9 +89,9 @@ export async function POST(req: Request) {
 
     const userPrompt = `Edit this HTML page. The user wants: "${prompt}"\n\nCurrent HTML:\n${html}`
 
-    // Full-document round trips add up fast — same guard as the sections
-    // endpoint, so an oversized page fails fast with an actionable message
-    // instead of burning a request on a doomed call.
+    // The model still has to read the whole page to find the right spot —
+    // this guard is about input size, not output size (output is now small
+    // regardless of page size).
     const roughTokenEstimate = (SYSTEM_PROMPT.length + userPrompt.length) / 4
     if (roughTokenEstimate > 100_000) {
       return NextResponse.json(
@@ -110,8 +130,16 @@ export async function POST(req: Request) {
     if (!raw) throw new Error('No response from model')
 
     const parsed = JSON.parse(raw)
-    if (typeof parsed.html !== 'string' || !/<html[\s>]/i.test(parsed.html)) {
-      throw new Error("The AI's response didn't look like a valid page — nothing was changed. Try rephrasing your request.")
+    const edits: Edit[] = Array.isArray(parsed.edits) ? parsed.edits : []
+
+    const { result, failed } = applyEdits(html, edits)
+    if (!/<html[\s>]/i.test(result)) {
+      throw new Error("Something went wrong applying that change — nothing was modified. Try rephrasing your request.")
+    }
+
+    let explanation = typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+    if (failed.length > 0) {
+      explanation += ` (Couldn't find an exact match for: "${failed[0]}${failed[0].length >= 60 ? '…' : ''}" — try describing that part more specifically.)`
     }
 
     let creditsRemaining = -1
@@ -124,8 +152,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
-      html: parsed.html,
+      explanation,
+      html: result,
       creditsRemaining,
     })
   } catch (err: any) {
