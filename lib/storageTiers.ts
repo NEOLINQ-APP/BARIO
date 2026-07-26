@@ -1,11 +1,18 @@
-export type StorageTierKey = 'free' | 'plus' | 'pro' | 'business'
+export type StorageTierKey = 'free' | 'starter' | 'plus' | 'pro'
 
+// Bario's own storage tiers — informed by researching iCloud/Google
+// One/Amazon Photos/MEGA (cheap entry tier, meaningful jumps, family
+// sharing bundled free on paid tiers) but sized for website media rather
+// than full-device backup, and priced as our own product, not a resale of
+// anyone else's numbers. CAD, billed monthly.
 export const STORAGE_TIERS: Record<StorageTierKey, { label: string; bytes: number; priceCentsCad: number }> = {
-  free: { label: 'Free', bytes: 1 * 1024 ** 3, priceCentsCad: 0 },
-  plus: { label: 'Plus', bytes: 10 * 1024 ** 3, priceCentsCad: 499 },
-  pro: { label: 'Pro', bytes: 50 * 1024 ** 3, priceCentsCad: 1499 },
-  business: { label: 'Business', bytes: 250 * 1024 ** 3, priceCentsCad: 3999 },
+  free: { label: 'Free', bytes: 2 * 1024 ** 3, priceCentsCad: 0 },
+  starter: { label: 'Starter', bytes: 20 * 1024 ** 3, priceCentsCad: 299 },
+  plus: { label: 'Plus', bytes: 100 * 1024 ** 3, priceCentsCad: 799 },
+  pro: { label: 'Pro', bytes: 500 * 1024 ** 3, priceCentsCad: 1999 },
 }
+
+export const STORAGE_TIER_KEYS = Object.keys(STORAGE_TIERS) as StorageTierKey[]
 
 // Family sharing (any paid tier, no extra charge) pools storage across up to
 // this many accounts, including the owner — matches iCloud's cap.

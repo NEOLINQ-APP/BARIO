@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { STORAGE_TIERS, STORAGE_TIER_KEYS } from '@/lib/storageTiers'
 
 type Asset = {
   id: string
@@ -30,12 +31,12 @@ type FamilyGroup = {
   invites: { id: string; email: string; status: string; expires_at: string }[]
 }
 
-const TIERS: { key: string; label: string; gb: number; price: number }[] = [
-  { key: 'free', label: 'Free', gb: 1, price: 0 },
-  { key: 'plus', label: 'Plus', gb: 10, price: 4.99 },
-  { key: 'pro', label: 'Pro', gb: 50, price: 14.99 },
-  { key: 'business', label: 'Business', gb: 250, price: 39.99 },
-]
+const TIERS = STORAGE_TIER_KEYS.map((key) => ({
+  key,
+  label: STORAGE_TIERS[key].label,
+  gb: STORAGE_TIERS[key].bytes / 1024 ** 3,
+  price: STORAGE_TIERS[key].priceCentsCad / 100,
+}))
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(0)} MB`
