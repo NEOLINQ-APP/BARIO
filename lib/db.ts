@@ -51,6 +51,21 @@ async function ensureSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS storage_subscription_status TEXT NOT NULL DEFAULT 'none'`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_storage_subscription_id TEXT`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS family_group_id TEXT`
+  // X-Drive end-to-end encryption. All key material here is opaque to the
+  // server by construction: the MEK (master encryption key) is generated
+  // client-side and never transmitted in plaintext — only wrapped (encrypted)
+  // copies are stored, one wrapped by a key derived from the user's chosen
+  // passphrase, one wrapped by a key derived from their recovery code. Losing
+  // BOTH the passphrase and the recovery code means the MEK is unrecoverable
+  // and every encrypted file is permanently unreadable — by design, this is
+  // what "the server never sees plaintext" actually means. See lib/e2eCrypto.ts.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_enabled BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_salt TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_wrapped_mek TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_wrapped_mek_iv TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_salt TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_wrapped_mek TEXT`
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_wrapped_mek_iv TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS family_groups (
       id TEXT PRIMARY KEY,
@@ -81,6 +96,12 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // content_type on an encrypted row is still the REAL mime type (so the UI
+  // knows to render an <img>/<video>, once decrypted) — only the blob body
+  // itself is ciphertext. iv is the per-file AES-GCM nonce, base64, needed
+  // to decrypt; it's safe to store in the clear (an IV isn't secret).
+  await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS encrypted BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS iv TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -282,6 +303,13 @@ export type User = {
   storage_subscription_status: string
   stripe_storage_subscription_id: string | null
   family_group_id: string | null
+  e2e_enabled: boolean
+  e2e_salt: string | null
+  e2e_wrapped_mek: string | null
+  e2e_wrapped_mek_iv: string | null
+  e2e_recovery_salt: string | null
+  e2e_recovery_wrapped_mek: string | null
+  e2e_recovery_wrapped_mek_iv: string | null
 }
 
 export type MediaAsset = {
@@ -293,6 +321,8 @@ export type MediaAsset = {
   content_type: string
   size_bytes: number
   created_at: string
+  encrypted: boolean
+  iv: string | null
 }
 
 export type FamilyGroup = {

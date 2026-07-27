@@ -83,11 +83,18 @@ export async function POST(req: Request) {
     const form = await req.formData()
     const file = form.get('file')
     const folder = cleanFolder(form.get('folder') as string | null)
+    // Set when the file bytes are already client-side AES-GCM ciphertext
+    // (lib/e2eCrypto.ts encryptFile) — contentType then carries the REAL
+    // mime type for rendering post-decrypt, since file.type on an encrypted
+    // blob is just 'application/octet-stream'.
+    const encrypted = form.get('encrypted') === 'true'
+    const iv = form.get('iv')
+    const contentTypeOverride = form.get('contentType')
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
-    if (!/^(image|video)\//.test(file.type)) {
-      return NextResponse.json({ error: 'Only image or video files are supported' }, { status: 400 })
+    if (encrypted && typeof iv !== 'string') {
+      return NextResponse.json({ error: 'iv is required for an encrypted upload' }, { status: 400 })
     }
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'File must be under 200MB' }, { status: 400 })
@@ -104,10 +111,12 @@ export async function POST(req: Request) {
     const pathname = folder ? `${folder}/${file.name}` : file.name
     const blob = await put(`media/${user.id}/${pathname}`, file, { access: 'public', addRandomSuffix: true })
 
+    const contentType = encrypted && typeof contentTypeOverride === 'string' ? contentTypeOverride : file.type
+
     const id = randomUUID()
     await sql`
-      INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes)
-      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${file.type}, ${file.size})
+      INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes, encrypted, iv)
+      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${contentType}, ${file.size}, ${encrypted}, ${encrypted ? iv : null})
     `
 
     return NextResponse.json({ ok: true, id, url: blob.url })
