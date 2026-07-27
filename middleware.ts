@@ -26,10 +26,13 @@ export function middleware(req: NextRequest) {
   }
 
   // Any other incoming hostname (a customer's subdomain.bario.ca or their
-  // own connected custom domain) gets served from /site/[domain]. Sites are
-  // single-page for now, so the original path isn't preserved.
+  // own connected custom domain) gets served from /site/[domain]/[[...path]].
+  // The path is preserved (multi-page sites resolve it against site_pages),
+  // but this is fully backward-compatible: a site with no site_pages rows
+  // renders identically regardless of path, per app/site/[domain]/[[...path]]/route.ts.
   const url = req.nextUrl.clone()
-  url.pathname = `/site/${hostname}`
+  const path = req.nextUrl.pathname === '/' ? '' : req.nextUrl.pathname
+  url.pathname = `/site/${hostname}${path}`
   return NextResponse.rewrite(url)
 }
 

@@ -213,6 +213,50 @@ async function ensureSchema() {
       UNIQUE (gift_code_id, user_id)
     )
   `
+  // Snapshot of the previous raw_html, taken right before it gets overwritten
+  // by an import/edit — lets the admin-restore tool undo a bad edit without
+  // needing a full version history table.
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS raw_html_backup TEXT`
+  await sql`
+    CREATE TABLE IF NOT EXISTS admin_actions_log (
+      id TEXT PRIMARY KEY,
+      action TEXT NOT NULL,
+      target_email TEXT,
+      params_json TEXT NOT NULL DEFAULT '{}',
+      result TEXT NOT NULL,
+      triggered_by TEXT NOT NULL DEFAULT 'admin',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  // Optional multi-page content for a site, additive to the single
+  // sites.raw_html column above. A site with zero rows here is unaffected —
+  // /site/[domain] keeps rendering exactly as before (sections_json or
+  // sites.raw_html) regardless of the requested path. A site WITH rows here
+  // switches to per-path lookup: '' (or the row with is_home) for the root,
+  // otherwise the row matching the joined path segments as `slug`.
+  await sql`
+    CREATE TABLE IF NOT EXISTS site_pages (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      slug TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT 'Page',
+      raw_html TEXT NOT NULL,
+      is_home BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (site_id, slug)
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS support_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      email TEXT NOT NULL,
+      subject TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
 }
 
 export async function db() {
@@ -313,6 +357,16 @@ export type Site = {
   business_location: string | null
 }
 
+export type SitePage = {
+  id: string
+  site_id: string
+  slug: string
+  name: string
+  raw_html: string
+  is_home: boolean
+  updated_at: string
+}
+
 export type MarketingPlatform = 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'google_business'
 
 export type MarketingPost = {
@@ -337,4 +391,24 @@ export type GiftCode = {
   expires_at: string | null
   is_active: boolean
   created_by: string
+}
+
+export type AdminActionLog = {
+  id: string
+  action: string
+  target_email: string | null
+  params_json: string
+  result: string
+  triggered_by: 'admin' | 'ai_autonomous'
+  created_at: string
+}
+
+export type SupportMessage = {
+  id: string
+  user_id: string | null
+  email: string
+  subject: string
+  message: string
+  status: 'open' | 'closed'
+  created_at: string
 }
