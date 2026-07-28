@@ -3,6 +3,7 @@
 
 import PricingButton from '@/components/PricingButton'
 import DomainChecker from '@/components/DomainChecker'
+import PricingAssistant from '@/components/PricingAssistant'
 
 export const metadata = {
   title: "Bario — AI website builder & hosting for Canadian businesses",
@@ -16,13 +17,15 @@ export default function Home() {
       {/* NAVIGATION BAR */}
       <nav className="border-b border-slate-800/80 px-6 sm:px-12 py-4 flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center gap-2 font-extrabold text-xl tracking-tight text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/bario-icon-64.png" alt="Bario" className="h-8 w-8" />
           <span className="text-cyan-400">bario</span>
           <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">.ca</span>
         </div>
         <div className="flex items-center gap-6 text-sm font-medium">
           <a href="#domains" className="text-slate-400 hover:text-white transition-colors">Domains &amp; DNS</a>
           <a href="#features" className="text-slate-400 hover:text-white transition-colors">Hosting</a>
-          <a href="#media-library" className="text-slate-400 hover:text-white transition-colors">Media Library</a>
+          <a href="#media-library" className="text-slate-400 hover:text-white transition-colors">X-Drive</a>
           <a href="#pricing" className="text-slate-400 hover:text-white transition-colors">Pricing</a>
           <a href="#faq" className="text-slate-400 hover:text-white transition-colors">FAQ</a>
           <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors">
@@ -148,27 +151,27 @@ export default function Home() {
               🆕 New
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight mb-4">
-              Your Media Library — <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">every photo and video, in one place.</span>
+              Your X-Drive — <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">every photo, video, and file, in one place.</span>
             </h2>
             <p className="text-slate-400 mb-6 leading-relaxed">
               Upload once, use anywhere on your Bario site. Install it to your phone's home screen for quick uploads on the go, and share your storage with your family at no extra cost.
             </p>
             <ul className="space-y-3 text-sm text-slate-300 mb-8">
-              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Starts free — 2GB, no credit card</li>
-              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Upgrade anytime, from 20GB up to 20TB</li>
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Starts free — 10GB, no credit card</li>
+              <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Upgrade anytime, from 50GB up to 12TB</li>
               <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Family Sharing — up to 5 people, one plan, no extra cost</li>
               <li className="flex items-start gap-2"><span className="text-cyan-400 mt-0.5">✓</span> Installs like an app — no App Store needed</li>
             </ul>
             <div className="flex flex-wrap gap-4">
               <a href="/media" className="px-6 py-3 rounded-xl font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-colors">
-                Open Media Library
+                Open X-Drive
               </a>
               <a href="/storage" className="px-6 py-3 rounded-xl font-semibold border border-slate-700 text-slate-200 hover:border-slate-600 transition-colors">
                 See storage plans
               </a>
             </div>
             <p className="text-xs text-slate-500 mt-4">
-              How to get it: log in → Dashboard → <span className="text-slate-300">Media Library</span>. Already have an account? <a href="/login" className="underline hover:text-slate-300">Log in</a> to start uploading. Storage is billed separately from your <a href="/#pricing" className="underline hover:text-slate-300">hosting plan</a>.
+              How to get it: log in → Dashboard → <span className="text-slate-300">X-Drive</span>. Already have an account? <a href="/login" className="underline hover:text-slate-300">Log in</a> to start uploading. Storage is billed separately from your <a href="/#pricing" className="underline hover:text-slate-300">hosting plan</a>.
             </p>
           </div>
 
@@ -315,9 +318,9 @@ export default function Home() {
             <p className="text-slate-400 text-sm">Not yet — custom email addresses on your domain (like you@yourbusiness.com) are coming soon.</p>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
-            <h3 className="font-bold text-lg text-white">What's the Media Library?</h3>
+            <h3 className="font-bold text-lg text-white">What's X-Drive?</h3>
             <p className="text-slate-400 text-sm">
-              Storage for your photos and videos — upload once, use them anywhere on your site. Starts free (2GB), with paid tiers up to 20TB, and Family Sharing (up to 5 people) included free on any paid plan. Install it to your phone's home screen and it works like a real app. Log in, then open <span className="text-slate-300">Dashboard → Media Library</span> to get started.
+              Storage for your photos, videos, and files — upload once, use them anywhere on your site. Starts free (10GB), with paid tiers up to 12TB, and Family Sharing (up to 5 people) included free on any paid plan. Install it to your phone's home screen and it works like a real app. Log in, then open <span className="text-slate-300">Dashboard → X-Drive</span> to get started.
             </p>
           </div>
         </div>
@@ -331,6 +334,7 @@ export default function Home() {
         {' · '}
         <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>
       </footer>
+      <PricingAssistant />
     </main>
   )
 }

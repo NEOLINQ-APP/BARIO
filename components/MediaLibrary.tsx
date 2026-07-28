@@ -787,7 +787,9 @@ export default function MediaLibrary() {
             <div className="grid sm:grid-cols-3 gap-3 mt-5">
               {data.folders.map((f) => (
                 <button key={f} onClick={() => setFolder(folder ? `${folder}/${f}` : f)} className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-[#131b2a] px-4 py-3 text-sm font-semibold hover:border-zinc-600 transition-colors text-left">
-                  📁 {f}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/bario-icon-32.png" alt="" className="w-4 h-4 shrink-0" />
+                  {f}
                 </button>
               ))}
             </div>
