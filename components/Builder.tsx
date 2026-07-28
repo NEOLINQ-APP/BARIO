@@ -13,6 +13,7 @@ import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKe
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
+type Page = { id: string; name: string; slug: string; sections: Section[] }
 type ChatMsg = { role: 'zeus' | 'user'; text: string }
 type Theme = { primary: string; accent: string; style?: string }
 
@@ -39,29 +40,71 @@ const DEFAULTS: Record<SectionType, SectionData> = {
   logos: { title: 'Trusted By', l1n: 'Company A', l2n: 'Company B', l3n: 'Company C', l4n: 'Company D', l5n: '', l6n: '' },
 }
 
-const TEMPLATES: Record<string, { type: SectionType; data: SectionData }[]> = {
+// Local quick-start templates are multi-page now too — a Home landing page
+// plus a Contact page, rather than one long page. Zeus (or the user) can
+// still add more pages from here via chat or the page tabs.
+const TEMPLATES: Record<string, { name: string; slug: string; sections: { type: SectionType; data: SectionData }[] }[]> = {
   business: [
-    { type: 'nav', data: { logo: 'BusinessPro' } },
-    { type: 'hero', data: { headline: 'Grow Your Business With Confidence', sub: 'Professional services tailored to your unique needs and goals.', cta: 'Get Free Consultation' } },
-    { type: 'stats', data: { s1n: '500+', s1l: 'Happy Clients', s2n: '15yr', s2l: 'Experience', s3n: '98%', s3l: 'Success Rate', s4n: '24/7', s4l: 'Support' } },
-    { type: 'features', data: { title: 'What We Offer', f1t: 'Expert Team', f1d: 'Seasoned professionals dedicated to your success.', f2t: 'Proven Results', f2d: 'Track record of delivering measurable outcomes.', f3t: 'Always Available', f3d: 'Round-the-clock support for your business.' } },
-    { type: 'cta', data: { headline: 'Ready to Transform Your Business?', sub: 'Join 500+ businesses already succeeding with us.', cta: 'Start Today' } },
-    { type: 'footer', data: { logo: 'BusinessPro', copy: '© 2026 BusinessPro. All rights reserved.' } },
+    {
+      name: 'Home', slug: '', sections: [
+        { type: 'nav', data: { logo: 'BusinessPro' } },
+        { type: 'hero', data: { headline: 'Grow Your Business With Confidence', sub: 'Professional services tailored to your unique needs and goals.', cta: 'Get Free Consultation' } },
+        { type: 'stats', data: { s1n: '500+', s1l: 'Happy Clients', s2n: '15yr', s2l: 'Experience', s3n: '98%', s3l: 'Success Rate', s4n: '24/7', s4l: 'Support' } },
+        { type: 'features', data: { title: 'What We Offer', f1t: 'Expert Team', f1d: 'Seasoned professionals dedicated to your success.', f2t: 'Proven Results', f2d: 'Track record of delivering measurable outcomes.', f3t: 'Always Available', f3d: 'Round-the-clock support for your business.' } },
+        { type: 'cta', data: { headline: 'Ready to Transform Your Business?', sub: 'Join 500+ businesses already succeeding with us.', cta: 'Start Today' } },
+        { type: 'footer', data: { logo: 'BusinessPro', copy: '© 2026 BusinessPro. All rights reserved.' } },
+      ],
+    },
+    {
+      name: 'Contact', slug: 'contact', sections: [
+        { type: 'nav', data: { logo: 'BusinessPro' } },
+        { type: 'contact', data: { title: 'Get In Touch', sub: "We'd love to hear from you.", email: '', phone: '', address: '' } },
+        { type: 'footer', data: { logo: 'BusinessPro', copy: '© 2026 BusinessPro. All rights reserved.' } },
+      ],
+    },
   ],
   restaurant: [
-    { type: 'nav', data: { logo: 'La Bella' } },
-    { type: 'hero', data: { headline: 'Authentic Flavours, Unforgettable Moments', sub: 'Experience the finest cuisine crafted with fresh local ingredients.', cta: 'Reserve Your Table' } },
-    { type: 'features', data: { title: 'Why Dine With Us', f1t: 'Fresh Ingredients', f1d: 'Locally sourced, seasonal ingredients in every dish.', f2t: 'Award-Winning Chef', f2d: '15 years of culinary excellence.', f3t: 'Perfect Atmosphere', f3d: 'Intimate setting perfect for any occasion.' } },
-    { type: 'cta', data: { headline: 'Book Your Table Tonight', sub: 'Available 7 days a week.', cta: 'Make a Reservation' } },
-    { type: 'footer', data: { logo: 'La Bella', copy: '© 2026 La Bella Restaurant.' } },
+    {
+      name: 'Home', slug: '', sections: [
+        { type: 'nav', data: { logo: 'La Bella' } },
+        { type: 'hero', data: { headline: 'Authentic Flavours, Unforgettable Moments', sub: 'Experience the finest cuisine crafted with fresh local ingredients.', cta: 'Reserve Your Table' } },
+        { type: 'features', data: { title: 'Why Dine With Us', f1t: 'Fresh Ingredients', f1d: 'Locally sourced, seasonal ingredients in every dish.', f2t: 'Award-Winning Chef', f2d: '15 years of culinary excellence.', f3t: 'Perfect Atmosphere', f3d: 'Intimate setting perfect for any occasion.' } },
+        { type: 'cta', data: { headline: 'Book Your Table Tonight', sub: 'Available 7 days a week.', cta: 'Make a Reservation' } },
+        { type: 'footer', data: { logo: 'La Bella', copy: '© 2026 La Bella Restaurant.' } },
+      ],
+    },
+    {
+      name: 'Contact', slug: 'contact', sections: [
+        { type: 'nav', data: { logo: 'La Bella' } },
+        { type: 'contact', data: { title: 'Reservations & Contact', sub: 'Call ahead or stop by.', email: '', phone: '', address: '' } },
+        { type: 'footer', data: { logo: 'La Bella', copy: '© 2026 La Bella Restaurant.' } },
+      ],
+    },
   ],
   agency: [
-    { type: 'nav', data: { logo: 'Bario Agency' } },
-    { type: 'hero', data: { headline: 'Results For Your Business', sub: 'We combine strategy with execution to deliver real results.', cta: 'See Our Work' } },
-    { type: 'features', data: { title: 'Our Services', f1t: 'Marketing', f1d: 'Campaigns that convert.', f2t: 'Web Development', f2d: 'Beautiful, fast websites.', f3t: 'Automation', f3d: 'Workflows that run 24/7.' } },
-    { type: 'pricing', data: { title: 'Investment Plans', p1n: 'Starter', p1p: '$997', p1f: '5 Pages,Support', p2n: 'Growth', p2p: '$2,497', p2f: '10 Pages,E-commerce,SEO', p3n: 'Enterprise', p3p: 'Custom', p3f: 'Unlimited Pages,Priority Support' } },
-    { type: 'cta', data: { headline: "Let's Build Something Great", sub: 'Book a free strategy call.', cta: 'Get Started' } },
-    { type: 'footer', data: { logo: 'Bario Agency', copy: '© 2026 Bario Agency.' } },
+    {
+      name: 'Home', slug: '', sections: [
+        { type: 'nav', data: { logo: 'Bario Agency' } },
+        { type: 'hero', data: { headline: 'Results For Your Business', sub: 'We combine strategy with execution to deliver real results.', cta: 'See Our Work' } },
+        { type: 'features', data: { title: 'Our Services', f1t: 'Marketing', f1d: 'Campaigns that convert.', f2t: 'Web Development', f2d: 'Beautiful, fast websites.', f3t: 'Automation', f3d: 'Workflows that run 24/7.' } },
+        { type: 'cta', data: { headline: "Let's Build Something Great", sub: 'Book a free strategy call.', cta: 'Get Started' } },
+        { type: 'footer', data: { logo: 'Bario Agency', copy: '© 2026 Bario Agency.' } },
+      ],
+    },
+    {
+      name: 'Pricing', slug: 'pricing', sections: [
+        { type: 'nav', data: { logo: 'Bario Agency' } },
+        { type: 'pricing', data: { title: 'Investment Plans', p1n: 'Starter', p1p: '$997', p1f: '5 Pages,Support', p2n: 'Growth', p2p: '$2,497', p2f: '10 Pages,E-commerce,SEO', p3n: 'Enterprise', p3p: 'Custom', p3f: 'Unlimited Pages,Priority Support' } },
+        { type: 'footer', data: { logo: 'Bario Agency', copy: '© 2026 Bario Agency.' } },
+      ],
+    },
+    {
+      name: 'Contact', slug: 'contact', sections: [
+        { type: 'nav', data: { logo: 'Bario Agency' } },
+        { type: 'contact', data: { title: 'Get In Touch', sub: "Let's talk about your project.", email: '', phone: '', address: '' } },
+        { type: 'footer', data: { logo: 'Bario Agency', copy: '© 2026 Bario Agency.' } },
+      ],
+    },
   ],
 }
 
@@ -88,18 +131,34 @@ function matchTemplateAlias(text: string): string | null {
   return null
 }
 
-function renderFieldsFromModel(sections: { type: SectionType; data: SectionData }[]): Section[] {
-  return sections.map((s) => ({ id: crypto.randomUUID(), type: s.type, data: s.data }))
-}
-
 function newId() {
   return crypto.randomUUID()
+}
+
+function pagesFromModel(pages: { name: string; slug: string; sections: { type: SectionType; data: SectionData }[] }[]): Page[] {
+  return pages.map((p) => ({
+    id: newId(),
+    name: p.name,
+    slug: p.slug,
+    sections: p.sections.map((s) => ({ id: newId(), type: s.type, data: s.data })),
+  }))
+}
+
+function slugify(name: string, existing: Set<string>): string {
+  const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
+  let slug = base
+  let n = 2
+  while (existing.has(slug)) {
+    slug = `${base}-${n}`
+    n++
+  }
+  return slug
 }
 
 export default function Builder({
   siteId,
   initialName,
-  initialSections,
+  initialPages,
   initialTheme,
   initialCredits,
   userEmail,
@@ -122,7 +181,7 @@ export default function Builder({
 }: {
   siteId: string | null
   initialName: string
-  initialSections: { type: SectionType; data: SectionData }[]
+  initialPages: { name: string; slug: string; sections: { type: SectionType; data: SectionData }[] }[]
   initialTheme: Theme
   initialCredits: number
   userEmail: string
@@ -169,9 +228,16 @@ export default function Builder({
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
   const outOfCredits = !unlimitedCredits && credits <= 0
-  const [sections, setSections] = useState<Section[]>(() =>
-    initialSections.map((s) => ({ id: newId(), type: s.type, data: s.data }))
-  )
+
+  const [pages, setPages] = useState<Page[]>(() => pagesFromModel(initialPages.length ? initialPages : [{ name: 'Home', slug: '', sections: [] }]))
+  const [activePageId, setActivePageId] = useState<string>(() => pages[0]?.id ?? '')
+  const activePage = pages.find((p) => p.id === activePageId) ?? pages[0]
+  const sections = activePage.sections
+
+  function setActivePageSections(updater: (secs: Section[]) => Section[]) {
+    setPages((ps) => ps.map((p) => (p.id === activePage.id ? { ...p, sections: updater(p.sections) } : p)))
+  }
+
   const [dirty, setDirty] = useState(false)
   const canvasScrollRef = useRef<HTMLDivElement>(null)
   const sectionsLengthRef = useRef(sections.length)
@@ -183,6 +249,7 @@ export default function Builder({
       })
     }
     sectionsLengthRef.current = sections.length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections])
 
   const activeStyle: StylePresetKey = isStylePresetKey(theme.style) ? theme.style : DEFAULT_STYLE_PRESET
@@ -206,7 +273,7 @@ export default function Builder({
   // Autosave: previously the only way work landed in the database was the
   // manual Save button, so a refresh mid-session (or Zeus generating a site
   // the user never explicitly clicked Save on) silently threw everything
-  // away. Debounce a save shortly after any real change to sections/theme/
+  // away. Debounce a save shortly after any real change to pages/theme/
   // name instead — short enough that a refresh can't land in the gap for
   // long, long enough not to fire on every keystroke (field edits only
   // commit on blur, so this mostly debounces distinct edits, not typing).
@@ -216,12 +283,12 @@ export default function Builder({
       mountedRef.current = true
       return
     }
-    if (sections.length === 0 && !currentSiteId) return
+    if (pages.every((p) => p.sections.length === 0) && !currentSiteId) return
     setDirty(true)
     const t = setTimeout(() => { handleSave() }, 1200)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections, theme, siteName])
+  }, [pages, theme, siteName])
 
   // Second line of defense: if a save is still pending (debounce window or
   // in-flight request) when the user tries to close/refresh the tab, warn
@@ -237,7 +304,7 @@ export default function Builder({
   }, [dirty])
 
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it. Try: \"Build a modern site for a Calgary plumbing company.\"" },
+    { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it — a real multi-page site, not just one long page. Try: \"Build a site for a Calgary plumbing company.\"" },
   ])
   const [input, setInput] = useState('')
   const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'video' | 'audio'; name: string } | null>(null)
@@ -257,16 +324,16 @@ export default function Builder({
   }
 
   function updateField(id: string, field: string, value: string) {
-    setSections((secs) => secs.map((s) => (s.id === id ? { ...s, data: { ...s.data, [field]: value } } : s)))
+    setActivePageSections((secs) => secs.map((s) => (s.id === id ? { ...s, data: { ...s.data, [field]: value } } : s)))
   }
 
   function removeSection(id: string) {
-    setSections((secs) => secs.filter((s) => s.id !== id))
+    setActivePageSections((secs) => secs.filter((s) => s.id !== id))
     if (selectedId === id) setSelectedId(null)
   }
 
   function moveSection(id: string, dir: -1 | 1) {
-    setSections((secs) => {
+    setActivePageSections((secs) => {
       const idx = secs.findIndex((s) => s.id === id)
       const swapIdx = idx + dir
       if (idx === -1 || swapIdx < 0 || swapIdx >= secs.length) return secs
@@ -277,7 +344,7 @@ export default function Builder({
   }
 
   function duplicateSection(id: string) {
-    setSections((secs) => {
+    setActivePageSections((secs) => {
       const idx = secs.findIndex((s) => s.id === id)
       if (idx === -1) return secs
       const copy = [...secs]
@@ -287,14 +354,57 @@ export default function Builder({
   }
 
   function addBlankSection(type: SectionType) {
-    setSections((secs) => [...secs, { id: newId(), type, data: { ...DEFAULTS[type] } }])
+    setActivePageSections((secs) => [...secs, { id: newId(), type, data: { ...DEFAULTS[type] } }])
   }
 
   function loadTemplate(name: string) {
     const tmpl = TEMPLATES[name]
     if (!tmpl) return
-    setSections(renderFieldsFromModel(tmpl))
-    addMsg('zeus', `${name.charAt(0).toUpperCase() + name.slice(1)} template loaded. Click any text to edit it directly, or ask me to change anything.`)
+    const newPages = pagesFromModel(tmpl)
+    setPages(newPages)
+    setActivePageId(newPages[0].id)
+    addMsg('zeus', `${name.charAt(0).toUpperCase() + name.slice(1)} template loaded (${newPages.length} pages). Click any text to edit it directly, use the page tabs above the canvas to switch pages, or ask me to change anything.`)
+  }
+
+  function addPage() {
+    const name = window.prompt('New page name (e.g. "About", "Services", "Gallery")')?.trim()
+    if (!name) return
+    const existing = new Set(pages.map((p) => p.slug))
+    const slug = slugify(name, existing)
+    const newPage: Page = {
+      id: newId(),
+      name,
+      slug,
+      sections: [
+        { id: newId(), type: 'nav', data: { ...(pages[0]?.sections.find((s) => s.type === 'nav')?.data ?? DEFAULTS.nav) } },
+        { id: newId(), type: 'footer', data: { ...(pages[0]?.sections.find((s) => s.type === 'footer')?.data ?? DEFAULTS.footer) } },
+      ],
+    }
+    setPages((ps) => [...ps, newPage])
+    setActivePageId(newPage.id)
+  }
+
+  function renamePage(id: string) {
+    const idx = pages.findIndex((p) => p.id === id)
+    if (idx === -1) return
+    const name = window.prompt('Rename page', pages[idx].name)?.trim()
+    if (!name) return
+    setPages((ps) => {
+      const existing = new Set(ps.filter((p) => p.id !== id).map((p) => p.slug))
+      const slug = idx === 0 ? '' : slugify(name, existing)
+      return ps.map((p) => (p.id === id ? { ...p, name, slug } : p))
+    })
+  }
+
+  function deletePage(id: string) {
+    if (pages.length <= 1) return
+    if (pages[0]?.id === id) {
+      alert("The Home page can't be deleted — rename it instead if you want a different landing page.")
+      return
+    }
+    if (!window.confirm('Delete this page? This cannot be undone.')) return
+    setPages((ps) => ps.filter((p) => p.id !== id))
+    if (activePageId === id) setActivePageId(pages[0].id)
   }
 
   async function handleAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -330,7 +440,7 @@ export default function Builder({
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    if (sections.length > 0) {
+    if (pages.some((p) => p.sections.length > 0)) {
       const ok = window.confirm(
         "This replaces the current site with your uploaded HTML file and switches to raw-HTML editing mode (Zeus's chat builder won't apply anymore). Continue?"
       )
@@ -375,7 +485,7 @@ export default function Builder({
 
     setBusy(true)
 
-    const isNew = sections.length === 0 || /build|create|make|generate|new site/i.test(text)
+    const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
 
     // A killed serverless function (timeout) sends no response at all, so
     // without this the fetch just hangs forever with nothing to catch,
@@ -390,7 +500,8 @@ export default function Builder({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           prompt: text || `Use this attached ${currentAttachment?.kind} where it fits best.`,
-          sections: sections.map((s) => ({ type: s.type, data: s.data })),
+          pages: pages.map((p) => ({ name: p.name, slug: p.slug, sections: p.sections.map((s) => ({ type: s.type, data: s.data })) })),
+          activeSlug: activePage.slug,
           theme,
           isNew,
           businessName,
@@ -404,7 +515,10 @@ export default function Builder({
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Generation failed')
-      setSections(renderFieldsFromModel(d.sections))
+      const newPages = pagesFromModel(d.pages)
+      setPages(newPages)
+      const stillViewing = newPages.find((p) => p.slug === activePage.slug)
+      setActivePageId(stillViewing ? stillViewing.id : newPages[0].id)
       if (d.theme) setTheme(d.theme)
       if (typeof d.creditsRemaining === 'number') setCredits(d.creditsRemaining)
       addMsg('zeus', d.explanation ?? 'Done.')
@@ -425,7 +539,7 @@ export default function Builder({
         body: JSON.stringify({
           siteId: currentSiteId,
           name: siteName,
-          sections: sections.map((s) => ({ type: s.type, data: s.data })),
+          pages: pages.map((p) => ({ name: p.name, slug: p.slug, sections: p.sections.map((s) => ({ type: s.type, data: s.data })) })),
           theme,
           metaTitle,
           metaDescription,
@@ -457,7 +571,8 @@ export default function Builder({
   }
 
   function handleExport() {
-    const html = buildSiteHtml(siteName, sections.map((s) => ({ type: s.type, data: s.data })), theme, {
+    const pagesForRender = pages.map((p) => ({ name: p.name, slug: p.slug, sections: p.sections.map((s) => ({ type: s.type, data: s.data })) }))
+    const html = buildSiteHtml(siteName, pagesForRender, activePage.slug, theme, {
       metaTitle,
       metaDescription,
       analyticsId,
@@ -466,7 +581,7 @@ export default function Builder({
     const blob = new Blob([html], { type: 'text/html' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `${siteName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.html`
+    a.download = `${siteName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}${activePage.slug ? `-${activePage.slug}` : ''}.html`
     a.click()
   }
 
@@ -521,7 +636,7 @@ export default function Builder({
           <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
-          <button onClick={handleExport} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
+          <button onClick={handleExport} title="Exports the page you're currently viewing" className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
             Export HTML
           </button>
           <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
@@ -614,7 +729,7 @@ export default function Builder({
                     handleSend()
                   }
                 }}
-                placeholder={attachment ? 'Say what to do with this file (optional)…' : 'Describe your website or ask for changes…'}
+                placeholder={attachment ? 'Say what to do with this file (optional)…' : `Describe your website or ask for changes to "${activePage.name}"…`}
                 rows={2}
                 disabled={outOfCredits}
                 className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
@@ -628,6 +743,28 @@ export default function Builder({
 
         {/* Canvas */}
         <div className="flex-1 flex flex-col min-h-0 bg-[#1a1a2e]">
+          {/* Page tabs */}
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-800 overflow-x-auto">
+            {pages.map((p, i) => (
+              <div key={p.id} className="flex items-center">
+                <button
+                  onClick={() => setActivePageId(p.id)}
+                  onDoubleClick={() => renamePage(p.id)}
+                  title="Double-click to rename"
+                  className={`text-xs px-3 py-1.5 rounded-t-lg whitespace-nowrap ${p.id === activePage.id ? 'bg-[#1a1a2e] text-white border border-zinc-700 border-b-0 font-semibold' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  {p.name}{i === 0 && <span className="text-[9px] text-zinc-500 ml-1">(home)</span>}
+                </button>
+                {i > 0 && p.id === activePage.id && (
+                  <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+                )}
+              </div>
+            ))}
+            <button onClick={addPage} className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 whitespace-nowrap">
+              + Page
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 overflow-x-auto">
             {(Object.keys(SECTION_LABELS) as SectionType[]).map((t) => (
               <button key={t} onClick={() => addBlankSection(t)} className="text-[11px] px-2.5 py-1 rounded-md bg-zinc-800 text-zinc-300 hover:text-white whitespace-nowrap">
@@ -643,7 +780,7 @@ export default function Builder({
               {sections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
                   <div className="text-4xl opacity-40">🏗️</div>
-                  <h3 className="text-slate-500 font-semibold">Your website will appear here</h3>
+                  <h3 className="text-slate-500 font-semibold">This page will appear here</h3>
                   <p className="text-slate-400 text-sm max-w-xs">Chat with Zeus on the left, or load a template to get started.</p>
                 </div>
               ) : (
@@ -651,6 +788,7 @@ export default function Builder({
                   <SectionView
                     key={s.id}
                     section={s}
+                    pages={pages}
                     selected={selectedId === s.id}
                     onSelect={() => setSelectedId(s.id)}
                     onCommit={(field, value) => updateField(s.id, field, value)}
@@ -739,9 +877,10 @@ function Editable({
 }
 
 function SectionView({
-  section, selected, onSelect, onCommit, onMoveUp, onMoveDown, onDuplicate, onDelete,
+  section, pages, selected, onSelect, onCommit, onMoveUp, onMoveDown, onDuplicate, onDelete,
 }: {
   section: Section
+  pages: Page[]
   selected: boolean
   onSelect: () => void
   onCommit: (field: string, value: string) => void
@@ -766,7 +905,9 @@ function SectionView({
       <div className={`${wrapperClass} s-nav`} onClick={onSelect}>
         {toolbar}
         <Editable value={data.logo} onCommit={(v) => onCommit('logo', v)} className="s-nav-logo" />
-        <div className="s-nav-links"><span>Home</span><span>About</span><span>Services</span><span>Contact</span></div>
+        <div className="s-nav-links">
+          {pages.map((p) => <span key={p.id}>{p.name}</span>)}
+        </div>
       </div>
     )
   }

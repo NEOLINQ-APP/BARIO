@@ -8,6 +8,8 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
+type Page = { name: string; slug: string; sections: Section[] }
+
 // No route in this app set this before, so every AI call ran on Vercel's
 // platform default duration. Usually fine for this route's compact JSON
 // output, but worth the same headroom as generate-html for consistency and
@@ -17,7 +19,11 @@ export const maxDuration = 60
 
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
-You build and edit websites as a theme plus a list of sections. The allowed section types and their data fields are:
+You build and edit REAL MULTI-PAGE websites — not one long scrolling page. A site is a list of pages; each page has a name (e.g. "Home", "About", "Services"), a URL slug (lowercase, hyphenated, no leading/trailing slash — the Home page's slug is always the empty string ""), and its own list of sections. Visitors navigate between pages via real links, not by scrolling.
+
+Every page should start with a "nav" section and end with a "footer" section, so navigation and footer are consistent site-wide — you do NOT write the nav's links yourself (they're generated automatically from the site's actual page list), you only provide the nav's logo text. Put real, page-specific content in the sections between nav and footer.
+
+The allowed section types and their data fields (same schema on every page) are:
 
 - nav: { "logo": string }
 - hero: { "headline": string, "sub": string, "cta": string, "image": string }
@@ -36,11 +42,11 @@ You build and edit websites as a theme plus a list of sections. The allowed sect
 
 Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.m1img/m2img/m3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. For team member photos, search for a generic professional headshot style (e.g. "smiling professional headshot man") since there's no way to find a photo of a specific real person. Leave the field empty/omitted if no image was requested.
 
-If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
+If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section on whichever page makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
-Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex", "style": "preset-key" }. Default is { "primary": "#0A2342", "accent": "#1a56db", "style": "modern" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged.
+Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex", "style": "preset-key" }. Default is { "primary": "#0A2342", "accent": "#1a56db", "style": "modern" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged. Theme applies to the whole site (every page), not per-page.
 
-"style" picks the site's overall visual personality — fonts, corner rounding, shadows vs. borders, button shape. It is NOT a per-section setting; one value themes the whole site. The options are:
+"style" picks the site's overall visual personality — fonts, corner rounding, shadows vs. borders, button shape. It is NOT a per-section or per-page setting; one value themes the whole site. The options are:
 ${STYLE_PRESET_KEYS.map((k) => `- "${k}": ${STYLE_PRESETS[k].vibe}`).join('\n')}
 
 When building a NEW site, pick whichever preset best fits the business described (e.g. a law firm or wedding venue → elegant; a gym or nightclub → bold; a dev tool or architecture studio → minimal; a daycare or pet groomer → friendly; anything else → modern). When EDITING an existing site, keep the current style unless the user explicitly asks for a different look/vibe/style — never change it just because they asked to edit text or colors.
@@ -49,14 +55,35 @@ Always respond with a single JSON object of the shape:
 {
   "explanation": "one or two plain-language sentences, written for someone with no coding background, explaining what you built or changed and why",
   "theme": { "primary": "#hex", "accent": "#hex" },
-  "sections": [ { "type": "...", "data": { ... } }, ... ]
+  "pages": [
+    { "name": "Home", "slug": "", "sections": [ { "type": "...", "data": { ... } }, ... ] },
+    { "name": "About", "slug": "about", "sections": [ ... ] },
+    ...
+  ]
 }
 
-When building a new site, include nav, hero, at least one middle section, cta, and footer, with content specific to what the user described.
+When building a NEW site: plan out a real multi-page site — typically 3-5 pages appropriate to the business (always include a "Home" page with slug ""; pick the rest from what actually fits, e.g. About, Services, Menu, Gallery, Pricing, Contact — don't force a page that doesn't make sense for this business, and don't pad to a fixed number). Distribute content sensibly: the Home page should be a strong overview/landing page (nav, hero, a couple of highlight sections, cta, footer) — it should NOT contain everything; move a full pricing table to a dedicated pricing/services page, a full FAQ to its own page or the most relevant one, a full team section to an About page, etc. Every page needs its own nav (logo only) and footer.
 
-When editing an existing site, you will be given the current sections and theme as JSON. Return the FULL updated list of ALL sections in the same order (unless the user asked to add/remove one), and the full theme object. For any section NOT related to the user's request, copy its "data" EXACTLY as given — do not rewrite content the user did not ask to change. Only modify what was specifically requested.
+When EDITING an existing site: you'll be given the full current "pages" array and which page the user is currently viewing ("activeSlug"). By default, apply the user's requested change to sections on the CURRENTLY VIEWED page only — unless the user's message clearly names a different existing page ("update the Contact page's phone number"), or asks to add/rename/remove a page, in which case do that instead. Return the FULL updated "pages" array (every page, in the same order, same slugs unless a page was explicitly added/removed/renamed) — for any page or section NOT related to the user's request, copy its data EXACTLY as given, do not rewrite content the user did not ask to change. Only modify what was specifically requested.
 
 Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
+
+function normalizeSlug(name: string, existing: Set<string>): string {
+  let base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  if (base === 'home') base = ''
+  let slug = base
+  let n = 2
+  while (existing.has(slug)) {
+    slug = `${base}-${n}`
+    n++
+  }
+  existing.add(slug)
+  return slug
+}
 
 export async function POST(req: Request) {
   try {
@@ -85,7 +112,8 @@ export async function POST(req: Request) {
 
     const {
       prompt,
-      sections,
+      pages,
+      activeSlug,
       theme,
       isNew,
       businessName,
@@ -99,6 +127,8 @@ export async function POST(req: Request) {
     if (typeof prompt !== 'string' || !prompt.trim()) {
       return NextResponse.json({ error: 'A description is required' }, { status: 400 })
     }
+
+    const currentPages: Page[] = Array.isArray(pages) ? pages : []
 
     const currentTheme = {
       primary: theme?.primary ?? '#0A2342',
@@ -126,17 +156,17 @@ export async function POST(req: Request) {
 
     const userPrompt = isNew
       ? `${businessContext}${attachmentLine}\n\nBuild a new website. The user wants: "${prompt}"`
-      : `${businessContext}${attachmentLine}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent sections:\n${JSON.stringify(sections ?? [])}`
+      : `${businessContext}${attachmentLine}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrently viewing page (slug): "${activeSlug ?? ''}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent pages:\n${JSON.stringify(currentPages)}`
 
     // gpt-4o-mini's 128k-token context has to fit the system prompt, this prompt, and the
-    // response. A site that has grown very large (many sections/edits) can blow past that;
-    // fail fast with an actionable message rather than burning a request on a doomed call.
+    // response. A site that has grown very large (many pages/sections/edits) can blow past
+    // that; fail fast with an actionable message rather than burning a request on a doomed call.
     const roughTokenEstimate = (SYSTEM_PROMPT.length + userPrompt.length) / 4
     if (roughTokenEstimate > 100_000) {
       return NextResponse.json(
         {
           error:
-            "Your site has grown too large for the AI to edit in one go. Try removing a few sections you no longer need, then ask again.",
+            "Your site has grown too large for the AI to edit in one go. Try removing a few sections or pages you no longer need, then ask again.",
         },
         { status: 400 }
       )
@@ -157,7 +187,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error:
-              "Your site has grown too large for the AI to edit in one go. Try removing a few sections you no longer need, then ask again.",
+              "Your site has grown too large for the AI to edit in one go. Try removing a few sections or pages you no longer need, then ask again.",
           },
           { status: 400 }
         )
@@ -169,9 +199,15 @@ export async function POST(req: Request) {
     if (!raw) throw new Error('No response from model')
 
     const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed.sections)) throw new Error('Model did not return a sections array')
+    if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) throw new Error('Model did not return a pages array')
 
-    const cleaned = parsed.sections.filter((s: any) => SECTION_TYPES.includes(s?.type))
+    const usedSlugs = new Set<string>()
+    const cleanedPages: Page[] = parsed.pages.map((p: any, i: number) => {
+      const name = typeof p?.name === 'string' && p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
+      const sections = Array.isArray(p?.sections) ? p.sections.filter((s: any) => SECTION_TYPES.includes(s?.type)) : []
+      const slug = i === 0 && name.toLowerCase() === 'home' ? (usedSlugs.add(''), '') : normalizeSlug(name, usedSlugs)
+      return { name, slug, sections }
+    })
 
     const HEX_RE = /^#[0-9a-fA-F]{6}$/
     const theme_out = {
@@ -180,7 +216,7 @@ export async function POST(req: Request) {
       style: isStylePresetKey(parsed.theme?.style) ? parsed.theme.style : currentTheme.style,
     }
 
-    const resolvedSections = await resolveImageFields(cleaned, theme_out)
+    const resolvedPages = await resolveImageFields(cleanedPages, theme_out)
 
     let creditsRemaining = -1
     if (!user.is_admin) {
@@ -194,7 +230,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
       theme: theme_out,
-      sections: resolvedSections,
+      pages: resolvedPages,
       creditsRemaining,
     })
   } catch (err: any) {
@@ -216,7 +252,7 @@ const IMAGE_FIELDS: Partial<Record<Section['type'], { fields: string[]; options?
   team: { fields: ['m1img', 'm2img', 'm3img'], options: { orientation: 'squarish', faceCrop: true } },
 }
 
-async function resolveImageFields(
+async function resolveImageFieldsForSections(
   sections: Section[],
   theme: { primary: string; accent: string }
 ): Promise<Section[]> {
@@ -241,5 +277,11 @@ async function resolveImageFields(
       )
       return { ...section, data }
     })
+  )
+}
+
+async function resolveImageFields(pages: Page[], theme: { primary: string; accent: string }): Promise<Page[]> {
+  return Promise.all(
+    pages.map(async (page) => ({ ...page, sections: await resolveImageFieldsForSections(page.sections, theme) }))
   )
 }

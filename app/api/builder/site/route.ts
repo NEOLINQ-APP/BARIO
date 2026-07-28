@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
-import { isValidGa4Id } from '@/lib/renderSite'
+import { isValidGa4Id, parsePagesJson } from '@/lib/renderSite'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     id: site?.id ?? null,
     name: site?.name ?? 'My Site',
-    sections: site ? JSON.parse(site.sections_json) : [],
+    pages: site ? parsePagesJson(site.sections_json) : [{ name: 'Home', slug: '', sections: [] }],
     theme: site ? JSON.parse(site.theme_json) : DEFAULT_THEME,
     metaTitle: site?.meta_title ?? '',
     metaDescription: site?.meta_description ?? '',
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     const {
       siteId: requestedSiteId,
       name,
-      sections,
+      pages,
       theme,
       metaTitle,
       metaDescription,
@@ -82,8 +82,12 @@ export async function POST(req: Request) {
       businessHours,
       businessLocation,
     } = await req.json()
-    if (!Array.isArray(sections)) {
-      return NextResponse.json({ error: 'sections must be an array' }, { status: 400 })
+    if (!Array.isArray(pages) || pages.length === 0 || !pages.every((p: any) => typeof p?.slug === 'string' && Array.isArray(p?.sections))) {
+      return NextResponse.json({ error: 'pages must be a non-empty array of { name, slug, sections }' }, { status: 400 })
+    }
+    const slugs = pages.map((p: any) => p.slug)
+    if (new Set(slugs).size !== slugs.length) {
+      return NextResponse.json({ error: 'Page slugs must be unique' }, { status: 400 })
     }
 
     const cleanAnalyticsId = typeof analyticsId === 'string' ? analyticsId.trim() : ''
@@ -92,7 +96,7 @@ export async function POST(req: Request) {
     }
 
     const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
-    const sectionsJson = JSON.stringify(sections)
+    const sectionsJson = JSON.stringify({ pages })
     const themeJson = JSON.stringify(theme ?? DEFAULT_THEME)
     const siteName = typeof name === 'string' && name.trim() ? name.trim() : 'My Site'
     const cleanMetaTitle = typeof metaTitle === 'string' && metaTitle.trim() ? metaTitle.trim() : null

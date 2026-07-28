@@ -4,6 +4,7 @@ import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import { resolveSiteId } from '@/lib/siteAccess'
+import { parsePagesJson } from '@/lib/renderSite'
 import Builder from '@/components/Builder'
 import TemplateBuilder from '@/components/TemplateBuilder'
 
@@ -86,7 +87,7 @@ export default async function BuildPage({ searchParams }: { searchParams: { site
     <Builder
       siteId={site?.id ?? null}
       initialName={site?.name ?? 'My Site'}
-      initialSections={site ? JSON.parse(site.sections_json) : []}
+      initialPages={site ? parsePagesJson(site.sections_json) : [{ name: 'Home', slug: '', sections: [] }]}
       initialTheme={site ? JSON.parse(site.theme_json) : DEFAULT_THEME}
       initialCredits={credits}
       userEmail={user.email}

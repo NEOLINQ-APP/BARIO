@@ -8,6 +8,30 @@ export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' 
 export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
 export type Theme = { primary: string; accent: string; style?: string }
+export type Page = { name: string; slug: string; sections: Section[] }
+
+// sites.sections_json historically stored a bare Section[] — one page,
+// always. Multi-page sites store { pages: Page[] } instead. This is the one
+// place that distinction is resolved, so every reader (the live site route,
+// the builder's load endpoint) sees a normalized Page[] regardless of which
+// shape is actually in the database — a site nobody has re-saved since
+// multi-page shipped keeps rendering exactly as it always did, as a single
+// implicit page.
+export function parsePagesJson(sectionsJson: string): Page[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(sectionsJson)
+  } catch {
+    return [{ name: 'Home', slug: '', sections: [] }]
+  }
+  if (Array.isArray(parsed)) {
+    return [{ name: 'Home', slug: '', sections: parsed as Section[] }]
+  }
+  if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).pages) && (parsed as any).pages.length > 0) {
+    return (parsed as { pages: Page[] }).pages
+  }
+  return [{ name: 'Home', slug: '', sections: [] }]
+}
 
 // All section data is user- (or AI-) authored and ends up on a publicly
 // served page, so every value must be escaped before interpolation — this
@@ -22,10 +46,14 @@ export function esc(value: string | undefined | null): string {
     .replace(/'/g, '&#39;')
 }
 
-function sectionToHtml(type: SectionType, data: SectionData): string {
+function sectionToHtml(type: SectionType, data: SectionData, navPages?: Page[]): string {
   switch (type) {
-    case 'nav':
-      return `<div class="s-nav"><div class="s-nav-logo">${esc(data.logo)}</div><div class="s-nav-links"><span>Home</span><span>About</span><span>Services</span><span>Contact</span></div></div>`
+    case 'nav': {
+      const links = (navPages ?? [])
+        .map((p) => `<a href="/${esc(p.slug)}">${esc(p.name)}</a>`)
+        .join('')
+      return `<div class="s-nav"><div class="s-nav-logo">${esc(data.logo)}</div><div class="s-nav-links">${links}</div></div>`
+    }
     case 'hero':
       return `<div class="s-hero">${data.image ? `<img src="${esc(data.image)}" alt="" style="width:100%;max-width:600px;border-radius:12px;margin:0 auto 24px;display:block;object-fit:cover;height:260px">` : ''}<h1>${esc(data.headline)}</h1><p>${esc(data.sub)}</p><div class="s-hero-btn">${esc(data.cta)}</div></div>`
     case 'features':
@@ -68,6 +96,8 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-nav{background:var(--b-primary);color:white;padding:16px 48px;display:flex;align-items:center;justify-content:space-between}
 .s-nav-logo{font-size:20px;font-weight:var(--b-heading-weight,800);${H}}
 .s-nav-links{display:flex;gap:28px;font-size:13px;opacity:0.8}
+.s-nav-links a{color:inherit;text-decoration:none}
+.s-nav-links a:hover{opacity:0.7}
 .s-hero{background:linear-gradient(135deg,var(--b-primary) 0%,#1e3a6e 60%,var(--b-accent) 100%);color:white;padding:96px 64px;text-align:center}
 .s-hero h1{font-size:52px;font-weight:var(--b-heading-weight,800);margin-bottom:18px;line-height:1.15;${H}}
 .s-hero p{font-size:19px;opacity:0.85;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto}
@@ -187,12 +217,17 @@ export type SeoOptions = {
 // of the site's own CSS (including raw-HTML template sites we don't control).
 const BADGE_HTML = `<a href="https://bario.ca" target="_blank" rel="noopener" style="position:fixed;bottom:0;left:0;right:0;z-index:2147483647;background:#0b111c;color:#fff;font:700 13px/1 -apple-system,BlinkMacSystemFont,sans-serif;padding:13px 16px;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 -2px 20px rgba(0,0,0,.35);border-top:2px solid #f59e0b">⚡ Built with <span style="color:#f59e0b">Bario</span> — Create your own free website</a>`
 
-export function buildSiteHtml(name: string, sections: Section[], theme: Theme, seo?: SeoOptions, showBadge = true): string {
-  const body = sections.map((s) => sectionToHtml(s.type, s.data)).join('\n')
+// Renders ONE page of a (possibly multi-page) site: `pages` is the full
+// page list (needed so the nav section can link to every page, including
+// ones other than the one being rendered right now), `activeSlug` picks
+// which page's sections make up the actual body of this document.
+export function buildSiteHtml(name: string, pages: Page[], activeSlug: string, theme: Theme, seo?: SeoOptions, showBadge = true): string {
+  const page = pages.find((p) => p.slug === activeSlug) ?? pages[0]
+  const body = page.sections.map((s) => sectionToHtml(s.type, s.data, pages)).join('\n')
   const primary = sanitizeColor(theme.primary, '#0A2342')
   const accent = sanitizeColor(theme.accent, '#1a56db')
   const preset = STYLE_PRESETS[isStylePresetKey(theme.style) ? theme.style : DEFAULT_STYLE_PRESET]
-  const title = seo?.metaTitle?.trim() || `${name} — Built with Bario`
+  const title = seo?.metaTitle?.trim() || (page.slug ? `${page.name} — ${name}` : `${name} — Built with Bario`)
   const description = seo?.metaDescription?.trim()
   const analyticsId = seo?.analyticsId?.trim()
   const validAnalyticsId = analyticsId && GA4_ID_RE.test(analyticsId) ? analyticsId : null
