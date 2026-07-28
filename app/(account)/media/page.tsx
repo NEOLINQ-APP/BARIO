@@ -4,11 +4,12 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import MediaLibrary from '@/components/MediaLibrary'
+import SupportAssistant from '@/components/SupportAssistant'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Bario Media Library',
+  title: 'Bario X-Drive',
   manifest: '/media-manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Bario Media' },
   icons: { apple: '/media-icon.svg' },
@@ -27,5 +28,10 @@ export default async function MediaPage() {
   const user = rows[0]
   if (!user || !hasBuilderAccess(user)) redirect('/dashboard')
 
-  return <MediaLibrary />
+  return (
+    <>
+      <MediaLibrary />
+      <SupportAssistant />
+    </>
+  )
 }
