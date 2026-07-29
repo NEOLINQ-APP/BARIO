@@ -721,15 +721,7 @@ export default function Builder({
                 Out of AI credits for this billing period. <a href="/#pricing" className="underline">Upgrade your plan</a> for more.
               </div>
             )}
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {['business', 'restaurant', 'agency'].map((t) => (
-                <button key={t} onClick={() => loadTemplate(t)} className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200 capitalize">
-                  {t} template
-                </button>
-              ))}
-              <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200">
-                Premium templates
-              </a>
+            <div className="mb-2">
               <input
                 ref={htmlFileInputRef}
                 type="file"
@@ -737,13 +729,24 @@ export default function Builder({
                 onChange={handleImportHtml}
                 className="hidden"
               />
-              <button
-                onClick={() => htmlFileInputRef.current?.click()}
+              <select
+                value=""
                 disabled={importingHtml}
-                className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-zinc-200 disabled:opacity-50"
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === 'business' || v === 'restaurant' || v === 'agency') loadTemplate(v)
+                  else if (v === 'premium') router.push(`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`)
+                  else if (v === 'upload') htmlFileInputRef.current?.click()
+                }}
+                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-transparent text-zinc-400 hover:text-zinc-200 disabled:opacity-50 outline-none w-full"
               >
-                {importingHtml ? 'Uploading…' : 'Upload your own HTML'}
-              </button>
+                <option value="" disabled>{importingHtml ? 'Uploading…' : 'Quick start: templates or your own HTML…'}</option>
+                <option value="business">Business template</option>
+                <option value="restaurant">Restaurant template</option>
+                <option value="agency">Agency template</option>
+                <option value="premium">Browse premium templates</option>
+                <option value="upload">Upload your own HTML</option>
+              </select>
             </div>
             {importError && <div className="text-xs text-red-400 mb-2">{importError}</div>}
             {uploadError && <div className="text-xs text-red-400 mb-2">{uploadError}</div>}
@@ -853,12 +856,20 @@ export default function Builder({
             )
           })()}
 
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 overflow-x-auto">
-            {(Object.keys(SECTION_LABELS) as SectionType[]).map((t) => (
-              <button key={t} onClick={() => addBlankSection(t)} className="text-[11px] px-2.5 py-1 rounded-md bg-zinc-800 text-zinc-300 hover:text-white whitespace-nowrap">
-                + {SECTION_LABELS[t]}
-              </button>
-            ))}
+          <div className="flex items-center px-4 py-2 border-b border-zinc-800">
+            <select
+              value=""
+              onChange={(e) => {
+                const t = e.target.value as SectionType
+                if (t) addBlankSection(t)
+              }}
+              className="text-[11px] px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:text-white outline-none"
+            >
+              <option value="" disabled>+ Add section</option>
+              {(Object.keys(SECTION_LABELS) as SectionType[]).map((t) => (
+                <option key={t} value={t}>{SECTION_LABELS[t]}</option>
+              ))}
+            </select>
           </div>
           <div ref={canvasScrollRef} className="flex-1 overflow-y-auto p-6">
             <div
