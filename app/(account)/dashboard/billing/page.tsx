@@ -23,17 +23,17 @@ export default async function BillingPage() {
   if (!user) redirect('/login')
 
   return (
-    <main className="px-6 py-10 md:py-16 text-zinc-100">
+    <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold">Billing</h1>
 
-        <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
           <div className="mt-1">
-            <div className="text-xs uppercase tracking-wide text-zinc-500">Plan</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-500">Plan</div>
             <div className="text-xl font-semibold mt-1 capitalize">{user.plan ?? 'None yet'}</div>
           </div>
           <div className="mt-4">
-            <div className="text-xs uppercase tracking-wide text-zinc-500">Status</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-500">Status</div>
             <div className="text-lg mt-1">{STATUS_LABEL[user.subscription_status] ?? user.subscription_status}</div>
           </div>
           {user.subscription_status !== 'active' && (
@@ -43,7 +43,7 @@ export default async function BillingPage() {
           )}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
           <h2 className="text-sm font-semibold mb-4">Redeem a gift or promo code</h2>
           <RedeemGiftCode />
         </div>

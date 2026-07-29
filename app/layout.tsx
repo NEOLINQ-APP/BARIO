@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+
+// Bario defaults to dark (matches the brand everywhere today). <html> is
+// rendered with the `dark` class server-side so first paint always matches
+// that with zero flash. This tiny blocking script only needs to strip the
+// class for a returning visitor who explicitly chose light mode via
+// ThemeToggle, before the browser paints anything.
+const THEME_INIT_SCRIPT = `try{if(localStorage.getItem('bario-theme')==='light'){document.documentElement.classList.remove('dark')}}catch(e){}`;
 
 export const metadata: Metadata = {
   title: "Bario — Live website builder for Canadian businesses",
@@ -17,7 +25,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-CA">
+    <html lang="en-CA" className="dark">
+      <head>
+        <Script id="theme-init" strategy="beforeInteractive">{THEME_INIT_SCRIPT}</Script>
+      </head>
       <body>{children}</body>
     </html>
   );

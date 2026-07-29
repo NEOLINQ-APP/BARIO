@@ -15,14 +15,14 @@ export default async function ServersPage() {
   if (!user) redirect('/login')
 
   return (
-    <main className="px-6 py-10 md:py-16 text-zinc-100">
+    <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold">Servers</h1>
-        <p className="text-sm text-zinc-400 mt-2 mb-6">
+        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 mb-6">
           Self-managed VPS servers, powered by enterprise-grade infrastructure — order one in a couple of minutes.
         </p>
 
-        <div className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
           <VpsList />
         </div>
       </div>

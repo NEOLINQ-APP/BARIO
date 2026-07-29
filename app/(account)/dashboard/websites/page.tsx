@@ -20,7 +20,7 @@ export default async function WebsitesPage() {
   const builderAccess = hasBuilderAccess(user)
 
   return (
-    <main className="px-6 py-10 md:py-16 text-zinc-100">
+    <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold">Websites</h1>
 
@@ -30,12 +30,12 @@ export default async function WebsitesPage() {
               <a href="/build" className="px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
                 Open Website Builder
               </a>
-              <a href="/build/templates" className="px-5 py-3 rounded-xl font-semibold border border-zinc-700 text-zinc-200">
+              <a href="/build/templates" className="px-5 py-3 rounded-xl font-semibold border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200">
                 Premium Templates
               </a>
             </div>
 
-            <div className="mt-8 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+            <div className="mt-8 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
               <h2 className="text-sm font-semibold mb-4">Your sites</h2>
               <SitesList />
             </div>

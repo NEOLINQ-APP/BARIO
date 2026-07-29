@@ -66,34 +66,34 @@ export default function SitesList() {
     setDeletingId(null)
   }
 
-  if (!sites) return <p className="text-sm text-zinc-500">Loading your sites…</p>
+  if (!sites) return <p className="text-sm text-slate-500 dark:text-zinc-500">Loading your sites…</p>
 
   const atLimit = limit !== null && sites.length >= limit
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
 
-      {sites.length === 0 && <p className="text-sm text-zinc-500">No sites yet.</p>}
+      {sites.length === 0 && <p className="text-sm text-slate-500 dark:text-zinc-500">No sites yet.</p>}
 
       {sites.map((site) => (
-        <div key={site.id} className="flex items-center justify-between rounded-xl border border-zinc-800 p-4">
+        <div key={site.id} className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-transparent p-4 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-semibold truncate">{site.name}</span>
               <span
                 className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
-                  site.is_published ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-700/50 text-zinc-400'
+                  site.is_published ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200/60 dark:bg-zinc-700/50 text-slate-500 dark:text-zinc-400'
                 }`}
               >
                 {site.is_published ? '🟢 Live' : '⚪ Draft'}
               </span>
             </div>
-            <div className="text-xs text-zinc-500 mt-1 truncate">
+            <div className="text-xs text-slate-500 dark:text-zinc-500 mt-1 truncate">
               {site.custom_domain ? (
                 <>
                   {site.custom_domain}{' '}
-                  <span className={site.domain_status === 'verified' ? 'text-emerald-400' : 'text-amber-400'}>
+                  <span className={site.domain_status === 'verified' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
                     {site.domain_status === 'verified' ? '· connected' : '· 🟡 DNS pending'}
                   </span>
                 </>
@@ -105,13 +105,13 @@ export default function SitesList() {
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0 ml-4">
-            <a href={`/build?site=${site.id}`} className="text-sm text-[#f59e0b] font-semibold">
+            <a href={`/build?site=${site.id}`} className="text-sm text-amber-600 dark:text-[#f59e0b] font-semibold">
               Edit
             </a>
             <button
               onClick={() => handleDelete(site.id, site.name)}
               disabled={deletingId === site.id}
-              className="text-xs text-red-400 underline disabled:opacity-50"
+              className="text-xs text-red-500 dark:text-red-400 underline disabled:opacity-50"
             >
               {deletingId === site.id ? 'Deleting…' : 'Delete'}
             </button>
@@ -122,12 +122,12 @@ export default function SitesList() {
       <button
         onClick={handleCreate}
         disabled={creating || atLimit}
-        className="w-full px-4 py-3 rounded-xl border border-dashed border-zinc-700 text-sm font-semibold text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full px-4 py-3 rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 text-sm font-semibold text-slate-600 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {creating ? 'Creating…' : atLimit ? `Your plan allows ${limit} site${limit === 1 ? '' : 's'} — upgrade for more` : '+ Add a new site'}
       </button>
       {atLimit && (
-        <a href="/#pricing" className="block text-center text-xs text-[#f59e0b] underline">
+        <a href="/hosting#pricing" className="block text-center text-xs text-amber-600 dark:text-[#f59e0b] underline">
           View plans
         </a>
       )}

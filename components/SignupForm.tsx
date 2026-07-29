@@ -32,20 +32,20 @@ export default function SignupForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8">
+    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8">
       <h1 className="text-2xl font-bold mb-1">Create your account</h1>
-      {plan && <p className="text-sm text-zinc-400 mb-6">Continuing with the {plan} plan</p>}
-      <label className="block text-sm text-zinc-400 mt-4">Email</label>
+      {plan && <p className="text-sm text-slate-500 dark:text-zinc-400 mb-6">Continuing with the {plan} plan</p>}
+      <label className="block text-sm text-slate-500 dark:text-zinc-400 mt-4">Email</label>
       <input
         type="email"
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full mt-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
+        className="w-full mt-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100"
       />
-      <label className="block text-sm text-zinc-400 mt-4">Password</label>
+      <label className="block text-sm text-slate-500 dark:text-zinc-400 mt-4">Password</label>
       <PasswordInput value={password} onChange={setPassword} minLength={8} />
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
         disabled={loading}
@@ -53,14 +53,14 @@ export default function SignupForm() {
       >
         {loading ? 'Creating account…' : 'Sign up'}
       </button>
-      <p className="text-xs text-zinc-500 mt-4 text-center">
+      <p className="text-xs text-slate-400 dark:text-zinc-500 mt-4 text-center">
         By signing up you agree to our{' '}
         <a href="/terms" className="underline">Terms</a> and{' '}
         <a href="/privacy" className="underline">Privacy Policy</a>.
       </p>
-      <p className="text-sm text-zinc-400 mt-4 text-center">
+      <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Already have an account?{' '}
-        <a href={`/login${plan ? `?plan=${plan}` : ''}`} className="text-[#f59e0b]">Log in</a>
+        <a href={`/login${plan ? `?plan=${plan}` : ''}`} className="text-amber-600 dark:text-[#f59e0b]">Log in</a>
       </p>
     </form>
   )

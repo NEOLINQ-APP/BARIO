@@ -72,10 +72,10 @@ export default function VpsConfigureForm() {
                 type="button"
                 key={key}
                 onClick={() => setTier(key)}
-                className={`text-left p-4 rounded-xl border ${active ? 'border-[#f59e0b] bg-[#f59e0b]/5' : 'border-zinc-800'}`}
+                className={`text-left p-4 rounded-xl border ${active ? 'border-[#f59e0b] bg-[#f59e0b]/5' : 'border-slate-200 dark:border-zinc-800'}`}
               >
                 <div className="font-semibold">{t.label}</div>
-                <div className="text-xs text-zinc-400 mt-1">{t.vcpu} vCPU · {t.ramGb}GB RAM · {t.diskGb}GB disk</div>
+                <div className="text-xs text-slate-500 dark:text-zinc-400 mt-1">{t.vcpu} vCPU · {t.ramGb}GB RAM · {t.diskGb}GB disk</div>
                 <div className="text-sm font-semibold mt-2">{formatCad(t.cycles.monthly.priceCentsCad)}/mo</div>
               </button>
             )
@@ -97,22 +97,22 @@ export default function VpsConfigureForm() {
                 type="button"
                 key={key}
                 onClick={() => setCycle(key)}
-                className={`text-left p-3 rounded-xl border ${active ? 'border-[#f59e0b] bg-[#f59e0b]/5' : 'border-zinc-800'}`}
+                className={`text-left p-3 rounded-xl border ${active ? 'border-[#f59e0b] bg-[#f59e0b]/5' : 'border-slate-200 dark:border-zinc-800'}`}
               >
                 <div className="text-sm font-semibold">{c.label}</div>
-                <div className="text-xs text-zinc-400 mt-1">{formatCad(perMonth)}/mo</div>
-                {savingsPct > 0 && <div className="text-xs text-emerald-400">Save {savingsPct}%</div>}
+                <div className="text-xs text-slate-500 dark:text-zinc-400 mt-1">{formatCad(perMonth)}/mo</div>
+                {savingsPct > 0 && <div className="text-xs text-emerald-600 dark:text-emerald-400">Save {savingsPct}%</div>}
               </button>
             )
           })}
         </div>
       </div>
 
-      <label className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 cursor-pointer">
+      <label className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 dark:border-zinc-800 cursor-pointer">
         <input type="checkbox" checked={backupAddon} onChange={(e) => setBackupAddon(e.target.checked)} className="w-4 h-4" />
         <div>
           <div className="text-sm font-semibold">Automatic backups</div>
-          <div className="text-xs text-zinc-400">+{formatCad(pricing.backupAddonPriceCentsCad)} for this billing cycle</div>
+          <div className="text-xs text-slate-500 dark:text-zinc-400">+{formatCad(pricing.backupAddonPriceCentsCad)} for this billing cycle</div>
         </div>
       </label>
 
@@ -124,10 +124,10 @@ export default function VpsConfigureForm() {
             onChange={(e) => setSshPublicKey(e.target.value)}
             placeholder="ssh-ed25519 AAAA... or ssh-rsa AAAA..."
             rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm font-mono"
+            className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm font-mono"
           />
         )}
-        <label className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
+        <label className="flex items-center gap-2 mt-2 text-xs text-slate-500 dark:text-zinc-400">
           <input
             type="checkbox"
             checked={noKey}
@@ -138,11 +138,11 @@ export default function VpsConfigureForm() {
         </label>
       </div>
 
-      <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
+      <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between">
         <div>
-          <div className="text-xs text-zinc-400">Total for this cycle</div>
+          <div className="text-xs text-slate-500 dark:text-zinc-400">Total for this cycle</div>
           <div className="text-2xl font-bold">{formatCad(totalCents)}</div>
-          <div className="text-xs text-zinc-500">≈ {formatCad(monthlyEquivalent)}/mo</div>
+          <div className="text-xs text-slate-400 dark:text-zinc-500">≈ {formatCad(monthlyEquivalent)}/mo</div>
         </div>
       </div>
 
@@ -153,16 +153,16 @@ export default function VpsConfigureForm() {
           onChange={(e) => setLegalAccepted(e.target.checked)}
           className="w-4 h-4 mt-0.5"
         />
-        <span className="text-xs text-zinc-400">
+        <span className="text-xs text-slate-500 dark:text-zinc-400">
           I have read and accept the Bario VPS{' '}
-          <a href="/legal/vps-aup" target="_blank" rel="noopener noreferrer" className="text-[#f59e0b] underline">
+          <a href="/legal/vps-aup" target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-[#f59e0b] underline">
             Acceptable Use Policy and Service Terms
           </a>{' '}
           (v{CURRENT_VPS_POLICY_VERSION})
         </span>
       </label>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
 
       <button
         type="submit"

@@ -32,23 +32,23 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8">
+    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8">
       <h1 className="text-2xl font-bold mb-1">Log in</h1>
-      {plan && <p className="text-sm text-zinc-400 mb-6">Continuing with the {plan} plan</p>}
-      <label className="block text-sm text-zinc-400 mt-4">Email</label>
+      {plan && <p className="text-sm text-slate-500 dark:text-zinc-400 mb-6">Continuing with the {plan} plan</p>}
+      <label className="block text-sm text-slate-500 dark:text-zinc-400 mt-4">Email</label>
       <input
         type="email"
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full mt-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
+        className="w-full mt-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100"
       />
       <div className="flex items-center justify-between mt-4">
-        <label className="block text-sm text-zinc-400">Password</label>
-        <a href="/forgot-password" className="text-xs text-zinc-500 hover:text-zinc-300">Forgot password?</a>
+        <label className="block text-sm text-slate-500 dark:text-zinc-400">Password</label>
+        <a href="/forgot-password" className="text-xs text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300">Forgot password?</a>
       </div>
       <PasswordInput value={password} onChange={setPassword} />
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
         disabled={loading}
@@ -56,9 +56,9 @@ export default function LoginForm() {
       >
         {loading ? 'Logging in…' : 'Log in'}
       </button>
-      <p className="text-sm text-zinc-400 mt-4 text-center">
+      <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Don't have an account?{' '}
-        <a href={`/signup${plan ? `?plan=${plan}` : ''}`} className="text-[#f59e0b]">Sign up</a>
+        <a href={`/signup${plan ? `?plan=${plan}` : ''}`} className="text-amber-600 dark:text-[#f59e0b]">Sign up</a>
       </p>
     </form>
   )

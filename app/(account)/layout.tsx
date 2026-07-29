@@ -22,7 +22,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
   if (!user) redirect('/login')
 
   return (
-    <div className="min-h-screen bg-[#0b111c] flex flex-col md:flex-row">
+    <div className="min-h-screen bg-white dark:bg-[#0b111c] flex flex-col md:flex-row">
       <AccountSidebar email={user.email} isAdmin={user.is_admin} />
       <div className="flex-1 min-w-0">{children}</div>
       <PromoPopup isPaid={hasPaidPlan(user)} />

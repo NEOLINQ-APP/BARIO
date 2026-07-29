@@ -6,13 +6,13 @@ export const metadata: Metadata = {
 
 export default function Privacy() {
   return (
-    <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
+    <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased px-6 py-16">
       <div className="max-w-2xl mx-auto">
-        <a href="/" className="text-sm text-[#f59e0b]">← Back to bario.ca</a>
+        <a href="/" className="text-sm text-amber-600 dark:text-[#f59e0b]">← Back to bario.ca</a>
         <h1 className="text-3xl font-bold mt-6 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-10">Effective July 22, 2026</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-10">Effective July 22, 2026</p>
 
-        <div className="space-y-8 text-sm leading-relaxed text-zinc-300">
+        <div className="space-y-8 text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
           <section>
             <p>
               This Privacy Policy explains what information Bario (operated by A Unique Group Inc.,
@@ -22,7 +22,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">1. Information we collect</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">1. Information we collect</h2>
             <ul className="list-disc list-inside space-y-1">
               <li><strong>Account info:</strong> the email address and password (stored as a salted hash, never in plain text) you sign up with.</li>
               <li><strong>Site content:</strong> whatever you build — text, theme colors, uploaded images/favicons, and the domain(s) you connect.</li>
@@ -33,7 +33,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">2. How we use your information</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">2. How we use your information</h2>
             <ul className="list-disc list-inside space-y-1">
               <li>To operate your account and serve your published site(s)</li>
               <li>To process payments and manage subscriptions</li>
@@ -44,7 +44,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">3. Third parties we share data with</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">3. Third parties we share data with</h2>
             <p>We use the following providers to operate Bario, each of which processes a limited slice of your data on our behalf:</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
               <li><strong>Vercel</strong> — hosting, custom domain connection, favicon file storage</li>
@@ -61,7 +61,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">4. Cookies</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">4. Cookies</h2>
             <p>
               We use a single essential cookie to keep you signed in (a session token). We don't use
               third-party advertising or tracking cookies on bario.ca itself.
@@ -69,7 +69,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">5. Data retention</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">5. Data retention</h2>
             <p>
               We keep your account and site data for as long as your account is active. If you delete your
               account, we delete your site content and personal information within a reasonable period,
@@ -78,7 +78,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">6. Your rights</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">6. Your rights</h2>
             <p>
               You can access, correct, or request deletion of your personal information at any time by
               emailing hello@bario.ca. You can also change your password or resend a verification email
@@ -87,12 +87,12 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">7. Children's privacy</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">7. Children's privacy</h2>
             <p>Bario is not directed at children under 13, and we don't knowingly collect data from them.</p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">8. Changes to this policy</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">8. Changes to this policy</h2>
             <p>
               We may update this policy from time to time. We'll post the updated version here with a new
               effective date.
@@ -100,7 +100,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-2">9. Contact</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">9. Contact</h2>
             <p>Questions about this policy or your data? Email us at hello@bario.ca.</p>
           </section>
         </div>
