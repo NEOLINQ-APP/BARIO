@@ -276,7 +276,7 @@ export default function Home() {
                 <h3 className="text-xl font-bold text-white">Agency</h3>
                 <div className="text-4xl font-extrabold text-white">$149 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
                 <ul className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Unlimited sites</li>
+                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Up to 25 sites</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain + subdomain</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 750 AI credits/mo</li>
                   <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> White-label HTML export</li>
