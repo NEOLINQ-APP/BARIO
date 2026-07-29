@@ -19,7 +19,9 @@ export const maxDuration = 60
 
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
-You build and edit REAL MULTI-PAGE websites — not one long scrolling page. A site is a list of pages; each page has a name (e.g. "Home", "About", "Services"), a URL slug (lowercase, hyphenated, no leading/trailing slash — the Home page's slug is always the empty string ""), and its own list of sections. Visitors navigate between pages via real links, not by scrolling.
+You build and edit REAL MULTI-PAGE websites — not one long scrolling page. A site is a list of pages; each page has a name (e.g. "Home", "About", "Services"), a URL slug (lowercase, hyphenated, no leading/trailing slash — the Home page's slug is always the empty string ""), and its own list of sections. Visitors navigate between pages via real links, not by scrolling. There is no cap on how many pages a site can have — build as many as the business genuinely needs, whether that's 3 or 30.
+
+Pages can be NESTED under one another: a slug containing "/" makes that page a child of the page whose slug is the part before the last "/" — e.g. slug "services/plumbing-repair" is a child of the page with slug "services". Nesting can go as many levels deep as the business's actual structure calls for (a child can have its own children the same way) — use this whenever a business has multiple distinct items under one category (several services, several product lines, several locations, etc.) rather than cramming them all into one crowded page or one long list. Only TOP-LEVEL pages (slug with no "/") appear automatically in the site's main nav — nested sub-pages are reached via a "pagelinks" section placed on their parent page (and directly by URL). Every page, at any nesting depth, still needs its own nav + footer section like any other page.
 
 Every page should start with a "nav" section and end with a "footer" section, so navigation and footer are consistent site-wide — you do NOT write the nav's links yourself (they're generated automatically from the site's actual page list), you only provide the nav's logo text. Put real, page-specific content in the sections between nav and footer.
 
@@ -39,6 +41,7 @@ The allowed section types and their data fields (same schema on every page) are:
 - contact: { "title": string, "sub": string, "email": string, "phone": string, "address": string } (a "get in touch" section with contact details; do not invent a real phone/email/address the user never gave you — leave those fields empty rather than making something up, and say so in your explanation)
 - map: { "title": string, "address": string } (embeds a map for the given address — only use this if the user gave you a real address; never invent one)
 - logos: { "title": string, "l1n": string, "l2n": string, "l3n": string, "l4n": string, "l5n": string, "l6n": string } (a row of client/partner names, text only — there's no logo image search, so only use this if the user tells you real names to feature)
+- pagelinks: { "title": string, "c1n": string, "c1s": string, "c1d": string, "c1img": string, "c2n"/"c2s"/"c2d"/"c2img", ... up to c6 } (up to 6 cards, each linking to another page on this site — c*n is the card title, c*s is the exact "slug" value of the page it links to, c*d is a one-line description, c*img is an optional photo; omit unused slots. Use this on a category/parent page to link out to its own dedicated sub-pages — see the multi-page and nesting guidance below)
 
 Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.m1img/m2img/m3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. For team member photos, search for a generic professional headshot style (e.g. "smiling professional headshot man") since there's no way to find a photo of a specific real person. Leave the field empty/omitted if no image was requested.
 
@@ -58,23 +61,37 @@ Always respond with a single JSON object of the shape:
   "pages": [
     { "name": "Home", "slug": "", "sections": [ { "type": "...", "data": { ... } }, ... ] },
     { "name": "About", "slug": "about", "sections": [ ... ] },
+    { "name": "Plumbing Repair", "slug": "services/plumbing-repair", "sections": [ ... ] },
     ...
   ]
 }
 
-When building a NEW site: plan out a real multi-page site — typically 3-5 pages appropriate to the business (always include a "Home" page with slug ""; pick the rest from what actually fits, e.g. About, Services, Menu, Gallery, Pricing, Contact — don't force a page that doesn't make sense for this business, and don't pad to a fixed number). Distribute content sensibly: the Home page should be a strong overview/landing page (nav, hero, a couple of highlight sections, cta, footer) — it should NOT contain everything; move a full pricing table to a dedicated pricing/services page, a full FAQ to its own page or the most relevant one, a full team section to an About page, etc. Every page needs its own nav (logo only) and footer.
+When building a NEW site: plan out a real multi-page site with as many pages as the business actually needs — there's no fixed count or cap to pad to or stay under. A simple business might only need 3-5 pages (always include a "Home" page with slug ""; pick the rest from what actually fits, e.g. About, Services, Menu, Gallery, Pricing, Contact — don't force a page that doesn't make sense). A business with many distinct offerings (a dozen service types, several product categories, multiple locations) should get one dedicated page PER offering, organized hierarchically: one top-level parent page for the category (e.g. "Services", slug "services") carrying a "pagelinks" section that fans out to each specific sub-page (e.g. "services/plumbing-repair", "services/drain-cleaning"), and each of those gets its own real page with full content. Distribute content sensibly: the Home page should be a strong overview/landing page (nav, hero, a couple of highlight sections, cta, footer) — it should NOT contain everything; move a full pricing table to a dedicated pricing/services page, a full FAQ to its own page or the most relevant one, a full team section to an About page, etc. Every page needs its own nav (logo only) and footer.
 
-When EDITING an existing site: you'll be given the full current "pages" array and which page the user is currently viewing ("activeSlug"). By default, apply the user's requested change to sections on the CURRENTLY VIEWED page only — unless the user's message clearly names a different existing page ("update the Contact page's phone number"), or asks to add/rename/remove a page, in which case do that instead. Return the FULL updated "pages" array (every page, in the same order, same slugs unless a page was explicitly added/removed/renamed) — for any page or section NOT related to the user's request, copy its data EXACTLY as given, do not rewrite content the user did not ask to change. Only modify what was specifically requested.
+When EDITING an existing site: you'll be given the full current "pages" array and which page the user is currently viewing ("activeSlug"). By default, apply the user's requested change to sections on the CURRENTLY VIEWED page only — unless the user's message clearly names a different existing page ("update the Contact page's phone number"), asks to add/rename/remove a page, or asks for something that's inherently site-wide in scope (e.g. "split my services into their own pages", "reorganize the whole site", "add a page for each of our locations") — in any of those cases, act across whatever pages the request actually touches, not just the active one. Return the FULL updated "pages" array (every page, in the same order, same slugs unless a page was explicitly added/removed/renamed/restructured) — for any page or section NOT related to the user's request, copy its data EXACTLY as given, do not rewrite content the user did not ask to change. Only modify what was specifically requested.
 
 Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
 
-function normalizeSlug(name: string, existing: Set<string>): string {
-  let base = name
+// Reads the model's own proposed slug (which may contain "/" to nest a page
+// under another one, e.g. "services/plumbing-repair") and sanitizes it
+// segment-by-segment, falling back to a name-derived slug if the model left
+// it out or returned garbage. Dedupes on the full path so two different
+// parents can each have a child slug that resolves to the same leaf name
+// (e.g. "services/repair" and "products/repair" don't collide).
+function sanitizeSlug(rawSlug: unknown, name: string, index: number, existing: Set<string>): string {
+  if (index === 0) {
+    existing.add('')
+    return ''
+  }
+  const segments = String(rawSlug ?? '')
     .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  if (base === 'home') base = ''
+    .split('/')
+    .map((seg) => seg.trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))
+    .filter(Boolean)
+  const base =
+    segments.length > 0
+      ? segments.join('/')
+      : name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `page-${index}`
   let slug = base
   let n = 2
   while (existing.has(slug)) {
@@ -205,9 +222,26 @@ export async function POST(req: Request) {
     const cleanedPages: Page[] = parsed.pages.map((p: any, i: number) => {
       const name = typeof p?.name === 'string' && p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
       const sections = Array.isArray(p?.sections) ? p.sections.filter((s: any) => SECTION_TYPES.includes(s?.type)) : []
-      const slug = i === 0 && name.toLowerCase() === 'home' ? (usedSlugs.add(''), '') : normalizeSlug(name, usedSlugs)
+      const slug = sanitizeSlug(p?.slug, name, i, usedSlugs)
       return { name, slug, sections }
     })
+
+    // pagelinks cards reference another page by its slug — normalize away an
+    // accidental leading slash or stray whitespace so a card the model meant
+    // to work actually resolves, without hard-rejecting anything (a
+    // mismatched link here is the same class of risk as any other
+    // AI-authored copy, not worth failing the whole generation over).
+    for (const page of cleanedPages) {
+      for (const section of page.sections) {
+        if (section.type !== 'pagelinks') continue
+        for (let n = 1; n <= 6; n++) {
+          const key = `c${n}s`
+          if (section.data[key]) {
+            section.data[key] = section.data[key].trim().replace(/^\/+/, '').toLowerCase()
+          }
+        }
+      }
+    }
 
     const HEX_RE = /^#[0-9a-fA-F]{6}$/
     const theme_out = {
@@ -250,6 +284,7 @@ const IMAGE_FIELDS: Partial<Record<Section['type'], { fields: string[]; options?
   features: { fields: ['f1img', 'f2img', 'f3img'] },
   gallery: { fields: ['g1img', 'g2img', 'g3img', 'g4img', 'g5img', 'g6img'] },
   team: { fields: ['m1img', 'm2img', 'm3img'], options: { orientation: 'squarish', faceCrop: true } },
+  pagelinks: { fields: ['c1img', 'c2img', 'c3img', 'c4img', 'c5img', 'c6img'] },
 }
 
 async function resolveImageFieldsForSections(

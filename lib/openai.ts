@@ -24,6 +24,7 @@ export const SECTION_TYPES = [
   'contact',
   'map',
   'logos',
+  'pagelinks',
 ] as const
 
 export type SectionType = (typeof SECTION_TYPES)[number]

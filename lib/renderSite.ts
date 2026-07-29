@@ -4,10 +4,15 @@
 
 import { STYLE_PRESETS, DEFAULT_STYLE_PRESET, isStylePresetKey, presetVarsToCss } from './stylePresets'
 
-export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
+export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos' | 'pagelinks'
 export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
 export type Theme = { primary: string; accent: string; style?: string }
+// A page's slug may contain "/" to nest it under another page, e.g.
+// "services/plumbing-repair" is a child of the page whose slug is
+// "services" — there's no separate parent field, the hierarchy is entirely
+// derived from the slug path. Depth is unlimited; a child's slug can itself
+// be a prefix for grandchildren.
 export type Page = { name: string; slug: string; sections: Section[] }
 
 // sites.sections_json historically stored a bare Section[] — one page,
@@ -49,7 +54,12 @@ export function esc(value: string | undefined | null): string {
 function sectionToHtml(type: SectionType, data: SectionData, navPages?: Page[]): string {
   switch (type) {
     case 'nav': {
+      // Only top-level pages (no "/" in their slug) show up in the main
+      // menu — a site with dozens of nested category sub-pages would
+      // otherwise flood the nav bar. Sub-pages are reached via a
+      // "pagelinks" section on their parent page, or direct URL.
       const links = (navPages ?? [])
+        .filter((p) => !p.slug.includes('/'))
         .map((p) => `<a href="/${esc(p.slug)}">${esc(p.name)}</a>`)
         .join('')
       return `<div class="s-nav"><div class="s-nav-logo">${esc(data.logo)}</div><div class="s-nav-links">${links}</div></div>`
@@ -80,6 +90,11 @@ function sectionToHtml(type: SectionType, data: SectionData, navPages?: Page[]):
       return `<div class="s-map"><h2>${esc(data.title)}</h2><iframe class="s-map-frame" src="https://www.google.com/maps?q=${encodeURIComponent(data.address || '')}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
     case 'logos':
       return `<div class="s-logos"><h2>${esc(data.title)}</h2><div class="s-logos-row">${[1, 2, 3, 4, 5, 6].filter((n) => data[`l${n}n`]).map((n) => `<div class="s-logo-item">${esc(data[`l${n}n`])}</div>`).join('')}</div></div>`
+    case 'pagelinks':
+      // Cards linking to other pages on this site — the way a parent
+      // "category" page (e.g. Services) fans out to its own dedicated
+      // sub-pages instead of cramming every service into one long list.
+      return `<div class="s-pagelinks"><h2>${esc(data.title)}</h2><div class="s-pagelinks-grid">${[1, 2, 3, 4, 5, 6].filter((n) => data[`c${n}n`]).map((n) => `<a href="/${esc(data[`c${n}s`] || '')}" class="s-pagelinks-card">${data[`c${n}img`] ? `<img src="${esc(data[`c${n}img`])}" alt="" style="width:100%;height:140px;object-fit:cover;border-radius:12px;margin-bottom:14px;display:block">` : ''}<h3>${esc(data[`c${n}n`])}</h3><p>${esc(data[`c${n}d`])}</p></a>`).join('')}</div></div>`
   }
 }
 
@@ -169,6 +184,13 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-logos h2{text-align:center;font-size:28px;font-weight:var(--b-heading-weight,800);margin-bottom:36px;color:var(--b-primary);opacity:0.7;${H}}
 .s-logos-row{display:flex;justify-content:center;align-items:center;gap:40px;flex-wrap:wrap}
 .s-logo-item{font-size:20px;font-weight:800;color:#94a3b8;letter-spacing:0.02em}
+.s-pagelinks{padding:88px 64px;background:#f8faff}
+.s-pagelinks h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:48px;color:var(--b-primary);${H}}
+.s-pagelinks-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.s-pagelinks-card{background:white;border-radius:var(--b-radius-lg,20px);border:var(--b-card-border,none);padding:32px;box-shadow:var(--b-shadow,0 4px 24px rgba(10,35,66,0.06));text-decoration:none;color:inherit;display:block;transition:transform .15s}
+.s-pagelinks-card:hover{transform:translateY(-4px)}
+.s-pagelinks-card h3{font-size:19px;font-weight:var(--b-heading-weight,700);margin-bottom:10px;color:var(--b-primary);${H}}
+.s-pagelinks-card p{font-size:14px;color:#64748b;line-height:1.65}
 @media(max-width:768px){
   .s-gallery{padding:60px 24px}.s-gallery-grid{grid-template-columns:1fr}
   .s-team{padding:60px 24px}.s-team-grid{grid-template-columns:1fr}
@@ -176,6 +198,7 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
   .s-contact{padding:60px 24px}.s-contact-details{flex-direction:column;gap:12px}
   .s-map{padding:60px 24px}.s-map-frame{height:280px}
   .s-logos{padding:40px 24px}.s-logos-row{gap:24px}
+  .s-pagelinks{padding:60px 24px}.s-pagelinks-grid{grid-template-columns:1fr}
   .s-nav{flex-direction:column;gap:12px;padding:16px 20px;text-align:center}
   .s-hero{padding:60px 24px}.s-hero h1{font-size:32px}
   .s-features{padding:60px 24px}.s-features-grid{grid-template-columns:1fr}

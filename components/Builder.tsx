@@ -10,7 +10,7 @@ import BusinessProfilePanel from '@/components/BusinessProfilePanel'
 import { buildSiteHtml } from '@/lib/renderSite'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey, type StylePresetKey } from '@/lib/stylePresets'
 
-type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos'
+type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos' | 'pagelinks'
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type Page = { id: string; name: string; slug: string; sections: Section[] }
@@ -20,7 +20,7 @@ type Theme = { primary: string; accent: string; style?: string }
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
   testimonial: 'Testimonials', pricing: 'Pricing', cta: 'CTA', footer: 'Footer',
-  gallery: 'Gallery', team: 'Team', faq: 'FAQ', contact: 'Contact', map: 'Map', logos: 'Logo Cloud',
+  gallery: 'Gallery', team: 'Team', faq: 'FAQ', contact: 'Contact', map: 'Map', logos: 'Logo Cloud', pagelinks: 'Category Links',
 }
 
 const DEFAULTS: Record<SectionType, SectionData> = {
@@ -38,6 +38,7 @@ const DEFAULTS: Record<SectionType, SectionData> = {
   contact: { title: 'Get In Touch', sub: "We'd love to hear from you.", email: '', phone: '', address: '' },
   map: { title: 'Find Us', address: '' },
   logos: { title: 'Trusted By', l1n: 'Company A', l2n: 'Company B', l3n: 'Company C', l4n: 'Company D', l5n: '', l6n: '' },
+  pagelinks: { title: 'Explore Our Services', c1n: 'Category One', c1s: '', c1d: 'Short description of this category.', c1img: '', c2n: '', c2s: '', c2d: '', c2img: '', c3n: '', c3s: '', c3d: '', c3img: '' },
 }
 
 // Local quick-start templates are multi-page now too — a Home landing page
@@ -144,8 +145,14 @@ function pagesFromModel(pages: { name: string; slug: string; sections: { type: S
   }))
 }
 
-function slugify(name: string, existing: Set<string>): string {
-  const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
+// One path segment of a slug, e.g. "Plumbing Repair" -> "plumbing-repair".
+// A full slug is one or more of these joined with "/" — the "/" itself is
+// what makes a page a child of another (see the Page type's comment).
+function slugSegment(name: string): string {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
+}
+
+function uniqueSlug(base: string, existing: Set<string>): string {
   let slug = base
   let n = 2
   while (existing.has(slug)) {
@@ -370,7 +377,31 @@ export default function Builder({
     const name = window.prompt('New page name (e.g. "About", "Services", "Gallery")')?.trim()
     if (!name) return
     const existing = new Set(pages.map((p) => p.slug))
-    const slug = slugify(name, existing)
+    const slug = uniqueSlug(slugSegment(name), existing)
+    const newPage: Page = {
+      id: newId(),
+      name,
+      slug,
+      sections: [
+        { id: newId(), type: 'nav', data: { ...(pages[0]?.sections.find((s) => s.type === 'nav')?.data ?? DEFAULTS.nav) } },
+        { id: newId(), type: 'footer', data: { ...(pages[0]?.sections.find((s) => s.type === 'footer')?.data ?? DEFAULTS.footer) } },
+      ],
+    }
+    setPages((ps) => [...ps, newPage])
+    setActivePageId(newPage.id)
+  }
+
+  // Nests a new page under any existing page (top-level or already-nested) —
+  // this is how a "Services" page grows dedicated sub-pages per category
+  // (services/plumbing-repair, services/drain-cleaning, ...) instead of one
+  // long list, and how those sub-pages can themselves grow further children.
+  function addSubPage(parentId: string) {
+    const parent = pages.find((p) => p.id === parentId)
+    if (!parent) return
+    const name = window.prompt(`New sub-page name under "${parent.name}" (e.g. a specific service or category)`)?.trim()
+    if (!name) return
+    const existing = new Set(pages.map((p) => p.slug))
+    const slug = uniqueSlug(`${parent.slug}/${slugSegment(name)}`, existing)
     const newPage: Page = {
       id: newId(),
       name,
@@ -387,24 +418,43 @@ export default function Builder({
   function renamePage(id: string) {
     const idx = pages.findIndex((p) => p.id === id)
     if (idx === -1) return
-    const name = window.prompt('Rename page', pages[idx].name)?.trim()
+    const page = pages[idx]
+    const name = window.prompt('Rename page', page.name)?.trim()
     if (!name) return
+    if (idx === 0) {
+      setPages((ps) => ps.map((p) => (p.id === id ? { ...p, name } : p)))
+      return
+    }
     setPages((ps) => {
+      const parentPrefix = page.slug.includes('/') ? page.slug.slice(0, page.slug.lastIndexOf('/')) : null
       const existing = new Set(ps.filter((p) => p.id !== id).map((p) => p.slug))
-      const slug = idx === 0 ? '' : slugify(name, existing)
-      return ps.map((p) => (p.id === id ? { ...p, name, slug } : p))
+      const base = parentPrefix ? `${parentPrefix}/${slugSegment(name)}` : slugSegment(name)
+      const newSlug = uniqueSlug(base, existing)
+      return ps.map((p) => {
+        if (p.id === id) return { ...p, name, slug: newSlug }
+        // Cascade: any descendant of the OLD slug moves under the NEW one,
+        // so renaming "Services" doesn't orphan services/plumbing-repair.
+        if (p.slug.startsWith(`${page.slug}/`)) return { ...p, slug: newSlug + p.slug.slice(page.slug.length) }
+        return p
+      })
     })
   }
 
   function deletePage(id: string) {
     if (pages.length <= 1) return
+    const page = pages.find((p) => p.id === id)
+    if (!page) return
     if (pages[0]?.id === id) {
       alert("The Home page can't be deleted — rename it instead if you want a different landing page.")
       return
     }
-    if (!window.confirm('Delete this page? This cannot be undone.')) return
-    setPages((ps) => ps.filter((p) => p.id !== id))
-    if (activePageId === id) setActivePageId(pages[0].id)
+    const hasChildren = pages.some((p) => p.slug.startsWith(`${page.slug}/`))
+    const confirmed = window.confirm(
+      hasChildren ? 'Delete this page AND all of its sub-pages? This cannot be undone.' : 'Delete this page? This cannot be undone.'
+    )
+    if (!confirmed) return
+    setPages((ps) => ps.filter((p) => p.id !== id && !p.slug.startsWith(`${page.slug}/`)))
+    if (activePageId === id || activePage.slug.startsWith(`${page.slug}/`)) setActivePageId(pages[0].id)
   }
 
   async function handleAttachFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -743,27 +793,65 @@ export default function Builder({
 
         {/* Canvas */}
         <div className="flex-1 flex flex-col min-h-0 bg-[#1a1a2e]">
-          {/* Page tabs */}
-          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-zinc-800 overflow-x-auto">
-            {pages.map((p, i) => (
-              <div key={p.id} className="flex items-center">
-                <button
-                  onClick={() => setActivePageId(p.id)}
-                  onDoubleClick={() => renamePage(p.id)}
-                  title="Double-click to rename"
-                  className={`text-xs px-3 py-1.5 rounded-t-lg whitespace-nowrap ${p.id === activePage.id ? 'bg-[#1a1a2e] text-white border border-zinc-700 border-b-0 font-semibold' : 'text-zinc-400 hover:text-zinc-200'}`}
-                >
-                  {p.name}{i === 0 && <span className="text-[9px] text-zinc-500 ml-1">(home)</span>}
-                </button>
-                {i > 0 && p.id === activePage.id && (
-                  <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+          {/* Page tabs — top-level pages on top, and (when the active page's
+              family has any) a nested sub-page row underneath. A page is
+              "top-level" if its slug has no "/"; everything under it is
+              found by slug prefix, however many levels deep. */}
+          {(() => {
+            const topLevelPages = pages.filter((p) => !p.slug.includes('/'))
+            const activeTopSlug = activePage.slug.split('/')[0]
+            const activeTop = topLevelPages.find((p) => p.slug === activeTopSlug) ?? topLevelPages[0]
+            const family = activeTop ? pages.filter((p) => p.slug.startsWith(`${activeTop.slug}/`)) : []
+            return (
+              <div className="border-b border-zinc-800">
+                <div className="flex items-center gap-1.5 px-4 pt-2 overflow-x-auto">
+                  {topLevelPages.map((p, i) => (
+                    <div key={p.id} className="flex items-center">
+                      <button
+                        onClick={() => setActivePageId(p.id)}
+                        onDoubleClick={() => renamePage(p.id)}
+                        title="Double-click to rename"
+                        className={`text-xs px-3 py-1.5 rounded-t-lg whitespace-nowrap ${p.slug === activeTopSlug ? 'bg-[#1a1a2e] text-white border border-zinc-700 border-b-0 font-semibold' : 'text-zinc-400 hover:text-zinc-200'}`}
+                      >
+                        {p.name}
+                        {i === 0 && <span className="text-[9px] text-zinc-500 ml-1">(home)</span>}
+                        {pages.some((c) => c.slug.startsWith(`${p.slug}/`)) && <span className="text-[9px] ml-1 opacity-60">▾</span>}
+                      </button>
+                      {i > 0 && p.id === activePage.id && (
+                        <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={addPage} className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 whitespace-nowrap">
+                    + Page
+                  </button>
+                </div>
+                {activeTop && activeTop.slug !== '' && (
+                  <div className="flex items-center gap-1.5 px-4 pb-2 pt-1 pl-9 overflow-x-auto">
+                    <span className="text-[10px] text-zinc-600">↳</span>
+                    {family.map((p) => (
+                      <div key={p.id} className="flex items-center">
+                        <button
+                          onClick={() => setActivePageId(p.id)}
+                          onDoubleClick={() => renamePage(p.id)}
+                          title="Double-click to rename"
+                          className={`text-[11px] px-2.5 py-1 rounded-lg whitespace-nowrap ${p.id === activePage.id ? 'bg-zinc-800 text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          {p.name}
+                        </button>
+                        {p.id === activePage.id && (
+                          <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-600 hover:text-red-400 text-[11px] px-1">✕</button>
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={() => addSubPage(activeTop.id)} className="text-[11px] px-2 py-1 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-200 whitespace-nowrap">
+                      + Sub-page
+                    </button>
+                  </div>
                 )}
               </div>
-            ))}
-            <button onClick={addPage} className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 whitespace-nowrap">
-              + Page
-            </button>
-          </div>
+            )
+          })()}
 
           <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 overflow-x-auto">
             {(Object.keys(SECTION_LABELS) as SectionType[]).map((t) => (
@@ -906,7 +994,7 @@ function SectionView({
         {toolbar}
         <Editable value={data.logo} onCommit={(v) => onCommit('logo', v)} className="s-nav-logo" />
         <div className="s-nav-links">
-          {pages.map((p) => <span key={p.id}>{p.name}</span>)}
+          {pages.filter((p) => !p.slug.includes('/')).map((p) => <span key={p.id}>{p.name}</span>)}
         </div>
       </div>
     )
@@ -1108,14 +1196,35 @@ function SectionView({
       </div>
     )
   }
-  // logos
+  if (type === 'logos') {
+    return (
+      <div className={`${wrapperClass} s-logos`} onClick={onSelect}>
+        {toolbar}
+        <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
+        <div className="s-logos-row">
+          {[1, 2, 3, 4, 5, 6].filter((n) => data[`l${n}n`]).map((n) => (
+            <Editable key={n} value={data[`l${n}n`]} onCommit={(v) => onCommit(`l${n}n`, v)} className="s-logo-item" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  // pagelinks — cards linking to other pages on this site. Non-interactive
+  // in the editor canvas (no real navigation between in-progress pages
+  // here); the target slug is shown as a small hint under each card so it's
+  // clear which page it'll link to once published.
   return (
-    <div className={`${wrapperClass} s-logos`} onClick={onSelect}>
+    <div className={`${wrapperClass} s-pagelinks`} onClick={onSelect}>
       {toolbar}
       <Editable tag="h2" value={data.title} onCommit={(v) => onCommit('title', v)} />
-      <div className="s-logos-row">
-        {[1, 2, 3, 4, 5, 6].filter((n) => data[`l${n}n`]).map((n) => (
-          <Editable key={n} value={data[`l${n}n`]} onCommit={(v) => onCommit(`l${n}n`, v)} className="s-logo-item" />
+      <div className="s-pagelinks-grid">
+        {[1, 2, 3, 4, 5, 6].filter((n) => data[`c${n}n`]).map((n) => (
+          <div className="s-pagelinks-card" key={n}>
+            {data[`c${n}img`] && <img src={data[`c${n}img`]} alt="" className="b-feat-img" />}
+            <Editable tag="h3" value={data[`c${n}n`]} onCommit={(v) => onCommit(`c${n}n`, v)} />
+            <Editable tag="p" value={data[`c${n}d`]} onCommit={(v) => onCommit(`c${n}d`, v)} />
+            <div className="text-[10px] text-slate-400 mt-1">links to: /{data[`c${n}s`] || '…'}</div>
+          </div>
         ))}
       </div>
     </div>
