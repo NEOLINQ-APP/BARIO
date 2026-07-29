@@ -291,6 +291,58 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // Append-only — never updated. An Acceptable Use Policy only means
+  // something if acceptance is affirmative and provable; this is that proof,
+  // one row per order-specific "yes," with the exact policy version pinned
+  // at accept-time so a later policy change can't retroactively alter what a
+  // past customer is deemed to have agreed to.
+  await sql`
+    CREATE TABLE IF NOT EXISTS legal_acceptances (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      policy_slug TEXT NOT NULL,
+      policy_version TEXT NOT NULL,
+      accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ip_address TEXT,
+      user_agent TEXT
+    )
+  `
+  // One row per Stripe purchase's resulting VPS, tracked through its whole
+  // lifecycle via `status` — same shape as template_licenses, not sites,
+  // since this is "one purchase's provisioned thing" rather than an
+  // ever-editable resource. hetzner_server_type is denormalized at order
+  // time so a later VPS_TIERS repricing never retroactively changes an
+  // in-flight order.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vps_instances (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      tier TEXT NOT NULL,
+      region TEXT NOT NULL DEFAULT 'nbg1',
+      hetzner_server_type TEXT,
+      hostname TEXT,
+      ssh_public_key TEXT,
+      backup_addon BOOLEAN NOT NULL DEFAULT false,
+      root_password_ciphertext TEXT,
+      root_password_iv TEXT,
+      root_password_revealed_at TIMESTAMPTZ,
+      hetzner_server_id TEXT,
+      primary_ipv4 TEXT,
+      primary_ipv6 TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_payment',
+      risk_flag TEXT NOT NULL DEFAULT 'none',
+      last_error TEXT,
+      legal_acceptance_id TEXT REFERENCES legal_acceptances(id),
+      stripe_checkout_session_id TEXT,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      paid_at TIMESTAMPTZ,
+      suspended_at TIMESTAMPTZ,
+      deprovisioned_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
 }
 
 export async function db() {
@@ -323,6 +375,35 @@ export type User = {
   e2e_recovery_salt: string | null
   e2e_recovery_wrapped_mek: string | null
   e2e_recovery_wrapped_mek_iv: string | null
+}
+
+export type VpsInstance = {
+  id: string
+  user_id: string
+  tier: string
+  region: string
+  hetzner_server_type: string | null
+  hostname: string | null
+  ssh_public_key: string | null
+  backup_addon: boolean
+  root_password_ciphertext: string | null
+  root_password_iv: string | null
+  root_password_revealed_at: string | null
+  hetzner_server_id: string | null
+  primary_ipv4: string | null
+  primary_ipv6: string | null
+  status: string
+  risk_flag: string
+  last_error: string | null
+  legal_acceptance_id: string | null
+  stripe_checkout_session_id: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  paid_at: string | null
+  suspended_at: string | null
+  deprovisioned_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type MediaAsset = {
