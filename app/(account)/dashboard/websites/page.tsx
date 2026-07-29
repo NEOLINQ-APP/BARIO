@@ -43,7 +43,7 @@ export default async function WebsitesPage() {
             <MigrateSitePanel isPaid={hasPaidPlan(user)} />
           </>
         ) : (
-          <a href="/#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
+          <a href="/hosting#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
             Choose a plan
           </a>
         )}

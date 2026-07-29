@@ -26,12 +26,16 @@ export default function StoragePlansPage() {
       {/* NAVIGATION BAR */}
       <nav className="border-b border-slate-800/80 px-6 sm:px-12 py-4 flex items-center justify-between max-w-7xl mx-auto">
         <a href="/" className="flex items-center gap-2 font-extrabold text-xl tracking-tight text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/bario-icon-64.png" alt="Bario" className="h-8 w-8" />
           <span className="text-cyan-400">bario</span>
           <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">.ca</span>
         </a>
         <div className="flex items-center gap-6 text-sm font-medium">
-          <a href="/#pricing" className="text-slate-400 hover:text-white transition-colors">Hosting Plans</a>
-          <a href="/storage" className="text-white">Storage Plans</a>
+          <a href="/hosting" className="text-slate-400 hover:text-white transition-colors">Hosting</a>
+          <a href="/storage" className="text-white">X-Drive</a>
+          <a href="/vps" className="text-slate-400 hover:text-white transition-colors">VPS Servers</a>
+          <a href="/site-audit" className="text-slate-400 hover:text-white transition-colors">Free Site Audit</a>
           <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors">
             Client Portal
           </a>

@@ -15,9 +15,14 @@ export default function SiteAuditPage() {
           <span className="text-cyan-400">bario</span>
           <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">.ca</span>
         </a>
-        <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors text-sm font-medium">
-          Client Portal
-        </a>
+        <div className="flex items-center gap-6 text-sm font-medium">
+          <a href="/hosting" className="text-slate-400 hover:text-white transition-colors">Hosting</a>
+          <a href="/storage" className="text-slate-400 hover:text-white transition-colors">X-Drive</a>
+          <a href="/vps" className="text-slate-400 hover:text-white transition-colors">VPS Servers</a>
+          <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors">
+            Client Portal
+          </a>
+        </div>
       </nav>
 
       <section className="py-20 px-6 sm:px-12">

@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       metadata: { plan, userId: user.id, billingCycle: cycle },
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard?checkout=success`,
-      cancel_url: `${origin}/#pricing`,
+      cancel_url: `${origin}/hosting#pricing`,
       allow_promotion_codes: true,
     })
 

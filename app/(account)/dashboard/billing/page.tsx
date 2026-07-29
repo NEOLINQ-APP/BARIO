@@ -37,7 +37,7 @@ export default async function BillingPage() {
             <div className="text-lg mt-1">{STATUS_LABEL[user.subscription_status] ?? user.subscription_status}</div>
           </div>
           {user.subscription_status !== 'active' && (
-            <a href="/#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
+            <a href="/hosting#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
               Choose a plan
             </a>
           )}
