@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import SitesList from '@/components/SitesList'
 import SupportAssistant from '@/components/SupportAssistant'
+import MigrateSitePanel from '@/components/MigrateSitePanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,8 @@ export default async function WebsitesPage() {
               <h2 className="text-sm font-semibold mb-4">Your sites</h2>
               <SitesList />
             </div>
+
+            <MigrateSitePanel isPaid={hasPaidPlan(user)} />
           </>
         ) : (
           <a href="/#pricing" className="inline-block mt-6 px-5 py-3 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200]">
