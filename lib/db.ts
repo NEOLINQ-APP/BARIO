@@ -267,6 +267,19 @@ async function ensureSchema() {
       UNIQUE (site_id, slug)
     )
   `
+  // Backs the public, unauthenticated site-audit endpoint's rate limit —
+  // this route makes server-side requests to arbitrary user-supplied URLs
+  // with no login required, so it needs its own abuse guard rather than
+  // relying on session/plan checks like everything else that touches the
+  // crawler.
+  await sql`
+    CREATE TABLE IF NOT EXISTS audit_requests (
+      id TEXT PRIMARY KEY,
+      ip TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS audit_requests_ip_idx ON audit_requests (ip, created_at)`
   await sql`
     CREATE TABLE IF NOT EXISTS support_messages (
       id TEXT PRIMARY KEY,

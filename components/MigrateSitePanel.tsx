@@ -7,6 +7,7 @@ type MigrateResult = {
   subdomain: string
   url: string
   pagesImported: number
+  pagesCapped: boolean
   imagesRehosted: number
   failedPages: string[]
   externalAssetDomains: string[]
@@ -62,8 +63,9 @@ export default function MigrateSitePanel({ isPaid }: { isPaid: boolean }) {
     <div className="mt-8 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
       <h2 className="text-sm font-semibold">Migrate an existing website</h2>
       <p className="text-xs text-zinc-500 mt-1 mb-4 max-w-md">
-        Paste your current site's URL — Bario crawls every page, brings your images over, and publishes it on your own
-        bario.ca address automatically.
+        Paste your current site's URL — Bario crawls up to 40 pages, brings your images over, and publishes it on your
+        own bario.ca address automatically. Works best on standard content sites; pages that depend heavily on
+        JavaScript to render (e.g. WooCommerce carts) aren't fully supported yet.
       </p>
 
       <form onSubmit={handleMigrate} className="flex items-center gap-2">
@@ -96,6 +98,12 @@ export default function MigrateSitePanel({ isPaid }: { isPaid: boolean }) {
           <div className="font-semibold text-emerald-400">
             Migrated {result.pagesImported} page{result.pagesImported === 1 ? '' : 's'} — your site is live.
           </div>
+          {result.pagesCapped && (
+            <div className="text-amber-400">
+              This site has more than {result.pagesImported} pages — only the first {result.pagesImported} were brought
+              over. Tell us and we can migrate the rest manually.
+            </div>
+          )}
           <div>
             <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-[#f59e0b] underline">
               {result.url.replace('https://', '')} ↗

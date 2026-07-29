@@ -27,6 +27,7 @@ export default function Home() {
           <a href="#features" className="text-slate-400 hover:text-white transition-colors">Hosting</a>
           <a href="#media-library" className="text-slate-400 hover:text-white transition-colors">X-Drive</a>
           <a href="#pricing" className="text-slate-400 hover:text-white transition-colors">Pricing</a>
+          <a href="/site-audit" className="text-slate-400 hover:text-white transition-colors">Free Site Audit</a>
           <a href="#faq" className="text-slate-400 hover:text-white transition-colors">FAQ</a>
           <a href="/login" className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 transition-colors">
             Client Portal

@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { lookup } from 'node:dns/promises'
-import { isIP } from 'node:net'
 import * as cheerio from 'cheerio'
 import { put } from '@vercel/blob'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
 import { maxSitesForPlan } from '@/lib/plans'
+import { assertPublicHost } from '@/lib/ssrf'
 import { errorResponse } from '@/lib/errors'
 
 // Crawling up to MAX_PAGES pages, each with several image fetch+upload
@@ -16,35 +15,17 @@ import { errorResponse } from '@/lib/errors'
 // not a hot-path request, so it's worth the larger budget Vercel allows.
 export const maxDuration = 280
 
-const MAX_PAGES = 25
+// Kept well inside maxDuration even in a worst-case run — image re-hosting
+// is separately capped at MAX_IMAGES regardless of page count, but a page
+// count much higher than this risks the *sequential page fetches alone*
+// exceeding the time budget if several are slow. Stated explicitly in the
+// UI (MigrateSitePanel) rather than silently capped with no disclosure.
+const MAX_PAGES = 40
 const MAX_IMAGES = 40
 const FETCH_TIMEOUT_MS = 10_000
 const MAX_PAGE_SIZE = 3 * 1024 * 1024 // 3MB per page — bounds Postgres row size
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024
 const SKIP_EXTENSIONS = /\.(pdf|zip|docx?|xlsx?|jpg|jpeg|png|gif|svg|webp|mp4|mp3|css|js)$/i
-
-// This endpoint makes server-side HTTP requests to whatever URL a user
-// supplies — without this check, a malicious paid account could point it at
-// an internal/cloud-metadata address (e.g. 169.254.169.254) to probe
-// infrastructure that would otherwise be unreachable from the outside.
-// Same-origin links discovered during the crawl are never re-checked
-// individually (they share the already-validated start hostname), so this
-// covers the practical case; it doesn't defend against DNS rebinding
-// between this check and the fetches that follow, which is an acceptable
-// residual risk for a feature already gated to paying accounts.
-async function assertPublicHost(hostname: string): Promise<void> {
-  if (hostname === 'localhost') throw new Error("That URL points to a local address, not a public website")
-  const ip = isIP(hostname) ? hostname : (await lookup(hostname)).address
-  if (isPrivateIp(ip)) throw new Error("That URL points to a private or internal address, not a public website")
-}
-
-function isPrivateIp(ip: string): boolean {
-  if (ip.includes(':')) {
-    return ip === '::1' || /^fe80:/i.test(ip) || /^f[cd]/i.test(ip)
-  }
-  const [a, b] = ip.split('.').map(Number)
-  return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
-}
 
 async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController()
@@ -287,6 +268,10 @@ export async function POST(req: Request) {
     if (pages.length === 0) {
       return NextResponse.json({ error: "Couldn't reach that site, or it didn't return any readable pages." }, { status: 400 })
     }
+    // Whether the crawl actually ran out of pages, or hit MAX_PAGES with
+    // more still queued — the caller shouldn't be told "fully migrated"
+    // when there was more the crawler didn't get to.
+    const pagesCapped = pages.length >= MAX_PAGES && queue.length > 0
     if (!pages.some((p) => p.isHome)) pages[0].isHome = true
 
     await sql`UPDATE site_pages SET is_home = false WHERE site_id = ${siteId}`
@@ -309,6 +294,7 @@ export async function POST(req: Request) {
       subdomain,
       url: `https://${subdomain}.bario.ca`,
       pagesImported: pages.length,
+      pagesCapped,
       imagesRehosted,
       failedPages,
       externalAssetDomains: Array.from(externalAssetDomains),
