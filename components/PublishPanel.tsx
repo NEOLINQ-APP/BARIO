@@ -204,29 +204,29 @@ export default function PublishPanel({
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white text-slate-900 dark:border-zinc-800 dark:bg-[#131b2a] dark:text-zinc-100 p-6 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">Publish your site</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300">✕</button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Your bario.ca subdomain</label>
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Your bario.ca subdomain</label>
             <div className="flex items-center gap-2">
               <input
                 value={subdomain}
                 onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
                 placeholder="mybusiness"
-                className="flex-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
               />
-              <span className="text-sm text-zinc-500">.bario.ca</span>
+              <span className="text-sm text-slate-400 dark:text-zinc-500">.bario.ca</span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-zinc-800 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-zinc-800 p-3">
             <div>
               <div className="text-sm font-semibold">{published ? 'Live' : 'Not published'}</div>
               {published && subdomain ? (
@@ -239,7 +239,7 @@ export default function PublishPanel({
                   {subdomain}.bario.ca ↗
                 </a>
               ) : (
-                <div className="text-xs text-zinc-500">{published ? 'Your site is publicly visible' : 'Publish to go live'}</div>
+                <div className="text-xs text-slate-400 dark:text-zinc-500">{published ? 'Your site is publicly visible' : 'Publish to go live'}</div>
               )}
             </div>
             <button
@@ -251,10 +251,10 @@ export default function PublishPanel({
             </button>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-zinc-800 p-3">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-zinc-800 p-3">
             <div>
               <div className="text-sm font-semibold">"Made with Bario" badge</div>
-              <div className="text-xs text-zinc-500">
+              <div className="text-xs text-slate-400 dark:text-zinc-500">
                 {isPaid ? 'Remove it or keep it shown on your live site.' : 'Upgrade to a paid plan to remove this.'}
               </div>
             </div>
@@ -262,7 +262,7 @@ export default function PublishPanel({
               <button
                 onClick={handleToggleBadge}
                 disabled={badgeSaving}
-                className="px-4 py-2 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50"
+                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold disabled:opacity-50"
               >
                 {badgeSaving ? 'Saving…' : showBadge ? 'Remove badge' : 'Badge removed — show it again'}
               </button>
@@ -273,25 +273,25 @@ export default function PublishPanel({
             )}
           </div>
 
-          <div className="pt-4 border-t border-zinc-800">
-            <label className="block text-xs text-zinc-400 mb-1">Connect your own domain (optional)</label>
+          <div className="pt-4 border-t border-slate-200 dark:border-zinc-800">
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Connect your own domain (optional)</label>
             <form onSubmit={handleConnectDomain} className="flex items-center gap-2">
               <input
                 value={customDomain}
                 onChange={(e) => setCustomDomain(e.target.value.toLowerCase())}
                 placeholder="mybusiness.com"
-                className="flex-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
               />
-              <button type="submit" disabled={busy} className="px-4 py-2 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
+              <button type="submit" disabled={busy} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold disabled:opacity-50">
                 Connect
               </button>
             </form>
 
             {domainStatus !== 'none' && (
-              <div className="mt-3 rounded-lg border border-zinc-800 p-3 text-xs">
+              <div className="mt-3 rounded-lg border border-slate-200 dark:border-zinc-800 p-3 text-xs">
                 <div className="flex items-center justify-between">
                   <span>
-                    Status: <strong className={domainStatus === 'verified' ? 'text-emerald-400' : 'text-amber-400'}>{domainStatus}</strong>
+                    Status: <strong className={domainStatus === 'verified' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>{domainStatus}</strong>
                     {domainStatus === 'verified' && customDomain && (
                       <>
                         {' '}
@@ -315,13 +315,13 @@ export default function PublishPanel({
                     <button onClick={() => setShowDns(true)} className="text-[#f59e0b] underline">
                       Manage DNS
                     </button>
-                    <button onClick={handleDisconnect} disabled={busy} className="text-red-400 underline">
+                    <button onClick={handleDisconnect} disabled={busy} className="text-red-600 dark:text-red-400 underline">
                       Disconnect
                     </button>
                   </div>
                 </div>
                 {nameservers && nameservers.length > 0 ? (
-                  <div className="mt-2 space-y-1 text-zinc-400">
+                  <div className="mt-2 space-y-1 text-slate-500 dark:text-zinc-400">
                     <div>Set these as your domain's nameservers at your registrar — we'll handle DNS from there automatically:</div>
                     {nameservers.map((ns) => (
                       <div key={ns} className="font-mono">{ns}</div>
@@ -329,7 +329,7 @@ export default function PublishPanel({
                   </div>
                 ) : (
                   instructions && (
-                    <div className="mt-2 space-y-1 text-zinc-400">
+                    <div className="mt-2 space-y-1 text-slate-500 dark:text-zinc-400">
                       <div>Add these DNS records at your registrar:</div>
                       <div className="font-mono">A @ → {instructions.a.value}</div>
                       <div className="font-mono">CNAME www → {instructions.cname.value}</div>
@@ -337,7 +337,7 @@ export default function PublishPanel({
                   )
                 )}
                 {verification.length > 0 && (
-                  <div className="mt-2 space-y-1 text-amber-300">
+                  <div className="mt-2 space-y-1 text-amber-700 dark:text-amber-300">
                     <div>Vercel also needs this record to verify ownership:</div>
                     {verification.map((v, i) => (
                       <div key={i} className="font-mono">
@@ -350,33 +350,33 @@ export default function PublishPanel({
             )}
           </div>
 
-          <div className="pt-4 border-t border-zinc-800 space-y-2">
-            <label className="block text-xs text-zinc-400 mb-1">SEO & analytics (optional)</label>
+          <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 space-y-2">
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">SEO & analytics (optional)</label>
             <input
               value={metaTitle}
               onChange={(e) => setMetaTitle(e.target.value)}
               placeholder="Page title shown in search results and browser tabs"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
             <textarea
               value={metaDescription}
               onChange={(e) => setMetaDescription(e.target.value)}
               placeholder="Meta description shown under your listing in search results"
               rows={2}
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm resize-none"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm resize-none"
             />
             <input
               value={analyticsId}
               onChange={(e) => setAnalyticsId(e.target.value)}
               placeholder="Google Analytics ID, e.g. G-ABC1234DEF"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
             <div className="flex items-center gap-3">
               {faviconUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={faviconUrl} alt="Favicon" className="w-6 h-6 rounded" />
               )}
-              <label className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold cursor-pointer">
+              <label className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold cursor-pointer">
                 {faviconUploading ? 'Uploading…' : faviconUrl ? 'Replace favicon' : 'Upload favicon'}
                 <input
                   type="file"
@@ -390,13 +390,13 @@ export default function PublishPanel({
             <button
               onClick={handleSaveSeo}
               disabled={seoSaving}
-              className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold disabled:opacity-50"
             >
               {seoSaving ? 'Saving…' : seoSaved ? 'Saved' : 'Save SEO settings'}
             </button>
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
         </div>
       </div>
 

@@ -132,6 +132,15 @@ function matchTemplateAlias(text: string): string | null {
   return null
 }
 
+// Native <option> elements largely ignore Tailwind's text/bg utility classes
+// in their dropdown popup across browsers — without this, the popup falls
+// back to inheriting the parent <select>'s color as text against the
+// browser's own (usually white) native listbox background, which is how a
+// dark-themed select ended up rendering near-white text on a white popup.
+// Inline style is what browsers reliably honor here, so force a fixed,
+// always-readable combo rather than trying to theme the native popup.
+const OPTION_STYLE: React.CSSProperties = { backgroundColor: '#ffffff', color: '#1e293b' }
+
 function newId() {
   return crypto.randomUUID()
 }
@@ -213,6 +222,21 @@ export default function Builder({
   const [currentSiteId, setCurrentSiteId] = useState(siteId)
   const [siteName, setSiteName] = useState(initialName)
   const [theme, setTheme] = useState<Theme>(initialTheme)
+
+  // The builder app's OWN light/dark chrome — unrelated to `theme` above,
+  // which is the colors of the WEBSITE being built. Defaults to dark
+  // (today's only look) so existing users see no change until they opt in;
+  // toggling flips the `dark` class on <html>, which every themed class in
+  // this file and its modals key off via Tailwind's `dark:` variant.
+  const [uiTheme, setUiTheme] = useState<'dark' | 'light'>('dark')
+  useEffect(() => {
+    const stored = localStorage.getItem('bario-ui-theme')
+    if (stored === 'light' || stored === 'dark') setUiTheme(stored)
+  }, [])
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', uiTheme === 'dark')
+    localStorage.setItem('bario-ui-theme', uiTheme)
+  }, [uiTheme])
   const [metaTitle, setMetaTitle] = useState(initialMetaTitle)
   const [metaDescription, setMetaDescription] = useState(initialMetaDescription)
   const [analyticsId, setAnalyticsId] = useState(initialAnalyticsId)
@@ -636,61 +660,68 @@ export default function Builder({
   }
 
   return (
-    <main className="h-screen flex flex-col bg-[#0b111c] text-zinc-100">
-      <div className="flex items-center gap-4 h-14 px-5 border-b border-zinc-800 flex-shrink-0">
-        <a href="/dashboard" className="text-sm text-zinc-400 hover:text-zinc-200">← Dashboard</a>
-        <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-sm text-zinc-400 hover:text-zinc-200">Premium Templates</a>
+    <main className="h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-[#0b111c] dark:text-zinc-100">
+      <div className="flex items-center gap-4 h-14 px-5 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
+        <a href="/dashboard" className="text-sm text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200">← Dashboard</a>
+        <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-sm text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200">Premium Templates</a>
         <input
           value={siteName}
           onChange={(e) => setSiteName(e.target.value)}
-          className="bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-zinc-700"
+          className="bg-transparent text-sm font-semibold outline-none border-b border-transparent focus:border-slate-300 dark:focus:border-zinc-700"
         />
         <div className="ml-auto flex items-center gap-3">
-          <span className={`text-xs px-2 py-1 rounded-full border ${!unlimitedCredits && credits <= 5 ? 'border-red-500/40 text-red-400' : 'border-zinc-700 text-zinc-400'}`}>
+          <span className={`text-xs px-2 py-1 rounded-full border ${!unlimitedCredits && credits <= 5 ? 'border-red-400 text-red-600 dark:border-red-500/40 dark:text-red-400' : 'border-slate-300 text-slate-500 dark:border-zinc-700 dark:text-zinc-400'}`}>
             {unlimitedCredits ? '∞ credits (admin)' : `${credits} credit${credits === 1 ? '' : 's'} left`}
           </span>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Primary color">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400" title="Primary color">
             Primary
             <input
               type="color"
               value={theme.primary}
               onChange={(e) => setTheme((t) => ({ ...t, primary: e.target.value }))}
-              className="w-6 h-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
+              className="w-6 h-6 rounded border border-slate-300 dark:border-zinc-700 bg-transparent cursor-pointer"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Accent color">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400" title="Accent color">
             Accent
             <input
               type="color"
               value={theme.accent}
               onChange={(e) => setTheme((t) => ({ ...t, accent: e.target.value }))}
-              className="w-6 h-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
+              className="w-6 h-6 rounded border border-slate-300 dark:border-zinc-700 bg-transparent cursor-pointer"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-400" title="Visual style — fonts, corner rounding, shadows">
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400" title="Visual style — fonts, corner rounding, shadows">
             Style
             <select
               value={activeStyle}
               onChange={(e) => setTheme((t) => ({ ...t, style: e.target.value }))}
-              className="bg-[#131b2a] border border-zinc-700 rounded px-1.5 py-1 text-xs text-zinc-200 outline-none cursor-pointer"
+              className="bg-white border border-slate-300 dark:bg-[#131b2a] dark:border-zinc-700 rounded px-1.5 py-1 text-xs text-slate-700 dark:text-zinc-200 outline-none cursor-pointer"
             >
               {STYLE_PRESET_KEYS.map((k) => (
-                <option key={k} value={k}>{STYLE_PRESETS[k].label}</option>
+                <option key={k} value={k} style={OPTION_STYLE}>{STYLE_PRESETS[k].label}</option>
               ))}
             </select>
           </label>
-          {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
-          <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
+          {saveMsg && <span className="text-xs text-slate-500 dark:text-zinc-400">{saveMsg}</span>}
+          <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Business Profile
           </button>
-          <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
+          <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
-          <button onClick={handleExport} title="Exports the page you're currently viewing" className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
+          <button onClick={handleExport} title="Exports the page you're currently viewing" className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Export HTML
           </button>
           <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
             Publish
+          </button>
+          <button
+            onClick={() => setUiTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            title={uiTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="w-8 h-8 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-sm flex-shrink-0"
+          >
+            {uiTheme === 'dark' ? '☀️' : '🌙'}
           </button>
           <ProfileMenu
             email={userEmail}
@@ -703,21 +734,21 @@ export default function Builder({
 
       <div className="flex flex-1 min-h-0">
         {/* Chat panel */}
-        <div className="w-80 flex-shrink-0 border-r border-zinc-800 flex flex-col min-h-0">
+        <div className="w-80 flex-shrink-0 border-r border-slate-200 dark:border-zinc-800 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${m.role === 'user' ? 'bg-[#1a56db] text-white' : 'bg-[#131b2a] border border-zinc-800 text-zinc-200'}`}>
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${m.role === 'user' ? 'bg-[#1a56db] text-white' : 'bg-slate-100 border border-slate-200 text-slate-700 dark:bg-[#131b2a] dark:border-zinc-800 dark:text-zinc-200'}`}>
                   {m.text}
                 </div>
               </div>
             ))}
-            {busy && <div className="text-xs text-zinc-500">Zeus is building…</div>}
+            {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">Zeus is building…</div>}
           </div>
 
-          <div className="p-3 border-t border-zinc-800">
+          <div className="p-3 border-t border-slate-200 dark:border-zinc-800">
             {outOfCredits && (
-              <div className="text-xs text-red-400 mb-2">
+              <div className="text-xs text-red-600 dark:text-red-400 mb-2">
                 Out of AI credits for this billing period. <a href="/#pricing" className="underline">Upgrade your plan</a> for more.
               </div>
             )}
@@ -738,23 +769,23 @@ export default function Builder({
                   else if (v === 'premium') router.push(`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`)
                   else if (v === 'upload') htmlFileInputRef.current?.click()
                 }}
-                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-transparent text-zinc-400 hover:text-zinc-200 disabled:opacity-50 outline-none w-full"
+                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-500 hover:text-slate-800 dark:border-zinc-700 dark:bg-transparent dark:text-zinc-400 dark:hover:text-zinc-200 disabled:opacity-50 outline-none w-full"
               >
-                <option value="" disabled>{importingHtml ? 'Uploading…' : 'Quick start: templates or your own HTML…'}</option>
-                <option value="business">Business template</option>
-                <option value="restaurant">Restaurant template</option>
-                <option value="agency">Agency template</option>
-                <option value="premium">Browse premium templates</option>
-                <option value="upload">Upload your own HTML</option>
+                <option value="" disabled style={OPTION_STYLE}>{importingHtml ? 'Uploading…' : 'Quick start: templates or your own HTML…'}</option>
+                <option value="business" style={OPTION_STYLE}>Business template</option>
+                <option value="restaurant" style={OPTION_STYLE}>Restaurant template</option>
+                <option value="agency" style={OPTION_STYLE}>Agency template</option>
+                <option value="premium" style={OPTION_STYLE}>Browse premium templates</option>
+                <option value="upload" style={OPTION_STYLE}>Upload your own HTML</option>
               </select>
             </div>
-            {importError && <div className="text-xs text-red-400 mb-2">{importError}</div>}
-            {uploadError && <div className="text-xs text-red-400 mb-2">{uploadError}</div>}
+            {importError && <div className="text-xs text-red-600 dark:text-red-400 mb-2">{importError}</div>}
+            {uploadError && <div className="text-xs text-red-600 dark:text-red-400 mb-2">{uploadError}</div>}
             {attachment && (
-              <div className="flex items-center gap-2 mb-2 text-xs bg-zinc-800 rounded-lg px-2.5 py-1.5 w-fit">
+              <div className="flex items-center gap-2 mb-2 text-xs bg-slate-200 dark:bg-zinc-800 rounded-lg px-2.5 py-1.5 w-fit">
                 <span>{attachment.kind === 'image' ? '🖼️' : attachment.kind === 'video' ? '🎬' : '🎵'}</span>
-                <span className="text-zinc-300 max-w-[160px] truncate">{attachment.name}</span>
-                <button onClick={() => setAttachment(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+                <span className="text-slate-700 dark:text-zinc-300 max-w-[160px] truncate">{attachment.name}</span>
+                <button onClick={() => setAttachment(null)} className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300">✕</button>
               </div>
             )}
             <div className="flex gap-2">
@@ -769,7 +800,7 @@ export default function Builder({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingFile || outOfCredits}
                 title="Attach an image, video, or audio file"
-                className="w-8 h-8 shrink-0 self-end rounded-xl border border-zinc-700 text-zinc-300 hover:text-white disabled:opacity-50 flex items-center justify-center"
+                className="w-8 h-8 shrink-0 self-end rounded-xl border border-slate-300 text-slate-600 hover:text-slate-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:text-white disabled:opacity-50 flex items-center justify-center"
               >
                 {uploadingFile ? '…' : '+'}
               </button>
@@ -785,7 +816,7 @@ export default function Builder({
                 placeholder={attachment ? 'Say what to do with this file (optional)…' : `Describe your website or ask for changes to "${activePage.name}"…`}
                 rows={2}
                 disabled={outOfCredits}
-                className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
+                className="flex-1 bg-white border border-slate-300 dark:bg-[#131b2a] dark:border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
               />
               <button onClick={handleSend} disabled={busy || outOfCredits || uploadingFile} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
                 Send
@@ -795,7 +826,7 @@ export default function Builder({
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 flex flex-col min-h-0 bg-[#1a1a2e]">
+        <div className="flex-1 flex flex-col min-h-0 bg-slate-100 dark:bg-[#1a1a2e]">
           {/* Page tabs — top-level pages on top, and (when the active page's
               family has any) a nested sub-page row underneath. A page is
               "top-level" if its slug has no "/"; everything under it is
@@ -806,7 +837,7 @@ export default function Builder({
             const activeTop = topLevelPages.find((p) => p.slug === activeTopSlug) ?? topLevelPages[0]
             const family = activeTop ? pages.filter((p) => p.slug.startsWith(`${activeTop.slug}/`)) : []
             return (
-              <div className="border-b border-zinc-800">
+              <div className="border-b border-slate-200 dark:border-zinc-800">
                 <div className="flex items-center gap-1.5 px-4 pt-2 overflow-x-auto">
                   {topLevelPages.map((p, i) => (
                     <div key={p.id} className="flex items-center">
@@ -814,40 +845,40 @@ export default function Builder({
                         onClick={() => setActivePageId(p.id)}
                         onDoubleClick={() => renamePage(p.id)}
                         title="Double-click to rename"
-                        className={`text-xs px-3 py-1.5 rounded-t-lg whitespace-nowrap ${p.slug === activeTopSlug ? 'bg-[#1a1a2e] text-white border border-zinc-700 border-b-0 font-semibold' : 'text-zinc-400 hover:text-zinc-200'}`}
+                        className={`text-xs px-3 py-1.5 rounded-t-lg whitespace-nowrap ${p.slug === activeTopSlug ? 'bg-white text-slate-900 border border-slate-300 border-b-0 dark:bg-[#1a1a2e] dark:text-white dark:border-zinc-700 font-semibold' : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200'}`}
                       >
                         {p.name}
-                        {i === 0 && <span className="text-[9px] text-zinc-500 ml-1">(home)</span>}
+                        {i === 0 && <span className="text-[9px] text-slate-400 dark:text-zinc-500 ml-1">(home)</span>}
                         {pages.some((c) => c.slug.startsWith(`${p.slug}/`)) && <span className="text-[9px] ml-1 opacity-60">▾</span>}
                       </button>
                       {i > 0 && p.id === activePage.id && (
-                        <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-500 hover:text-red-400 text-xs px-1">✕</button>
+                        <button onClick={() => deletePage(p.id)} title="Delete page" className="text-slate-400 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 text-xs px-1">✕</button>
                       )}
                     </div>
                   ))}
-                  <button onClick={addPage} className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 whitespace-nowrap">
+                  <button onClick={addPage} className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-500 hover:text-slate-800 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 whitespace-nowrap">
                     + Page
                   </button>
                 </div>
                 {activeTop && activeTop.slug !== '' && (
                   <div className="flex items-center gap-1.5 px-4 pb-2 pt-1 pl-9 overflow-x-auto">
-                    <span className="text-[10px] text-zinc-600">↳</span>
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-600">↳</span>
                     {family.map((p) => (
                       <div key={p.id} className="flex items-center">
                         <button
                           onClick={() => setActivePageId(p.id)}
                           onDoubleClick={() => renamePage(p.id)}
                           title="Double-click to rename"
-                          className={`text-[11px] px-2.5 py-1 rounded-lg whitespace-nowrap ${p.id === activePage.id ? 'bg-zinc-800 text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'}`}
+                          className={`text-[11px] px-2.5 py-1 rounded-lg whitespace-nowrap ${p.id === activePage.id ? 'bg-slate-200 text-slate-900 dark:bg-zinc-800 dark:text-white font-semibold' : 'text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300'}`}
                         >
                           {p.name}
                         </button>
                         {p.id === activePage.id && (
-                          <button onClick={() => deletePage(p.id)} title="Delete page" className="text-zinc-600 hover:text-red-400 text-[11px] px-1">✕</button>
+                          <button onClick={() => deletePage(p.id)} title="Delete page" className="text-slate-400 hover:text-red-600 dark:text-zinc-600 dark:hover:text-red-400 text-[11px] px-1">✕</button>
                         )}
                       </div>
                     ))}
-                    <button onClick={() => addSubPage(activeTop.id)} className="text-[11px] px-2 py-1 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-200 whitespace-nowrap">
+                    <button onClick={() => addSubPage(activeTop.id)} className="text-[11px] px-2 py-1 rounded-lg border border-slate-300 text-slate-400 hover:text-slate-800 dark:border-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 whitespace-nowrap">
                       + Sub-page
                     </button>
                   </div>
@@ -856,18 +887,18 @@ export default function Builder({
             )
           })()}
 
-          <div className="flex items-center px-4 py-2 border-b border-zinc-800">
+          <div className="flex items-center px-4 py-2 border-b border-slate-200 dark:border-zinc-800">
             <select
               value=""
               onChange={(e) => {
                 const t = e.target.value as SectionType
                 if (t) addBlankSection(t)
               }}
-              className="text-[11px] px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:text-white outline-none"
+              className="text-[11px] px-2.5 py-1.5 rounded-md bg-slate-200 text-slate-700 hover:text-slate-900 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:text-white outline-none"
             >
-              <option value="" disabled>+ Add section</option>
+              <option value="" disabled style={OPTION_STYLE}>+ Add section</option>
               {(Object.keys(SECTION_LABELS) as SectionType[]).map((t) => (
-                <option key={t} value={t}>{SECTION_LABELS[t]}</option>
+                <option key={t} value={t} style={OPTION_STYLE}>{SECTION_LABELS[t]}</option>
               ))}
             </select>
           </div>

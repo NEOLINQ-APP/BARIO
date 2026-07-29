@@ -26,53 +26,53 @@ export default function BusinessProfilePanel({
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#131b2a] p-6"
+        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-slate-900 dark:border-zinc-800 dark:bg-[#131b2a] dark:text-zinc-100 p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold">Business profile</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300">✕</button>
         </div>
-        <p className="text-xs text-zinc-500 mb-4">
+        <p className="text-xs text-slate-400 dark:text-zinc-500 mb-4">
           Tell Zeus about your business once — it'll use this automatically every time you ask for something, so you
           don't have to repeat it.
         </p>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Business name</label>
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Business name</label>
             <input
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
               placeholder="e.g. Riverside Coffee Roasters"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Category</label>
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Category</label>
             <input
               value={businessCategory}
               onChange={(e) => setBusinessCategory(e.target.value)}
               placeholder="e.g. Coffee shop & roastery"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Location</label>
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Location</label>
             <input
               value={businessLocation}
               onChange={(e) => setBusinessLocation(e.target.value)}
               placeholder="e.g. Edmonton, AB"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Hours</label>
+            <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Hours</label>
             <input
               value={businessHours}
               onChange={(e) => setBusinessHours(e.target.value)}
               placeholder="e.g. Mon–Fri 7am–5pm, Sat–Sun 8am–3pm"
-              className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
             />
           </div>
         </div>

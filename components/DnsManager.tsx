@@ -14,6 +14,11 @@ type DnsRecord = {
 
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT']
 
+// See the matching comment in Builder.tsx — native <option> popups ignore
+// Tailwind text/bg classes in most browsers, so force a guaranteed-readable
+// combo via inline style instead.
+const OPTION_STYLE: React.CSSProperties = { backgroundColor: '#ffffff', color: '#1e293b' }
+
 export default function DnsManager({ siteId, onClose }: { siteId: string | null; onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -97,27 +102,27 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
   return (
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center px-4" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white text-slate-900 dark:border-zinc-800 dark:bg-[#131b2a] dark:text-zinc-100 p-6 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">DNS management</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">✕</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300">✕</button>
         </div>
 
-        {loading && <p className="text-sm text-zinc-500">Loading…</p>}
-        {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+        {loading && <p className="text-sm text-slate-400 dark:text-zinc-500">Loading…</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-400 mb-3">{error}</p>}
 
         {!loading && (
           <div className="space-y-5">
-            <div className="rounded-xl border border-zinc-800 p-3">
-              <div className="text-xs text-zinc-400 mb-1">
+            <div className="rounded-xl border border-slate-200 dark:border-zinc-800 p-3">
+              <div className="text-xs text-slate-500 dark:text-zinc-400 mb-1">
                 Nameservers{' '}
-                <strong className={zoneStatus === 'active' ? 'text-emerald-400' : 'text-amber-400'}>
+                <strong className={zoneStatus === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
                   {zoneStatus === 'active' ? '— active' : '— waiting for update at your registrar'}
                 </strong>
               </div>
-              <p className="text-xs text-zinc-500 mb-2">
+              <p className="text-xs text-slate-400 dark:text-zinc-500 mb-2">
                 Set these as your domain's nameservers at whichever registrar you bought it from. Once they propagate
                 (can take a few hours), your site and any records below go live automatically.
               </p>
@@ -128,22 +133,22 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-zinc-400">DNS records</span>
+                <span className="text-xs text-slate-500 dark:text-zinc-400">DNS records</span>
                 <button onClick={() => setShowAdd((v) => !v)} className="text-xs text-[#f59e0b] underline">
                   {showAdd ? 'Cancel' : '+ Add record'}
                 </button>
               </div>
 
               {showAdd && (
-                <form onSubmit={handleAdd} className="rounded-lg border border-zinc-800 p-3 mb-3 space-y-2">
+                <form onSubmit={handleAdd} className="rounded-lg border border-slate-200 dark:border-zinc-800 p-3 mb-3 space-y-2">
                   <div className="flex gap-2">
                     <select
                       value={newType}
                       onChange={(e) => setNewType(e.target.value)}
-                      className="px-2 py-1.5 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                      className="px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
                     >
                       {RECORD_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t} value={t} style={OPTION_STYLE}>{t}</option>
                       ))}
                     </select>
                     <input
@@ -151,7 +156,7 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
                       onChange={(e) => setNewName(e.target.value)}
                       placeholder="Name (e.g. @, www, mail)"
                       required
-                      className="flex-1 px-2 py-1.5 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                      className="flex-1 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
                     />
                   </div>
                   <input
@@ -159,7 +164,7 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
                     onChange={(e) => setNewContent(e.target.value)}
                     placeholder="Value (e.g. an IP, hostname, or text)"
                     required
-                    className="w-full px-2 py-1.5 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                    className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
                   />
                   {newType === 'MX' && (
                     <input
@@ -167,7 +172,7 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
                       onChange={(e) => setNewPriority(e.target.value)}
                       placeholder="Priority"
                       type="number"
-                      className="w-32 px-2 py-1.5 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm"
+                      className="w-32 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-300 dark:bg-[#0b111c] dark:border-zinc-700 text-sm"
                     />
                   )}
                   <button
@@ -184,21 +189,21 @@ export default function DnsManager({ siteId, onClose }: { siteId: string | null;
                 {records.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs"
+                    className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-zinc-800 px-3 py-2 text-xs"
                   >
                     <div className="font-mono min-w-0">
-                      <span className="text-zinc-500">{r.type}</span> {r.name} → {r.content}
-                      {r.type === 'MX' && r.priority != null && <span className="text-zinc-500"> (priority {r.priority})</span>}
-                      {r.managed && <span className="ml-2 text-cyan-400 font-sans">Required for your BARIO site</span>}
+                      <span className="text-slate-400 dark:text-zinc-500">{r.type}</span> {r.name} → {r.content}
+                      {r.type === 'MX' && r.priority != null && <span className="text-slate-400 dark:text-zinc-500"> (priority {r.priority})</span>}
+                      {r.managed && <span className="ml-2 text-cyan-600 dark:text-cyan-400 font-sans">Required for your BARIO site</span>}
                     </div>
                     {!r.managed && (
-                      <button onClick={() => handleDelete(r.id)} disabled={busy} className="text-red-400 underline ml-3 shrink-0">
+                      <button onClick={() => handleDelete(r.id)} disabled={busy} className="text-red-600 dark:text-red-400 underline ml-3 shrink-0">
                         Delete
                       </button>
                     )}
                   </div>
                 ))}
-                {records.length === 0 && <p className="text-xs text-zinc-500">No records yet.</p>}
+                {records.length === 0 && <p className="text-xs text-slate-400 dark:text-zinc-500">No records yet.</p>}
               </div>
             </div>
           </div>
