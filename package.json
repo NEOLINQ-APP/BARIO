@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.24",
     "@neondatabase/serverless": "^1.1.0",
     "@sentry/nextjs": "^10.67.0",
     "@vercel/blob": "^2.6.1",
+    "ai": "^7.0.42",
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "jose": "^6.2.3",
@@ -20,7 +22,8 @@
     "react": "^18",
     "react-dom": "^18",
     "resend": "^6.17.2",
-    "stripe": "^22.3.2"
+    "stripe": "^22.3.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -1,12 +1,46 @@
 import { NextResponse } from 'next/server'
+import { generateObject, NoObjectGeneratedError } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { z } from 'zod'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { getOpenAI, SECTION_TYPES, type Section } from '@/lib/openai'
+import { SECTION_TYPES, type Section } from '@/lib/openai'
 import { searchImage } from '@/lib/unsplash'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey } from '@/lib/stylePresets'
 import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
+
+// Schema-validated generation (via the Vercel AI SDK's generateObject)
+// replaces the old raw chat.completions.create + JSON.parse approach.
+// Two concrete wins this closes: (1) a response that doesn't match this
+// shape now gets automatically re-asked with the validation error fed back
+// to the model, instead of a single-shot JSON.parse that either succeeds or
+// throws with no repair attempt; (2) "theme"/"pages" can no longer come
+// back subtly wrong-shaped (e.g. a missing field) without being caught
+// before it ever reaches a customer's site.
+const sectionSchema = z.object({
+  type: z.enum(SECTION_TYPES),
+  data: z.record(z.string(), z.string()),
+})
+
+const pageSchema = z.object({
+  name: z.string(),
+  slug: z.string(),
+  sections: z.array(sectionSchema),
+})
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/
+const responseSchema = z.object({
+  explanation: z.string(),
+  theme: z.object({
+    primary: z.string().regex(HEX_RE),
+    accent: z.string().regex(HEX_RE),
+    style: z.string().refine(isStylePresetKey),
+    backgroundStyle: z.enum(['solid', 'gradient']),
+  }),
+  pages: z.array(pageSchema).min(1),
+})
 
 type Page = { name: string; slug: string; sections: Section[] }
 
@@ -198,18 +232,32 @@ export async function POST(req: Request) {
       )
     }
 
-    let completion
+    let parsed: z.infer<typeof responseSchema>
     try {
-      completion = await getOpenAI().chat.completions.create({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
+      const result = await generateObject({
+        model: openai('gpt-4o-mini'),
+        schema: responseSchema,
+        system: SYSTEM_PROMPT,
+        prompt: userPrompt,
+        // Section `data` fields vary per section type (hero vs. features vs.
+        // pricing, etc.), so the schema uses an open-ended record rather
+        // than one discriminated variant per section type. OpenAI's native
+        // Structured Outputs mode requires every field pre-enumerated and
+        // rejects open-ended records outright ("'propertyNames' is not
+        // permitted") — this falls back to JSON mode with the schema
+        // enforced client-side by the SDK instead (still validates/retries,
+        // just not via OpenAI's own strict enforcement).
+        providerOptions: { openai: { strictJsonSchema: false } },
       })
+      parsed = result.object
     } catch (err: any) {
-      if (err?.code === 'context_length_exceeded') {
+      if (err instanceof NoObjectGeneratedError) {
+        return NextResponse.json(
+          { error: "The AI couldn't put together a valid response for that — try rephrasing your request." },
+          { status: 502 }
+        )
+      }
+      if (err?.message?.includes('context_length') || err?.message?.includes('maximum context length')) {
         return NextResponse.json(
           {
             error:
@@ -221,18 +269,11 @@ export async function POST(req: Request) {
       throw err
     }
 
-    const raw = completion.choices[0]?.message?.content
-    if (!raw) throw new Error('No response from model')
-
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) throw new Error('Model did not return a pages array')
-
     const usedSlugs = new Set<string>()
-    const cleanedPages: Page[] = parsed.pages.map((p: any, i: number) => {
-      const name = typeof p?.name === 'string' && p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
-      const sections = Array.isArray(p?.sections) ? p.sections.filter((s: any) => SECTION_TYPES.includes(s?.type)) : []
-      const slug = sanitizeSlug(p?.slug, name, i, usedSlugs)
-      return { name, slug, sections }
+    const cleanedPages: Page[] = parsed.pages.map((p, i) => {
+      const name = p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
+      const slug = sanitizeSlug(p.slug, name, i, usedSlugs)
+      return { name, slug, sections: p.sections }
     })
 
     // pagelinks cards reference another page by its slug — normalize away an
@@ -252,13 +293,18 @@ export async function POST(req: Request) {
       }
     }
 
-    const HEX_RE = /^#[0-9a-fA-F]{6}$/
-    const theme_out = {
-      primary: HEX_RE.test(parsed.theme?.primary) ? parsed.theme.primary : currentTheme.primary,
-      accent: HEX_RE.test(parsed.theme?.accent) ? parsed.theme.accent : currentTheme.accent,
-      style: isStylePresetKey(parsed.theme?.style) ? parsed.theme.style : currentTheme.style,
-      backgroundStyle: parsed.theme?.backgroundStyle === 'solid' || parsed.theme?.backgroundStyle === 'gradient' ? parsed.theme.backgroundStyle : currentTheme.backgroundStyle,
-    }
+    // Schema already guarantees valid hex colors, a real style preset key,
+    // and a valid backgroundStyle — no fallback-on-invalid needed anymore.
+    const theme_out = parsed.theme
+
+    // The model can (and did, in testing) describe a change in prose while
+    // returning pages/theme byte-identical to what it was given — a
+    // confident-sounding lie, not an edit. Compare BEFORE image resolution
+    // (Unsplash search isn't deterministic across calls, so comparing after
+    // would flag a true no-op as "changed" whenever an image field happens
+    // to re-resolve to a different photo). Only applies to edits — a brand
+    // new site has no "before" to match against.
+    const nothingChanged = !isNew && JSON.stringify(cleanedPages) === JSON.stringify(currentPages) && JSON.stringify(theme_out) === JSON.stringify(currentTheme)
 
     const resolvedPages = await resolveImageFields(cleanedPages, theme_out)
 
@@ -271,8 +317,12 @@ export async function POST(req: Request) {
       creditsRemaining = creditRows[0]?.credits_remaining ?? 0
     }
 
+    const explanation = nothingChanged
+      ? "I didn't actually make any changes there — your request may have been too vague for me to act on confidently, or already matched what's there. Try describing a specific, concrete change (e.g. a color, a headline, a new section) and I'll apply it."
+      : typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+
     return NextResponse.json({
-      explanation: typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.',
+      explanation,
       theme: theme_out,
       pages: resolvedPages,
       creditsRemaining,
