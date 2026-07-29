@@ -11,10 +11,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const { plan } = await req.json()
-    const priceId = PLAN_PRICE_IDS[plan]
+    const { plan, billingCycle } = await req.json()
+    const cycle = billingCycle === 'annual' ? 'annual' : 'monthly'
+    const priceId = PLAN_PRICE_IDS[plan]?.[cycle]
     if (!priceId) {
-      return NextResponse.json({ error: 'Unknown plan' }, { status: 400 })
+      return NextResponse.json({ error: 'Unknown plan or billing cycle' }, { status: 400 })
     }
 
     const sql = await db()
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       mode: 'subscription',
       customer_email: user.email,
       client_reference_id: user.id,
-      metadata: { plan, userId: user.id },
+      metadata: { plan, userId: user.id, billingCycle: cycle },
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/#pricing`,

@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { VPS_TIER_KEYS, BILLING_CYCLE_KEYS, type VpsTierKey, type BillingCycle } from '@/lib/vpsTiers'
 
 let _stripe: Stripe | undefined
 
@@ -9,18 +10,36 @@ export function getStripe(): Stripe {
   return _stripe
 }
 
-export const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  starter: process.env.STRIPE_PRICE_STARTER,
-  business: process.env.STRIPE_PRICE_BUSINESS,
-  agency: process.env.STRIPE_PRICE_AGENCY,
+// Site plans now offer monthly or annual billing (annual ~17% off, "pay for
+// 10 months, get 12" framing). Existing monthly price IDs are unchanged;
+// annual is a new, separate Price attached to the same Stripe Product.
+export const PLAN_PRICE_IDS: Record<string, { monthly: string | undefined; annual: string | undefined }> = {
+  starter: { monthly: process.env.STRIPE_PRICE_STARTER, annual: process.env.STRIPE_PRICE_STARTER_ANNUAL },
+  business: { monthly: process.env.STRIPE_PRICE_BUSINESS, annual: process.env.STRIPE_PRICE_BUSINESS_ANNUAL },
+  agency: { monthly: process.env.STRIPE_PRICE_AGENCY, annual: process.env.STRIPE_PRICE_AGENCY_ANNUAL },
 }
 
-// VPS tiers — fixed Dashboard-created Prices (not price_data) since there
-// are only 3 tiers + 1 addon, matching PLAN_PRICE_IDS's pattern rather than
-// media/checkout's inline price_data approach used for its 6 storage tiers.
-export const VPS_TIER_PRICE_IDS: Record<string, string | undefined> = {
-  small: process.env.STRIPE_PRICE_VPS_SMALL,
-  medium: process.env.STRIPE_PRICE_VPS_MEDIUM,
-  large: process.env.STRIPE_PRICE_VPS_LARGE,
+// e.g. tier 'small', cycle 'biennial' -> STRIPE_PRICE_VPS_SMALL_BIENNIAL
+function vpsEnvKey(tier: VpsTierKey, cycle: BillingCycle, addon: boolean): string {
+  return addon
+    ? `STRIPE_PRICE_VPS_${tier.toUpperCase()}_BACKUP_${cycle.toUpperCase()}`
+    : `STRIPE_PRICE_VPS_${tier.toUpperCase()}_${cycle.toUpperCase()}`
 }
-export const VPS_BACKUP_ADDON_PRICE_ID = process.env.STRIPE_PRICE_VPS_BACKUP_ADDON
+
+function buildVpsPriceMap(addon: boolean): Record<VpsTierKey, Record<BillingCycle, string | undefined>> {
+  const map = {} as Record<VpsTierKey, Record<BillingCycle, string | undefined>>
+  for (const tier of VPS_TIER_KEYS) {
+    map[tier] = {} as Record<BillingCycle, string | undefined>
+    for (const cycle of BILLING_CYCLE_KEYS) {
+      map[tier][cycle] = process.env[vpsEnvKey(tier, cycle, addon)]
+    }
+  }
+  return map
+}
+
+// The backup add-on's price matches whichever cycle the customer picks for
+// the server itself (rather than always billing monthly), so the server +
+// add-on stay as line items on ONE Stripe subscription — Stripe requires
+// every price in a single subscription to share the same billing interval.
+export const VPS_PRICE_IDS = buildVpsPriceMap(false)
+export const VPS_BACKUP_ADDON_PRICE_IDS = buildVpsPriceMap(true)

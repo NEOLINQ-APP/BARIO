@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-// Single source of truth for the VPS Acceptable Use Policy's current
-// version — shared by the AUP content page and the order form's acceptance
-// checkbox so they can never drift out of sync. Bump this string any time
-// the policy content actually changes; past acceptances keep the version
-// they agreed to (legal_acceptances.policy_version is never rewritten).
-export const CURRENT_VPS_POLICY_VERSION = '2026-07-28'
+export { CURRENT_VPS_POLICY_VERSION } from '@/lib/legalVersion'
 
 export async function recordLegalAcceptance(
   sql: any,

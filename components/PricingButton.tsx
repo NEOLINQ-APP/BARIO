@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function PricingButton({ plan, label }: { plan: string; label: string }) {
+export default function PricingButton({ plan, label, billingCycle = 'monthly' }: { plan: string; label: string; billingCycle?: 'monthly' | 'annual' }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,11 +13,11 @@ export default function PricingButton({ plan, label }: { plan: string; label: st
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, billingCycle }),
       })
 
       if (res.status === 401) {
-        window.location.href = `/signup?plan=${plan}`
+        window.location.href = `/signup?plan=${plan}&cycle=${billingCycle}`
         return
       }
 

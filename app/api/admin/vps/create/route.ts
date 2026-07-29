@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireAdmin } from '@/lib/admin'
 import { logAdminAction } from '@/lib/adminActions'
-import { isVpsTierKey, VPS_REGION } from '@/lib/vpsTiers'
+import { isVpsTierKey, isBillingCycle, VPS_REGION } from '@/lib/vpsTiers'
 import { provisionVpsInstance } from '@/lib/vpsProvision'
 import { errorResponse } from '@/lib/errors'
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const { sql } = auth
 
   try {
-    const { email, tier, region, backupAddon, sshPublicKey } = await req.json()
+    const { email, tier, billingCycle, region, backupAddon, sshPublicKey } = await req.json()
 
     if (typeof email !== 'string' || !email.trim()) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     if (!isVpsTierKey(tier)) {
       return NextResponse.json({ error: 'tier must be one of: small, medium, large' }, { status: 400 })
     }
+    const cycle = isBillingCycle(billingCycle) ? billingCycle : 'monthly'
 
     const userRows = (await sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()}`) as unknown as { id: string }[]
     const targetUser = userRows[0]
@@ -35,8 +36,8 @@ export async function POST(req: Request) {
 
     const instanceId = randomUUID()
     await sql`
-      INSERT INTO vps_instances (id, user_id, tier, region, ssh_public_key, backup_addon, status)
-      VALUES (${instanceId}, ${targetUser.id}, ${tier}, ${region || VPS_REGION}, ${sshPublicKey || null}, ${!!backupAddon}, 'awaiting_provision')
+      INSERT INTO vps_instances (id, user_id, tier, billing_cycle, region, ssh_public_key, backup_addon, status)
+      VALUES (${instanceId}, ${targetUser.id}, ${tier}, ${cycle}, ${region || VPS_REGION}, ${sshPublicKey || null}, ${!!backupAddon}, 'awaiting_provision')
     `
 
     await provisionVpsInstance(sql, instanceId)

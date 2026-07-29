@@ -318,6 +318,7 @@ async function ensureSchema() {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id),
       tier TEXT NOT NULL,
+      billing_cycle TEXT NOT NULL DEFAULT 'monthly',
       region TEXT NOT NULL DEFAULT 'nbg1',
       hetzner_server_type TEXT,
       hostname TEXT,
@@ -343,6 +344,12 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // The table above already existed from Phase 1 (before billing_cycle was
+  // added to the CREATE statement) — CREATE TABLE IF NOT EXISTS silently
+  // skips on an existing table, so the column needs this explicit ALTER to
+  // actually reach production, same as every other post-launch column
+  // addition in this file.
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'`
 }
 
 export async function db() {
@@ -381,6 +388,7 @@ export type VpsInstance = {
   id: string
   user_id: string
   tier: string
+  billing_cycle: string
   region: string
   hetzner_server_type: string | null
   hostname: string | null

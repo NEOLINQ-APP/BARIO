@@ -1,7 +1,7 @@
 // app/page.tsx
 // Bario.ca – Nexus Build – Next.js 14 + Tailwind
 
-import PricingButton from '@/components/PricingButton'
+import PricingSection from '@/components/PricingSection'
 import DomainChecker from '@/components/DomainChecker'
 import PricingAssistant from '@/components/PricingAssistant'
 
@@ -222,71 +222,7 @@ export default function Home() {
             <p className="text-slate-400">Scale seamlessly as your site grows.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-white">Free</h3>
-                <div className="text-4xl font-extrabold text-white">$0 <span className="text-sm text-slate-400 font-normal">/mo</span></div>
-                <ul className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 1 site</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Free bario.ca subdomain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 15 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL</li>
-                  <li className="flex items-center gap-2 text-slate-500"><span className="text-slate-600">•</span> "Made with Bario" badge shown</li>
-                </ul>
-              </div>
-              <a href="/signup" className="w-full text-center px-4 py-2 rounded-xl font-semibold border border-slate-700 text-slate-200">Start free</a>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-white">Starter</h3>
-                <div className="text-4xl font-extrabold text-white">$19 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
-                <ul className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 1 site</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Free bario.ca subdomain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 75 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL &amp; Managed DNS</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
-                </ul>
-              </div>
-              <PricingButton plan="starter" label="Choose Starter" />
-            </div>
-
-            <div className="bg-slate-900 border-2 border-cyan-500 rounded-2xl p-8 flex flex-col justify-between space-y-6 relative shadow-2xl shadow-cyan-500/10">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-full">
-                Most popular
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-white">Business</h3>
-                <div className="text-4xl font-extrabold text-white">$49 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
-                <ul className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 5 sites</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain + subdomain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 200 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto SSL &amp; Managed DNS</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
-                </ul>
-              </div>
-              <PricingButton plan="business" label="Choose Business" />
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-white">Agency</h3>
-                <div className="text-4xl font-extrabold text-white">$149 <span className="text-sm text-slate-400 font-normal">/mo CAD</span></div>
-                <ul className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Up to 25 sites</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Custom domain + subdomain</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> 750 AI credits/mo</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> White-label HTML export</li>
-                  <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Remove the Bario badge</li>
-                </ul>
-              </div>
-              <PricingButton plan="agency" label="Choose Agency" />
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Zeus — manual text edits are always free. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
+          <PricingSection />
         </div>
       </section>
 
