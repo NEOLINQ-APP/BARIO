@@ -40,8 +40,7 @@ export default function SiteAuditPage() {
       </section>
 
       <footer className="border-t border-slate-800/80 py-10 text-center text-sm text-slate-500">
-        © 2026 bario.ca • hello@bario.ca • Edmonton, AB / Vancouver, BC<br />
-        A Unique Group inc. product<br />
+        © 2026 bario.ca • hello@bario.ca<br />
         <a href="/terms" className="underline hover:text-slate-300">Terms of Service</a>
         {' · '}
         <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>

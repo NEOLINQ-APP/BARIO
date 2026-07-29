@@ -6,8 +6,8 @@ const BUSINESS_BRIEF = `Bario (bario.ca) is an AI website builder and hosting se
 businesses. Describe your business in plain language and the AI (Zeus) builds a live, editable website —
 no code required. Every site gets a free bario.ca subdomain with SSL; Business and Agency plans can connect
 a custom domain. Plans: Starter $19/mo (75 AI credits, 1 site), Business $49/mo (200 AI credits, 5 sites,
-custom domain), Agency $149/mo (750 AI credits, unlimited sites, white-label export). Based in Edmonton, AB
-and Vancouver, BC. Canada-first hosting, PIPEDA-aware. Tone: confident, plain-spoken, no hype/buzzwords,
+custom domain), Agency $149/mo (750 AI credits, up to 25 sites, white-label export). Canada-first hosting,
+PIPEDA-aware. Tone: confident, plain-spoken, no hype/buzzwords,
 speaks directly to small business owners who don't want to deal with a developer.`
 
 const SYSTEM_PROMPT = `You write marketing posts for Bario, a Canadian AI website builder. ${BUSINESS_BRIEF}

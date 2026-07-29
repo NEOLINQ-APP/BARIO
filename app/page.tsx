@@ -7,7 +7,7 @@ import PricingAssistant from '@/components/PricingAssistant'
 
 export const metadata = {
   title: "Bario — AI website builder & hosting for Canadian businesses",
-  description: "Describe your business and Bario's AI builds you a live, editable website in seconds. Publish free to a bario.ca subdomain or connect your own domain. Edmonton / Vancouver.",
+  description: "Describe your business and Bario's AI builds you a live, editable website in seconds. Publish free to a bario.ca subdomain or connect your own domain.",
 }
 
 export default function Home() {
@@ -60,7 +60,7 @@ export default function Home() {
             <div className="flex items-center justify-center gap-1.5"><span className="text-cyan-400">🔒</span> Free SSL, every site</div>
             <div className="flex items-center justify-center gap-1.5"><span className="text-cyan-400">🌐</span> Managed DNS &amp; nameservers</div>
             <div className="flex items-center justify-center gap-1.5"><span className="text-cyan-400">⚡</span> Global edge network</div>
-            <div className="flex items-center justify-center gap-1.5"><span className="text-cyan-400">🇨🇦</span> Edmonton &amp; Vancouver based</div>
+            <div className="flex items-center justify-center gap-1.5"><span className="text-cyan-400">🇨🇦</span> Canadian owned &amp; operated</div>
           </div>
         </div>
       </section>
@@ -265,8 +265,7 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="border-t border-slate-800/80 py-10 text-center text-sm text-slate-500">
-        © 2026 bario.ca • hello@bario.ca • Edmonton, AB / Vancouver, BC<br />
-        A Unique Group inc. product<br />
+        © 2026 bario.ca • hello@bario.ca<br />
         <a href="/terms" className="underline hover:text-slate-300">Terms of Service</a>
         {' · '}
         <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>

@@ -1,23 +1,23 @@
 // app/storage/page.tsx
-// A dedicated page for Media Library storage plans — kept separate from the
-// main hosting/site-plan pricing (#pricing on the homepage) since the two
-// were easy for customers to confuse when storage was just an in-page
-// anchor next to the site-plan pricing section.
+// A dedicated page for X-Drive (formerly "Media Library") storage plans —
+// kept separate from the main hosting/site-plan pricing (#pricing on the
+// homepage) since the two were easy for customers to confuse when storage
+// was just an in-page anchor next to the site-plan pricing section.
+
+import PricingAssistant from '@/components/PricingAssistant'
 
 export const metadata = {
-  title: 'Storage Plans — Bario Media Library',
-  description: "Photo and video storage for your Bario site, separate from your hosting plan. Free 2GB, paid tiers up to 20TB, Family Sharing included free on any paid plan.",
+  title: 'Storage Plans — Bario X-Drive',
+  description: "Photo, video, and file storage for your Bario site, separate from your hosting plan. Free 10GB, paid tiers up to 12TB, Family Sharing included free on any paid plan.",
 }
 
 const TIERS = [
-  { key: 'free', label: 'Free', size: '2 GB', price: '$0', tagline: 'Try it out', family: false },
-  { key: 'starter', label: 'Starter', size: '20 GB', price: '$2.99', tagline: 'A few hundred photos & clips', family: true },
-  { key: 'plus', label: 'Plus', size: '100 GB', price: '$7.99', tagline: 'Most small businesses & families', family: true, popular: true },
-  { key: 'pro', label: 'Pro', size: '500 GB', price: '$19.99', tagline: 'Heavy photo & video use', family: true },
-  { key: 'ultra', label: 'Ultra', size: '1 TB', price: '$29.99', tagline: 'Large media libraries', family: true },
-  { key: 'max', label: 'Max', size: '5 TB', price: '$79.99', tagline: 'Professional archives', family: true },
-  { key: 'elite', label: 'Elite', size: '10 TB', price: '$119.99', tagline: 'High-volume studios', family: true },
-  { key: 'enterprise', label: 'Enterprise', size: '20 TB', price: '$179.99', tagline: 'Maximum capacity', family: true },
+  { key: 'free', label: 'Free', size: '10 GB', price: '$0', tagline: 'Try it out', family: false },
+  { key: 'starter', label: 'Starter', size: '50 GB', price: '$0.99', tagline: 'A few hundred photos & clips', family: true },
+  { key: 'plus', label: 'Plus', size: '200 GB', price: '$2.99', tagline: 'Most small businesses & families', family: true, popular: true },
+  { key: 'pro', label: 'Pro', size: '2 TB', price: '$9.99', tagline: 'Heavy photo & video use', family: true },
+  { key: 'max', label: 'Max', size: '6 TB', price: '$29.99', tagline: 'Professional archives', family: true },
+  { key: 'ultra', label: 'Ultra', size: '12 TB', price: '$59.99', tagline: 'High-volume studios', family: true },
 ]
 
 export default function StoragePlansPage() {
@@ -47,14 +47,14 @@ export default function StoragePlansPage() {
             Separate from your hosting plan — storage for your photos &amp; videos
           </div>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight">
-            Media Library <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Storage Plans</span>
+            X-Drive <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Storage Plans</span>
           </h1>
           <p className="text-lg text-slate-400 max-w-2xl mx-auto">
             Upload once, use anywhere on your Bario site. Starts free, upgrade anytime — and Family Sharing (up to 5 people) is included free on every paid tier, no separate charge.
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-2">
             <a href="/media" className="px-6 py-3 rounded-xl font-semibold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-colors">
-              Open Media Library
+              Open X-Drive
             </a>
             <a href="#plans" className="px-6 py-3 rounded-xl font-semibold border border-slate-700 text-slate-200 hover:border-slate-600 transition-colors">
               Compare plans
@@ -70,7 +70,7 @@ export default function StoragePlansPage() {
           <p className="text-slate-400">Prices in CAD, billed monthly. Cancel or change plans anytime from your billing portal.</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {TIERS.map((t) => (
             <div
               key={t.key}
@@ -127,7 +127,7 @@ export default function StoragePlansPage() {
             </div>
             <div className="text-center space-y-2">
               <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto font-bold">2</div>
-              <h3 className="font-bold text-white">Open Media Library</h3>
+              <h3 className="font-bold text-white">Open X-Drive</h3>
               <p className="text-sm text-slate-400">From your Dashboard, or install it to your phone's home screen for one-tap access.</p>
             </div>
             <div className="text-center space-y-2">
@@ -153,7 +153,7 @@ export default function StoragePlansPage() {
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Can I install it like an app?</h3>
-            <p className="text-slate-400 text-sm">Yes — open the Media Library in your phone's browser and choose "Add to Home Screen." No App Store needed.</p>
+            <p className="text-slate-400 text-sm">Yes — open X-Drive in your phone's browser and choose "Add to Home Screen." No App Store needed.</p>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">What happens if I go over my limit?</h3>
@@ -161,19 +161,19 @@ export default function StoragePlansPage() {
           </div>
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-white">Can I cancel anytime?</h3>
-            <p className="text-slate-400 text-sm">Yes, from the billing portal inside Media Library. Downgrading to Free just pauses new uploads over the free limit — your files stay put.</p>
+            <p className="text-slate-400 text-sm">Yes, from the billing portal inside X-Drive. Downgrading to Free just pauses new uploads over the free limit — your files stay put.</p>
           </div>
         </div>
       </section>
 
       {/* FOOTER */}
       <footer className="border-t border-slate-800/80 py-10 text-center text-sm text-slate-500">
-        © 2026 bario.ca • hello@bario.ca • Edmonton, AB / Vancouver, BC<br />
-        A Unique Group inc. product<br />
+        © 2026 bario.ca • hello@bario.ca<br />
         <a href="/terms" className="underline hover:text-slate-300">Terms of Service</a>
         {' · '}
         <a href="/privacy" className="underline hover:text-slate-300">Privacy Policy</a>
       </footer>
+      <PricingAssistant />
     </main>
   )
 }
