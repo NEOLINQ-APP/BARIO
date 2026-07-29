@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
+import * as Sentry from '@sentry/nextjs'
 import { getStripe } from '@/lib/stripe'
-import { db } from '@/lib/db'
+import { db, type VpsInstance } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import { isStorageTierKey } from '@/lib/storageTiers'
+import { provisionVpsInstance } from '@/lib/vpsProvision'
+import { shouldHoldForReview, getRiskLevelForSubscriptionCheckout } from '@/lib/vpsRisk'
+import { powerOffServer, deleteServer } from '@/lib/hetzner'
 import type Stripe from 'stripe'
 
 export async function POST(req: Request) {
@@ -33,6 +37,55 @@ export async function POST(req: Request) {
           INSERT INTO template_licenses (id, user_id, template_id, license_key, status, stripe_payment_intent)
           VALUES (${randomUUID()}, ${userId}, ${templateId}, ${randomUUID()}, 'active', ${String(session.payment_intent)})
         `
+        break
+      }
+
+      const vpsOrderId = session.metadata?.vpsOrderId
+      if (session.mode === 'subscription' && userId && vpsOrderId) {
+        // Isolated in its own try/catch, deliberately swallowed rather than
+        // rethrown — this route must always fall through to the
+        // unconditional 200 below, or Stripe retries this delivery
+        // indefinitely. Retries aren't needed for correctness anyway:
+        // provisionVpsInstance's own status guard makes a duplicate call a
+        // safe no-op, and a failure here surfaces as `provision_failed` for
+        // an admin to retry explicitly (see /api/admin/vps/retry-provision).
+        try {
+          const rows = (await sql`SELECT * FROM vps_instances WHERE id = ${vpsOrderId} AND status = 'pending_payment'`) as unknown as VpsInstance[]
+          const order = rows[0]
+          if (!order) break // already processed (duplicate delivery) or unknown order id
+
+          const subId = String(session.subscription)
+          const riskLevel = await getRiskLevelForSubscriptionCheckout(subId)
+
+          const accountRows = (await sql`SELECT created_at FROM users WHERE id = ${userId}`) as unknown as { created_at: string }[]
+          const accountAgeHours = accountRows[0] ? (Date.now() - new Date(accountRows[0].created_at).getTime()) / 3_600_000 : 0
+
+          const priorRows = (await sql`
+            SELECT count(*)::int AS count FROM vps_instances
+            WHERE user_id = ${userId} AND status NOT IN ('pending_payment', 'rejected')
+          `) as unknown as { count: number }[]
+          const isFirstVpsOrder = priorRows[0].count === 0
+
+          const heldForReview = shouldHoldForReview({ riskLevel, isFirstVpsOrderForUser: isFirstVpsOrder, accountAgeHours })
+
+          await sql`
+            UPDATE vps_instances
+            SET stripe_customer_id = ${String(session.customer)},
+                stripe_subscription_id = ${subId},
+                paid_at = now(),
+                risk_flag = ${heldForReview ? 'review' : 'none'},
+                status = ${heldForReview ? 'pending_review' : 'awaiting_provision'},
+                updated_at = now()
+            WHERE id = ${vpsOrderId}
+          `
+
+          if (!heldForReview) {
+            await provisionVpsInstance(sql, vpsOrderId)
+          }
+        } catch (err) {
+          console.error('vps provisioning error', err)
+          Sentry.captureException(err)
+        }
         break
       }
 
@@ -82,6 +135,23 @@ export async function POST(req: Request) {
         break
       }
 
+      const vpsMatch = (await sql`SELECT id FROM vps_instances WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (vpsMatch.length > 0) {
+        if (sub.status === 'active') {
+          // Recovered (e.g. customer updated a failed card) — only clears
+          // past_due, never touches suspended/canceled states, which need
+          // their own explicit paths (reveal-password-style deliberate
+          // action, not an automatic side effect of a status flip back).
+          await sql`UPDATE vps_instances SET status = 'active', updated_at = now() WHERE stripe_subscription_id = ${subId} AND status = 'past_due'`
+        } else {
+          await sql`
+            UPDATE vps_instances SET status = 'past_due', updated_at = now()
+            WHERE stripe_subscription_id = ${subId} AND status NOT IN ('suspended', 'canceled_pending_deprovision', 'deprovisioned')
+          `
+        }
+        break
+      }
+
       // Building/hosting is free for everyone now — a lapsed subscription
       // only affects paid perks (badge removal, custom domain, extra
       // credits), never takes a site offline. Resetting plan to null on
@@ -107,6 +177,23 @@ export async function POST(req: Request) {
         break
       }
 
+      const vpsMatch = (await sql`SELECT id, hetzner_server_id FROM vps_instances WHERE stripe_subscription_id = ${subId}`) as { id: string; hetzner_server_id: string | null }[]
+      if (vpsMatch.length > 0) {
+        const order = vpsMatch[0]
+        // Durable write first — if the Hetzner delete below fails, the row
+        // stays in this exact state for the reconciliation cron to retry,
+        // rather than silently reverting to "active" and hiding the failure.
+        await sql`UPDATE vps_instances SET status = 'canceled_pending_deprovision', updated_at = now() WHERE id = ${order.id}`
+        try {
+          if (order.hetzner_server_id) await deleteServer(order.hetzner_server_id)
+          await sql`UPDATE vps_instances SET status = 'deprovisioned', deprovisioned_at = now(), updated_at = now() WHERE id = ${order.id}`
+        } catch (err) {
+          console.error('vps deprovision error', err)
+          Sentry.captureException(err)
+        }
+        break
+      }
+
       await sql`
         UPDATE users
         SET subscription_status = 'canceled', plan = NULL
@@ -125,6 +212,32 @@ export async function POST(req: Request) {
       const storageMatch = (await sql`SELECT id FROM users WHERE stripe_storage_subscription_id = ${subId}`) as { id: string }[]
       if (storageMatch.length > 0) {
         await sql`UPDATE users SET storage_subscription_status = 'past_due', storage_tier = 'free' WHERE stripe_storage_subscription_id = ${subId}`
+        break
+      }
+
+      const vpsMatch = (await sql`SELECT id, hetzner_server_id FROM vps_instances WHERE stripe_subscription_id = ${subId}`) as { id: string; hetzner_server_id: string | null }[]
+      if (vpsMatch.length > 0) {
+        const order = vpsMatch[0]
+        // next_payment_attempt is null once Stripe's own retry schedule is
+        // exhausted (this is Stripe's own documented signal for "no more
+        // retries coming") — only then does non-payment actually suspend
+        // the server; every attempt before that is just a status flag,
+        // matching hosting-industry norms for a grace period.
+        const retriesExhausted = invoice.next_payment_attempt === null
+        if (retriesExhausted) {
+          try {
+            if (order.hetzner_server_id) await powerOffServer(order.hetzner_server_id)
+            await sql`UPDATE vps_instances SET status = 'suspended', suspended_at = now(), updated_at = now() WHERE id = ${order.id}`
+          } catch (err) {
+            console.error('vps suspend error', err)
+            Sentry.captureException(err)
+          }
+        } else {
+          await sql`
+            UPDATE vps_instances SET status = 'past_due', updated_at = now()
+            WHERE id = ${order.id} AND status NOT IN ('suspended', 'canceled_pending_deprovision', 'deprovisioned')
+          `
+        }
         break
       }
 

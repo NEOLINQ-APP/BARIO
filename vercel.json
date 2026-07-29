@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/vps-reconcile", "schedule": "0 */6 * * *" }
+  ]
+}
