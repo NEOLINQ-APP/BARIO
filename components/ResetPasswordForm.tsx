@@ -33,26 +33,26 @@ export default function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8 text-center">
-        <p className="text-sm text-red-400">Missing reset token. Use the link from your email.</p>
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8 text-center">
+        <p className="text-sm text-red-500 dark:text-red-400">Missing reset token. Use the link from your email.</p>
       </div>
     )
   }
 
   if (done) {
     return (
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8 text-center">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8 text-center">
         <h1 className="text-xl font-bold mb-2">Password updated</h1>
-        <a href="/login" className="text-[#f59e0b] text-sm">Log in with your new password</a>
+        <a href="/login" className="text-amber-600 dark:text-[#f59e0b] text-sm">Log in with your new password</a>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8">
+    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8">
       <h1 className="text-2xl font-bold mb-6">Set a new password</h1>
       <PasswordInput value={password} onChange={setPassword} minLength={8} />
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
         disabled={loading}

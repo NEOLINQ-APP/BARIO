@@ -35,19 +35,19 @@ export default function ChangePasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">Current password</label>
+        <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Current password</label>
         <PasswordInput value={currentPassword} onChange={setCurrentPassword} />
       </div>
       <div>
-        <label className="block text-xs text-zinc-400 mb-1">New password</label>
+        <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">New password</label>
         <PasswordInput value={newPassword} onChange={setNewPassword} minLength={8} />
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
-      {success && <p className="text-xs text-emerald-400">Password updated.</p>}
+      {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+      {success && <p className="text-xs text-emerald-600 dark:text-emerald-400">Password updated.</p>}
       <button
         type="submit"
         disabled={loading}
-        className="px-4 py-2 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50"
+        className="px-4 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-semibold disabled:opacity-50"
       >
         {loading ? 'Updating…' : 'Change Password'}
       </button>

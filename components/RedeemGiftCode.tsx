@@ -34,14 +34,14 @@ export default function RedeemGiftCode() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="Enter a gift or promo code"
-          className="flex-1 px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-sm uppercase"
+          className="flex-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100 text-sm uppercase"
         />
-        <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50 flex-shrink-0">
+        <button type="submit" disabled={loading} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-xs font-semibold disabled:opacity-50 flex-shrink-0">
           {loading ? 'Redeeming…' : 'Redeem'}
         </button>
       </div>
       {message && (
-        <p className={`text-xs mt-2 ${message.ok ? 'text-emerald-400' : 'text-red-400'}`}>{message.text}</p>
+        <p className={`text-xs mt-2 ${message.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>{message.text}</p>
       )}
     </form>
   )

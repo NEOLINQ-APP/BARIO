@@ -27,7 +27,7 @@ export default async function BillingPage() {
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold">Billing</h1>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
+        <div className="mt-6 rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
           <div className="mt-1">
             <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-500">Plan</div>
             <div className="text-xl font-semibold mt-1 capitalize">{user.plan ?? 'None yet'}</div>
@@ -43,7 +43,7 @@ export default async function BillingPage() {
           )}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
+        <div className="mt-6 rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
           <h2 className="text-sm font-semibold mb-4">Redeem a gift or promo code</h2>
           <RedeemGiftCode />
         </div>

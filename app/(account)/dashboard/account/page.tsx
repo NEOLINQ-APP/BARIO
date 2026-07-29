@@ -17,19 +17,19 @@ export default async function AccountPage() {
   if (!user) redirect('/login')
 
   return (
-    <main className="px-6 py-10 md:py-16 text-zinc-100">
+    <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold">Account</h1>
-        <p className="text-sm text-zinc-400 mt-1">{user.email}</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">{user.email}</p>
 
         {!user.is_admin && !user.email_verified && (
-          <div className="mt-6 rounded-2xl border border-amber-800 bg-amber-950/30 p-4">
-            <p className="text-sm text-amber-300 mb-2">Your email isn&apos;t verified yet.</p>
+          <div className="mt-6 rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4">
+            <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">Your email isn&apos;t verified yet.</p>
             <ResendVerificationButton />
           </div>
         )}
 
-        <div className="mt-6 rounded-2xl border border-zinc-800 bg-[#131b2a] p-6">
+        <div className="mt-6 rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
           <h2 className="text-sm font-semibold mb-4">Change password</h2>
           <ChangePasswordForm />
         </div>

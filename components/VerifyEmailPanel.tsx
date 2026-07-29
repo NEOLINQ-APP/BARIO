@@ -33,20 +33,20 @@ export default function VerifyEmailPanel() {
   }, [token])
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8 text-center">
-      {status === 'checking' && <p className="text-sm text-zinc-400">Verifying your email…</p>}
+    <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8 text-center">
+      {status === 'checking' && <p className="text-sm text-slate-500 dark:text-zinc-400">Verifying your email…</p>}
       {status === 'ok' && (
         <>
           <h1 className="text-xl font-bold mb-2">Email verified</h1>
-          <p className="text-sm text-zinc-400 mb-4">You're all set.</p>
-          <a href="/dashboard" className="text-[#f59e0b] text-sm">Go to your dashboard →</a>
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mb-4">You're all set.</p>
+          <a href="/dashboard" className="text-amber-600 dark:text-[#f59e0b] text-sm">Go to your dashboard →</a>
         </>
       )}
       {status === 'error' && (
         <>
           <h1 className="text-xl font-bold mb-2">Couldn't verify</h1>
-          <p className="text-sm text-red-400 mb-4">{error}</p>
-          <a href="/dashboard" className="text-[#f59e0b] text-sm">Back to your dashboard →</a>
+          <p className="text-sm text-red-500 dark:text-red-400 mb-4">{error}</p>
+          <a href="/dashboard" className="text-amber-600 dark:text-[#f59e0b] text-sm">Back to your dashboard →</a>
         </>
       )}
     </div>

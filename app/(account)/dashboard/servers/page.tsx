@@ -22,7 +22,7 @@ export default async function ServersPage() {
           Self-managed VPS servers, powered by enterprise-grade infrastructure — order one in a couple of minutes.
         </p>
 
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
+        <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
           <VpsList />
         </div>
       </div>

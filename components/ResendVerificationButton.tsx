@@ -21,7 +21,7 @@ export default function ResendVerificationButton() {
   }
 
   if (state === 'sent') {
-    return <p className="text-sm text-emerald-400">Verification email sent — check your inbox.</p>
+    return <p className="text-sm text-emerald-700 dark:text-emerald-400">Verification email sent — check your inbox.</p>
   }
 
   return (
@@ -29,7 +29,7 @@ export default function ResendVerificationButton() {
       <button onClick={handleClick} disabled={state === 'sending'} className="text-[#f59e0b] underline text-sm disabled:opacity-60">
         {state === 'sending' ? 'Sending…' : 'Resend verification email'}
       </button>
-      {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p>}
     </div>
   )
 }

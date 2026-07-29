@@ -19,7 +19,7 @@ export default async function NewServerPage() {
         <a href="/dashboard/servers" className="text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200">← Servers</a>
         <h1 className="text-2xl font-bold mt-3 mb-6">Order a new server</h1>
 
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
+        <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
           <VpsConfigureForm />
         </div>
       </div>

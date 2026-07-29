@@ -29,26 +29,26 @@ export default function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8 text-center">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8 text-center">
         <h1 className="text-xl font-bold mb-2">Check your email</h1>
-        <p className="text-sm text-zinc-400">If an account exists for that email, a reset link is on its way.</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-400">If an account exists for that email, a reset link is on its way.</p>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-[#131b2a] p-8">
+    <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8">
       <h1 className="text-2xl font-bold mb-1">Forgot your password?</h1>
-      <p className="text-sm text-zinc-400 mb-6">Enter your email and we'll send you a reset link.</p>
+      <p className="text-sm text-slate-500 dark:text-zinc-400 mb-6">Enter your email and we'll send you a reset link.</p>
       <input
         type="email"
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="w-full px-3 py-2 rounded-lg bg-[#0b111c] border border-zinc-700 text-zinc-100"
+        className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-slate-900 dark:text-zinc-100"
       />
-      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
         disabled={loading}
@@ -56,8 +56,8 @@ export default function ForgotPasswordForm() {
       >
         {loading ? 'Sending…' : 'Send reset link'}
       </button>
-      <p className="text-sm text-zinc-400 mt-4 text-center">
-        <a href="/login" className="text-[#f59e0b]">Back to log in</a>
+      <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
+        <a href="/login" className="text-amber-600 dark:text-[#f59e0b]">Back to log in</a>
       </p>
     </form>
   )

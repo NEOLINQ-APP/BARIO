@@ -35,7 +35,7 @@ export default async function WebsitesPage() {
               </a>
             </div>
 
-            <div className="mt-8 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6">
+            <div className="mt-8 rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
               <h2 className="text-sm font-semibold mb-4">Your sites</h2>
               <SitesList />
             </div>
