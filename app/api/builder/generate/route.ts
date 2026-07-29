@@ -47,7 +47,9 @@ Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.
 
 If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section on whichever page makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
-Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex", "style": "preset-key" }. Default is { "primary": "#0A2342", "accent": "#1a56db", "style": "modern" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged. Theme applies to the whole site (every page), not per-page.
+Theme: every response also includes a "theme" object: { "primary": "#hex", "accent": "#hex", "style": "preset-key", "backgroundStyle": "solid" | "gradient" }. Default is { "primary": "#0A2342", "accent": "#1a56db", "style": "modern", "backgroundStyle": "solid" }. When the user asks to change colors, set new hex values here — this is the ONLY way colors change, there is no per-section color field. When editing and colors were NOT mentioned, copy the existing theme values unchanged. Theme applies to the whole site (every page), not per-page.
+
+"backgroundStyle" controls whether the hero, primary buttons, and other accent surfaces use a flat solid color or a gradient. Default to "solid" — it reads as more current and lets the brand colors themselves do the work instead of a gradient effect. Only use "gradient" when the user explicitly asks for something more vibrant/energetic/colorful, or for a business where that fits the vibe (nightlife, gaming, kids' entertainment). When editing and the look wasn't mentioned, keep the current value unchanged.
 
 "style" picks the site's overall visual personality — fonts, corner rounding, shadows vs. borders, button shape. It is NOT a per-section or per-page setting; one value themes the whole site. The options are:
 ${STYLE_PRESET_KEYS.map((k) => `- "${k}": ${STYLE_PRESETS[k].vibe}`).join('\n')}
@@ -151,6 +153,13 @@ export async function POST(req: Request) {
       primary: theme?.primary ?? '#0A2342',
       accent: theme?.accent ?? '#1a56db',
       style: isStylePresetKey(theme?.style) ? theme.style : DEFAULT_STYLE_PRESET,
+      // Undefined means a legacy site saved before this field existed, which
+      // renders as 'gradient' by default (see backgroundVars in
+      // lib/renderSite.ts) — matching that here means editing an old site
+      // without mentioning colors can't silently flip its look to solid.
+      // Brand-new sites explicitly send 'solid' via DEFAULT_THEME, so they
+      // still start on the more modern default.
+      backgroundStyle: theme?.backgroundStyle === 'solid' ? 'solid' : 'gradient',
     }
 
     // Persistent per-site facts, injected on every request so the user never
@@ -248,6 +257,7 @@ export async function POST(req: Request) {
       primary: HEX_RE.test(parsed.theme?.primary) ? parsed.theme.primary : currentTheme.primary,
       accent: HEX_RE.test(parsed.theme?.accent) ? parsed.theme.accent : currentTheme.accent,
       style: isStylePresetKey(parsed.theme?.style) ? parsed.theme.style : currentTheme.style,
+      backgroundStyle: parsed.theme?.backgroundStyle === 'solid' || parsed.theme?.backgroundStyle === 'gradient' ? parsed.theme.backgroundStyle : currentTheme.backgroundStyle,
     }
 
     const resolvedPages = await resolveImageFields(cleanedPages, theme_out)

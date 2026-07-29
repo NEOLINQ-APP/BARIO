@@ -7,7 +7,26 @@ import { STYLE_PRESETS, DEFAULT_STYLE_PRESET, isStylePresetKey, presetVarsToCss 
 export type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos' | 'pagelinks'
 export type SectionData = Record<string, string>
 export type Section = { type: SectionType; data: SectionData }
-export type Theme = { primary: string; accent: string; style?: string }
+// backgroundStyle is optional and missing on every site saved before this
+// existed — undefined falls through to 'gradient' everywhere it's checked,
+// so a site nobody has re-saved keeps rendering exactly as it always did.
+export type Theme = { primary: string; accent: string; style?: string; backgroundStyle?: 'solid' | 'gradient' }
+
+// The hero/CTA/button/avatar backgrounds used to be hard-baked gradients in
+// EXPORT_CSS (one of them — the hero button — wasn't even wired to the
+// site's own brand colors, it was a fixed amber/orange regardless of theme).
+// These are the only place that decision gets made now: computed once per
+// render and exposed as CSS custom properties, so EXPORT_CSS just points at
+// a var() and never hard-codes solid vs. gradient itself.
+export function backgroundVars(theme: Pick<Theme, 'backgroundStyle'>): Record<string, string> {
+  const isSolid = theme.backgroundStyle === 'solid'
+  return {
+    '--b-hero-bg': isSolid ? 'var(--b-primary)' : 'linear-gradient(135deg,var(--b-primary) 0%,var(--b-primary) 60%,var(--b-accent) 100%)',
+    '--b-hero-btn-bg': isSolid ? 'var(--b-accent)' : 'linear-gradient(135deg,var(--b-primary),var(--b-accent))',
+    '--b-cta-bg': isSolid ? 'var(--b-accent)' : 'linear-gradient(135deg,var(--b-accent),var(--b-primary))',
+    '--b-avatar-bg': isSolid ? 'var(--b-accent)' : 'linear-gradient(135deg,var(--b-accent),var(--b-primary))',
+  }
+}
 // A page's slug may contain "/" to nest it under another page, e.g.
 // "services/plumbing-repair" is a child of the page whose slug is
 // "services" — there's no separate parent field, the hierarchy is entirely
@@ -113,10 +132,10 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-nav-links{display:flex;gap:28px;font-size:13px;opacity:0.8}
 .s-nav-links a{color:inherit;text-decoration:none}
 .s-nav-links a:hover{opacity:0.7}
-.s-hero{background:linear-gradient(135deg,var(--b-primary) 0%,#1e3a6e 60%,var(--b-accent) 100%);color:white;padding:96px 64px;text-align:center}
+.s-hero{background:var(--b-hero-bg);color:white;padding:96px 64px;text-align:center}
 .s-hero h1{font-size:52px;font-weight:var(--b-heading-weight,800);margin-bottom:18px;line-height:1.15;${H}}
 .s-hero p{font-size:19px;opacity:0.85;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto}
-.s-hero-btn{background:linear-gradient(135deg,#fbbf24,#f97316);color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
+.s-hero-btn{background:var(--b-hero-btn-bg);color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
 .s-features{padding:88px 64px;background:#f8faff}
 .s-features h2{text-align:center;font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:56px;color:var(--b-primary);${H}}
 .s-features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
@@ -134,7 +153,7 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-test-card{background:white;border-radius:var(--b-radius-lg,16px);border:var(--b-card-border,none);padding:28px;box-shadow:var(--b-shadow,0 4px 16px rgba(10,35,66,0.06))}
 .s-test-quote{font-size:14px;color:#64748b;line-height:1.7;margin-bottom:20px;font-style:italic}
 .s-test-author{display:flex;align-items:center;gap:10px}
-.s-test-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--b-accent),var(--b-primary));display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700}
+.s-test-av{width:36px;height:36px;border-radius:50%;background:var(--b-avatar-bg);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700}
 .s-test-name{font-size:13px;font-weight:var(--b-heading-weight,700);color:var(--b-primary);${H}}
 .s-test-role{font-size:11px;color:#94a3b8}
 .s-pricing{padding:88px 64px;background:white}
@@ -147,7 +166,7 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-price-per{font-size:13px;color:#94a3b8;margin-bottom:24px}
 .s-price-features{list-style:none;text-align:left;margin-bottom:28px}
 .s-price-features li{font-size:13px;color:#64748b;padding:6px 0;border-bottom:1px solid #e2e8f0}
-.s-cta{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:88px 64px;text-align:center}
+.s-cta{background:var(--b-cta-bg);color:white;padding:88px 64px;text-align:center}
 .s-cta h2{font-size:42px;font-weight:var(--b-heading-weight,800);margin-bottom:18px;${H}}
 .s-cta p{font-size:19px;opacity:0.88;margin-bottom:36px;max-width:560px;margin-left:auto;margin-right:auto}
 .s-cta-btn{background:white;color:var(--b-accent);padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
@@ -176,7 +195,7 @@ body{font-family:var(--b-font-body,'Inter',sans-serif)}
 .s-contact h2{font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:14px;color:var(--b-primary);${H}}
 .s-contact p{font-size:16px;color:#64748b;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto}
 .s-contact-details{display:flex;justify-content:center;gap:32px;flex-wrap:wrap;font-size:15px;color:var(--b-primary);font-weight:600;margin-bottom:28px}
-.s-contact-btn{background:linear-gradient(135deg,var(--b-accent),var(--b-primary));color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
+.s-contact-btn{background:var(--b-cta-bg);color:white;padding:16px 44px;border-radius:var(--b-btn-radius,50px);font-size:16px;font-weight:700;display:inline-block}
 .s-map{padding:88px 64px;background:white;text-align:center}
 .s-map h2{font-size:38px;font-weight:var(--b-heading-weight,800);margin-bottom:32px;color:var(--b-primary);${H}}
 .s-map-frame{width:100%;max-width:900px;height:400px;border:0;border-radius:var(--b-radius-lg,16px)}
@@ -264,7 +283,7 @@ export function buildSiteHtml(name: string, pages: Page[], activeSlug: string, t
 ${description ? `<meta name="description" content="${esc(description)}">` : ''}
 ${faviconUrl ? `<link rel="icon" href="${esc(faviconUrl)}">` : ''}
 <link href="${preset.googleFontsHref}" rel="stylesheet">
-<style>:root{--b-primary:${primary};--b-accent:${accent};${presetVarsToCss(preset)}}${EXPORT_CSS}</style>
+<style>:root{--b-primary:${primary};--b-accent:${accent};${Object.entries(backgroundVars(theme)).map(([k, v]) => `${k}:${v}`).join(';')};${presetVarsToCss(preset)}}${EXPORT_CSS}</style>
 ${validAnalyticsId ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${validAnalyticsId}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${validAnalyticsId}');</script>` : ''}
 </head>

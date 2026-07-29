@@ -7,7 +7,7 @@ import { isValidGa4Id, parsePagesJson } from '@/lib/renderSite'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
-const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db', style: 'modern' }
+const DEFAULT_THEME = { primary: '#0A2342', accent: '#1a56db', style: 'modern', backgroundStyle: 'solid' as const }
 
 export async function GET(req: Request) {
   const session = await getSession()

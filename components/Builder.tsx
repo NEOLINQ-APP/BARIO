@@ -7,7 +7,7 @@ import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 import BusinessProfilePanel from '@/components/BusinessProfilePanel'
-import { buildSiteHtml } from '@/lib/renderSite'
+import { buildSiteHtml, backgroundVars } from '@/lib/renderSite'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey, type StylePresetKey } from '@/lib/stylePresets'
 
 type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pricing' | 'cta' | 'footer' | 'gallery' | 'team' | 'faq' | 'contact' | 'map' | 'logos' | 'pagelinks'
@@ -15,7 +15,7 @@ type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type Page = { id: string; name: string; slug: string; sections: Section[] }
 type ChatMsg = { role: 'zeus' | 'user'; text: string }
-type Theme = { primary: string; accent: string; style?: string }
+type Theme = { primary: string; accent: string; style?: string; backgroundStyle?: 'solid' | 'gradient' }
 
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
@@ -703,6 +703,17 @@ export default function Builder({
               ))}
             </select>
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400" title="Whether the hero, buttons, and accents use a flat color or a gradient">
+            Background
+            <select
+              value={theme.backgroundStyle ?? 'gradient'}
+              onChange={(e) => setTheme((t) => ({ ...t, backgroundStyle: e.target.value as 'solid' | 'gradient' }))}
+              className="bg-white border border-slate-300 dark:bg-[#131b2a] dark:border-zinc-700 rounded px-1.5 py-1 text-xs text-slate-700 dark:text-zinc-200 outline-none cursor-pointer"
+            >
+              <option value="solid" style={OPTION_STYLE}>Solid</option>
+              <option value="gradient" style={OPTION_STYLE}>Gradient</option>
+            </select>
+          </label>
           {saveMsg && <span className="text-xs text-slate-500 dark:text-zinc-400">{saveMsg}</span>}
           <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Business Profile
@@ -905,7 +916,7 @@ export default function Builder({
           <div ref={canvasScrollRef} className="flex-1 overflow-y-auto p-6">
             <div
               className="b-canvas bg-white rounded-lg shadow-2xl max-w-5xl mx-auto overflow-hidden min-h-[400px]"
-              style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent, ...STYLE_PRESETS[activeStyle].vars }}
+              style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent, ...backgroundVars(theme), ...STYLE_PRESETS[activeStyle].vars }}
             >
               {sections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
