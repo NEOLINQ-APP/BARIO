@@ -35,6 +35,11 @@ async function hzFetch(path: string, init?: RequestInit) {
   return data
 }
 
+export async function listServerTypes(): Promise<{ name: string; cores: number; memory: number; disk: number; deprecated: boolean }[]> {
+  const data = await hzFetch('/server_types')
+  return data.server_types.map((t: any) => ({ name: t.name, cores: t.cores, memory: t.memory, disk: t.disk, deprecated: !!t.deprecated }))
+}
+
 export async function createSSHKey(name: string, publicKey: string): Promise<{ id: number }> {
   const data = await hzFetch('/ssh_keys', {
     method: 'POST',

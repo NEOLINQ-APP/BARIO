@@ -20,9 +20,9 @@ export const VPS_TIERS: Record<VpsTierKey, {
   priceCentsCad: number
   backupAddonPriceCentsCad: number
 }> = {
-  small: { label: 'Small', hetznerServerType: 'cx22', vcpu: 2, ramGb: 4, diskGb: 40, hetznerRawCostCentsEur: 379, priceCentsCad: 1499, backupAddonPriceCentsCad: 300 },
-  medium: { label: 'Medium', hetznerServerType: 'cx32', vcpu: 4, ramGb: 8, diskGb: 80, hetznerRawCostCentsEur: 729, priceCentsCad: 2999, backupAddonPriceCentsCad: 500 },
-  large: { label: 'Large', hetznerServerType: 'cx42', vcpu: 8, ramGb: 16, diskGb: 160, hetznerRawCostCentsEur: 1399, priceCentsCad: 5999, backupAddonPriceCentsCad: 900 },
+  small: { label: 'Small', hetznerServerType: 'cx23', vcpu: 2, ramGb: 4, diskGb: 40, hetznerRawCostCentsEur: 379, priceCentsCad: 1499, backupAddonPriceCentsCad: 300 },
+  medium: { label: 'Medium', hetznerServerType: 'cx33', vcpu: 4, ramGb: 8, diskGb: 80, hetznerRawCostCentsEur: 729, priceCentsCad: 2999, backupAddonPriceCentsCad: 500 },
+  large: { label: 'Large', hetznerServerType: 'cx43', vcpu: 8, ramGb: 16, diskGb: 160, hetznerRawCostCentsEur: 1399, priceCentsCad: 5999, backupAddonPriceCentsCad: 900 },
 }
 
 export const VPS_TIER_KEYS = Object.keys(VPS_TIERS) as VpsTierKey[]
