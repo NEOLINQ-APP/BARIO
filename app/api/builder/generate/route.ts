@@ -299,7 +299,7 @@ async function generateWithClaude(userPrompt: string, onPartial: (partial: Parti
 
 async function generateWithOpenAI(userPrompt: string, onPartial: (partial: PartialResponse) => void): Promise<z.infer<typeof responseSchema>> {
   const result = streamObject({
-    model: openai('gpt-4o-mini'),
+    model: openai('gpt-5.6-luna'),
     schema: responseSchema,
     system: SYSTEM_PROMPT,
     prompt: userPrompt,
@@ -424,11 +424,12 @@ export async function POST(req: Request) {
       ? `${businessContext}${attachmentLine}\n\nBuild a new website. The user wants: "${prompt}"`
       : `${businessContext}${attachmentLine}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrently viewing page (slug): "${activeSlug ?? ''}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent pages:\n${JSON.stringify(currentPages)}`
 
-    // gpt-4o-mini's 128k-token context has to fit the system prompt, this prompt, and the
-    // response. A site that has grown very large (many pages/sections/edits) can blow past
-    // that; fail fast with an actionable message rather than burning a request on a doomed call.
+    // gpt-5.6-luna's 1.05M-token context comfortably fits the system prompt, this prompt, and
+    // the response for any realistically-sized site, but an extremely large one (many
+    // pages/sections/edits) could still blow past it; fail fast with an actionable message
+    // rather than burning a request on a doomed call.
     const roughTokenEstimate = (SYSTEM_PROMPT.length + userPrompt.length) / 4
-    if (roughTokenEstimate > 100_000) {
+    if (roughTokenEstimate > 800_000) {
       return NextResponse.json(
         {
           error:
