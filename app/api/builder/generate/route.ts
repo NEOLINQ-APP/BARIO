@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateObject, NoObjectGeneratedError } from 'ai'
+import { streamObject, NoObjectGeneratedError } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
@@ -137,12 +137,12 @@ const responseSchema = z.object({
 
 type Page = { name: string; slug: string; sections: Section[] }
 
-// No route in this app set this before, so every AI call ran on Vercel's
-// platform default duration. Usually fine for this route's compact JSON
-// output, but worth the same headroom as generate-html for consistency and
-// to handle occasional slow OpenAI responses without the function getting
-// killed mid-flight (which sends no response at all — the client just hangs).
-export const maxDuration = 60
+// A big multi-page build under the Claude path measured 45-65s in testing —
+// raised well past that (matching sites/migrate's precedent for a
+// legitimately slow route) so the function isn't killed mid-stream on a
+// large request. The response streams progressively now anyway, so the
+// client sees steady partial progress well before this ever matters.
+export const maxDuration = 120
 
 const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
 
@@ -224,13 +224,22 @@ const claudeToolSchema = z.toJSONSchema(responseSchema, { target: 'draft-07' }) 
 
 class ModelGenerationError extends Error {}
 
-async function generateWithClaude(userPrompt: string): Promise<z.infer<typeof responseSchema>> {
+// `onPartial` fires repeatedly with whatever best-effort partial shape of the
+// response is available so far, so the route can stream it straight to the
+// client and let pages appear progressively as they're built — instead of
+// one long blank wait followed by an instant full-site swap. Every partial
+// object is throwaway/unvalidated (it's mid-generation, so required fields
+// may still be missing); only the final returned value is ever treated as
+// authoritative.
+type PartialResponse = Partial<{ explanation: string; theme: unknown; pages: unknown[] }>
+
+async function generateWithClaude(userPrompt: string, onPartial: (partial: PartialResponse) => void): Promise<z.infer<typeof responseSchema>> {
   if (!anthropicClient) throw new ModelGenerationError('ANTHROPIC_API_KEY is not configured')
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userPrompt }]
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const resp = await anthropicClient.messages.create({
+    const stream = anthropicClient.messages.stream({
       model: 'claude-sonnet-5',
       max_tokens: 16000,
       system: SYSTEM_PROMPT,
@@ -238,8 +247,15 @@ async function generateWithClaude(userPrompt: string): Promise<z.infer<typeof re
       tools: [{ name: 'build_site', description: 'Build or edit the website structure.', input_schema: claudeToolSchema }],
       tool_choice: { type: 'tool', name: 'build_site' },
     })
+    // The SDK does its own best-effort partial-JSON parsing internally as
+    // the tool's input streams in and hands back a snapshot each time —
+    // no need to buffer/parse the raw JSON deltas ourselves.
+    stream.on('inputJson', (_partialJson, jsonSnapshot) => {
+      if (jsonSnapshot && typeof jsonSnapshot === 'object') onPartial(jsonSnapshot as PartialResponse)
+    })
 
-    const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+    const finalMsg = await stream.finalMessage()
+    const toolUse = finalMsg.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
     if (!toolUse) throw new ModelGenerationError('Claude did not return a tool call')
 
     const validated = responseSchema.safeParse(toolUse.input)
@@ -250,7 +266,7 @@ async function generateWithClaude(userPrompt: string): Promise<z.infer<typeof re
       // OpenAI path for free: echo the assistant's tool call back and tell
       // it exactly what was wrong, then let it try again.
       messages.push(
-        { role: 'assistant', content: resp.content },
+        { role: 'assistant', content: finalMsg.content },
         {
           role: 'user',
           content: [
@@ -270,8 +286,8 @@ async function generateWithClaude(userPrompt: string): Promise<z.infer<typeof re
   throw new ModelGenerationError('Claude could not produce a valid response')
 }
 
-async function generateWithOpenAI(userPrompt: string): Promise<z.infer<typeof responseSchema>> {
-  const result = await generateObject({
+async function generateWithOpenAI(userPrompt: string, onPartial: (partial: PartialResponse) => void): Promise<z.infer<typeof responseSchema>> {
+  const result = streamObject({
     model: openai('gpt-4o-mini'),
     schema: responseSchema,
     system: SYSTEM_PROMPT,
@@ -281,6 +297,9 @@ async function generateWithOpenAI(userPrompt: string): Promise<z.infer<typeof re
     // paying for OpenAI's own strict-mode compile step we don't need here.
     providerOptions: { openai: { strictJsonSchema: false } },
   })
+  for await (const partial of result.partialObjectStream) {
+    onPartial(partial as PartialResponse)
+  }
   return result.object
 }
 
@@ -408,90 +427,106 @@ export async function POST(req: Request) {
       )
     }
 
-    let parsed: z.infer<typeof responseSchema>
-    try {
-      parsed = MODEL_PROVIDER === 'anthropic' ? await generateWithClaude(userPrompt) : await generateWithOpenAI(userPrompt)
-    } catch (err: any) {
-      if (err instanceof NoObjectGeneratedError || err instanceof ModelGenerationError) {
-        return NextResponse.json(
-          { error: "The AI couldn't put together a valid response for that — try rephrasing your request." },
-          { status: 502 }
-        )
-      }
-      if (
-        err?.message?.includes('context_length') ||
-        err?.message?.includes('maximum context length') ||
-        err?.message?.includes('prompt is too long')
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Your site has grown too large for the AI to edit in one go. Try removing a few sections or pages you no longer need, then ask again.",
-          },
-          { status: 400 }
-        )
-      }
-      throw err
-    }
-
-    const usedSlugs = new Set<string>()
-    const cleanedPages: Page[] = parsed.pages.map((p, i) => {
-      const name = p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
-      const slug = sanitizeSlug(p.slug, name, i, usedSlugs)
-      return { name, slug, sections: p.sections }
-    })
-
-    // pagelinks cards reference another page by its slug — normalize away an
-    // accidental leading slash or stray whitespace so a card the model meant
-    // to work actually resolves, without hard-rejecting anything (a
-    // mismatched link here is the same class of risk as any other
-    // AI-authored copy, not worth failing the whole generation over).
-    for (const page of cleanedPages) {
-      for (const section of page.sections) {
-        if (section.type !== 'pagelinks') continue
-        for (let n = 1; n <= 6; n++) {
-          const key = `c${n}s`
-          if (section.data[key]) {
-            section.data[key] = section.data[key].trim().replace(/^\/+/, '').toLowerCase()
+    // From here on, generation + post-processing streams back progressively
+    // as newline-delimited JSON (`{type:'partial'}` events, then one final
+    // `{type:'done'}` or `{type:'error'}`) instead of a single blocking JSON
+    // response — a multi-page build can take 30-60s, and a blank wait
+    // followed by an instant full-site swap reads as broken even when it
+    // isn't. The HTTP status is committed to 200 the moment streaming
+    // starts, so any failure past this point is signaled via an `error`
+    // line rather than a different status code — the client checks for that
+    // line explicitly instead of `res.ok`.
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
+        try {
+          let parsed: z.infer<typeof responseSchema>
+          try {
+            const onPartial = (partial: PartialResponse) => send({ type: 'partial', object: partial })
+            parsed = MODEL_PROVIDER === 'anthropic' ? await generateWithClaude(userPrompt, onPartial) : await generateWithOpenAI(userPrompt, onPartial)
+          } catch (err: any) {
+            if (err instanceof NoObjectGeneratedError || err instanceof ModelGenerationError) {
+              send({ type: 'error', error: "The AI couldn't put together a valid response for that — try rephrasing your request." })
+              return
+            }
+            if (
+              err?.message?.includes('context_length') ||
+              err?.message?.includes('maximum context length') ||
+              err?.message?.includes('prompt is too long')
+            ) {
+              send({
+                type: 'error',
+                error: "Your site has grown too large for the AI to edit in one go. Try removing a few sections or pages you no longer need, then ask again.",
+              })
+              return
+            }
+            throw err
           }
+
+          const usedSlugs = new Set<string>()
+          const cleanedPages: Page[] = parsed.pages.map((p, i) => {
+            const name = p.name.trim() ? p.name.trim() : i === 0 ? 'Home' : `Page ${i + 1}`
+            const slug = sanitizeSlug(p.slug, name, i, usedSlugs)
+            return { name, slug, sections: p.sections }
+          })
+
+          // pagelinks cards reference another page by its slug — normalize away
+          // an accidental leading slash or stray whitespace so a card the model
+          // meant to work actually resolves, without hard-rejecting anything (a
+          // mismatched link here is the same class of risk as any other
+          // AI-authored copy, not worth failing the whole generation over).
+          for (const page of cleanedPages) {
+            for (const section of page.sections) {
+              if (section.type !== 'pagelinks') continue
+              for (let n = 1; n <= 6; n++) {
+                const key = `c${n}s`
+                if (section.data[key]) {
+                  section.data[key] = section.data[key].trim().replace(/^\/+/, '').toLowerCase()
+                }
+              }
+            }
+          }
+
+          // Schema already guarantees valid hex colors, a real style preset key,
+          // and a valid backgroundStyle — no fallback-on-invalid needed anymore.
+          const theme_out = parsed.theme
+
+          // The model can (and did, in testing) describe a change in prose
+          // while returning pages/theme byte-identical to what it was given —
+          // a confident-sounding lie, not an edit. Compare BEFORE image
+          // resolution (Unsplash search isn't deterministic across calls, so
+          // comparing after would flag a true no-op as "changed" whenever an
+          // image field happens to re-resolve to a different photo). Only
+          // applies to edits — a brand new site has no "before" to match
+          // against.
+          const nothingChanged = !isNew && JSON.stringify(cleanedPages) === JSON.stringify(currentPages) && JSON.stringify(theme_out) === JSON.stringify(currentTheme)
+
+          const resolvedPages = await resolveImageFields(cleanedPages, theme_out)
+
+          let creditsRemaining = -1
+          if (!user.is_admin) {
+            const creditRows = (await sql`
+              UPDATE users SET credits_remaining = credits_remaining - 1 WHERE id = ${user.id}
+              RETURNING credits_remaining
+            `) as unknown as { credits_remaining: number }[]
+            creditsRemaining = creditRows[0]?.credits_remaining ?? 0
+          }
+
+          const explanation = nothingChanged
+            ? "I didn't actually make any changes there — your request may have been too vague for me to act on confidently, or already matched what's there. Try describing a specific, concrete change (e.g. a color, a headline, a new section) and I'll apply it."
+            : typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+
+          send({ type: 'done', explanation, theme: theme_out, pages: resolvedPages, creditsRemaining })
+        } catch (err: any) {
+          send({ type: 'error', error: err?.message || 'Something went wrong generating your site.' })
+        } finally {
+          controller.close()
         }
-      }
-    }
-
-    // Schema already guarantees valid hex colors, a real style preset key,
-    // and a valid backgroundStyle — no fallback-on-invalid needed anymore.
-    const theme_out = parsed.theme
-
-    // The model can (and did, in testing) describe a change in prose while
-    // returning pages/theme byte-identical to what it was given — a
-    // confident-sounding lie, not an edit. Compare BEFORE image resolution
-    // (Unsplash search isn't deterministic across calls, so comparing after
-    // would flag a true no-op as "changed" whenever an image field happens
-    // to re-resolve to a different photo). Only applies to edits — a brand
-    // new site has no "before" to match against.
-    const nothingChanged = !isNew && JSON.stringify(cleanedPages) === JSON.stringify(currentPages) && JSON.stringify(theme_out) === JSON.stringify(currentTheme)
-
-    const resolvedPages = await resolveImageFields(cleanedPages, theme_out)
-
-    let creditsRemaining = -1
-    if (!user.is_admin) {
-      const creditRows = (await sql`
-        UPDATE users SET credits_remaining = credits_remaining - 1 WHERE id = ${user.id}
-        RETURNING credits_remaining
-      `) as unknown as { credits_remaining: number }[]
-      creditsRemaining = creditRows[0]?.credits_remaining ?? 0
-    }
-
-    const explanation = nothingChanged
-      ? "I didn't actually make any changes there — your request may have been too vague for me to act on confidently, or already matched what's there. Try describing a specific, concrete change (e.g. a color, a headline, a new section) and I'll apply it."
-      : typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
-
-    return NextResponse.json({
-      explanation,
-      theme: theme_out,
-      pages: resolvedPages,
-      creditsRemaining,
+      },
     })
+
+    return new Response(stream, { headers: { 'content-type': 'application/x-ndjson; charset=utf-8' } })
   } catch (err: any) {
     return errorResponse(err)
   }

@@ -154,6 +154,53 @@ function pagesFromModel(pages: { name: string; slug: string; sections: { type: S
   }))
 }
 
+// Turns a mid-generation partial object (still missing fields, possibly a
+// trailing incomplete array element) into safely renderable pages — used
+// only for the live "Zeus is building…" preview while a new site streams
+// in, never for the authoritative save. `idsRef` assigns each page/section a
+// stable id keyed by its position, reused across successive partial calls
+// within the same generation, so React sees the same key on every update
+// and doesn't remount (and therefore doesn't replay) a section that's
+// already on screen — only genuinely new pages/sections mount fresh, which
+// is what makes the CSS entrance transition fire once per section instead
+// of on every partial refinement.
+function safePartialPages(rawPages: unknown, idsRef: React.MutableRefObject<Map<string, string>>): Page[] {
+  if (!Array.isArray(rawPages)) return []
+  const result: Page[] = []
+  rawPages.forEach((p: any, i: number) => {
+    if (!p || typeof p !== 'object' || typeof p.slug !== 'string') return
+    const pageKey = `p${i}`
+    if (!idsRef.current.has(pageKey)) idsRef.current.set(pageKey, newId())
+    const pageId = idsRef.current.get(pageKey)!
+
+    const rawSections = Array.isArray(p.sections) ? p.sections : []
+    const sections: Section[] = []
+    rawSections.forEach((s: any, si: number) => {
+      if (!s || typeof s !== 'object' || typeof s.type !== 'string' || !(s.type in SECTION_LABELS)) return
+      const sectionKey = `${pageKey}-s${si}`
+      if (!idsRef.current.has(sectionKey)) idsRef.current.set(sectionKey, newId())
+      const rawData = s.data && typeof s.data === 'object' ? s.data : {}
+      const data: SectionData = {}
+      for (const [field, value] of Object.entries(rawData)) {
+        if (typeof value !== 'string') continue
+        // Image fields hold a search phrase until the final resolved pass —
+        // showing that as an <img src> renders a broken-image icon, so only
+        // pass through values that are already a real URL (a user-attached
+        // photo the model echoes back verbatim shows up this way).
+        if (/img$/i.test(field) || field === 'image') {
+          data[field] = value.startsWith('http') ? value : ''
+        } else {
+          data[field] = value
+        }
+      }
+      sections.push({ id: idsRef.current.get(sectionKey)!, type: s.type as SectionType, data })
+    })
+
+    result.push({ id: pageId, name: typeof p.name === 'string' && p.name.trim() ? p.name : `Page ${i + 1}`, slug: p.slug, sections })
+  })
+  return result
+}
+
 // One path segment of a slug, e.g. "Plumbing Repair" -> "plumbing-repair".
 // A full slug is one or more of these joined with "/" — the "/" itself is
 // what makes a page a child of another (see the Page type's comment).
@@ -264,6 +311,15 @@ export default function Builder({
   const [activePageId, setActivePageId] = useState<string>(() => pages[0]?.id ?? '')
   const activePage = pages.find((p) => p.id === activePageId) ?? pages[0]
   const sections = activePage.sections
+
+  // Live preview while a brand-new site streams in — see safePartialPages
+  // above. Only used for new builds (isNew), not edits: an edit's current
+  // page is already on screen and worth looking at while the (usually much
+  // smaller/faster) change computes, so it stays put until the real result
+  // lands rather than being replaced by a reconstruction of itself.
+  const [streamingPages, setStreamingPages] = useState<Page[] | null>(null)
+  const streamIdsRef = useRef<Map<string, string>>(new Map())
+  const streamingPreviewPage = streamingPages?.find((p) => p.slug === activePage.slug) ?? streamingPages?.[0] ?? null
 
   function setActivePageSections(updater: (secs: Section[]) => Section[]) {
     setPages((ps) => ps.map((p) => (p.id === activePage.id ? { ...p, sections: updater(p.sections) } : p)))
@@ -560,14 +616,23 @@ export default function Builder({
     setBusy(true)
 
     const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
+    streamIdsRef.current = new Map()
+    if (isNew) setStreamingPages([])
 
-    // A killed serverless function (timeout) sends no response at all, so
-    // without this the fetch just hangs forever with nothing to catch,
-    // leaving the UI stuck on "Zeus is building…" indefinitely. Give up
-    // client-side slightly before the server's own 60s limit so there's
-    // always a definite answer.
+    // The response streams progressively now, so a fixed wall-clock abort
+    // no longer fits — a big multi-page build can legitimately take 30-60s+
+    // of *active* generation. Instead, abort only on genuine silence: reset
+    // the timer on every chunk received, so a stalled/killed connection
+    // still gets caught quickly while a slow-but-progressing one isn't cut
+    // off mid-build.
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 55_000)
+    const IDLE_TIMEOUT_MS = 25_000
+    let idleTimer: ReturnType<typeof setTimeout> = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS)
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS)
+    }
+
     try {
       const res = await fetch('/api/builder/generate', {
         method: 'POST',
@@ -587,19 +652,59 @@ export default function Builder({
         }),
         signal: controller.signal,
       })
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error ?? 'Generation failed')
-      const newPages = pagesFromModel(d.pages)
+      if (!res.body) throw new Error('Generation failed — no response received')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let doneEvent: any = null
+      let errorMsg: string | null = null
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        resetIdleTimer()
+        buffer += decoder.decode(value, { stream: true })
+        let nl: number
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, nl).trim()
+          buffer = buffer.slice(nl + 1)
+          if (!line) continue
+          let evt: any
+          try {
+            evt = JSON.parse(line)
+          } catch {
+            continue
+          }
+          if (evt.type === 'partial') {
+            if (isNew) {
+              const preview = safePartialPages(evt.object?.pages, streamIdsRef)
+              if (preview.length) setStreamingPages(preview)
+            }
+          } else if (evt.type === 'done') {
+            doneEvent = evt
+          } else if (evt.type === 'error') {
+            errorMsg = evt.error
+          }
+        }
+      }
+      clearTimeout(idleTimer)
+
+      if (errorMsg) throw new Error(errorMsg)
+      if (!doneEvent) throw new Error('Generation ended unexpectedly — try again.')
+
+      const newPages = pagesFromModel(doneEvent.pages)
       setPages(newPages)
       const stillViewing = newPages.find((p) => p.slug === activePage.slug)
       setActivePageId(stillViewing ? stillViewing.id : newPages[0].id)
-      if (d.theme) setTheme(d.theme)
-      if (typeof d.creditsRemaining === 'number') setCredits(d.creditsRemaining)
-      addMsg('zeus', d.explanation ?? 'Done.')
+      if (doneEvent.theme) setTheme(doneEvent.theme)
+      if (typeof doneEvent.creditsRemaining === 'number') setCredits(doneEvent.creditsRemaining)
+      addMsg('zeus', doneEvent.explanation ?? 'Done.')
     } catch (err: any) {
-      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long and timed out. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
+      clearTimeout(idleTimer)
+      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long with no response. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
     }
-    clearTimeout(timeout)
+    setStreamingPages(null)
     setBusy(false)
   }
 
@@ -914,11 +1019,42 @@ export default function Builder({
             </select>
           </div>
           <div ref={canvasScrollRef} className="flex-1 overflow-y-auto p-6">
+            {streamingPages !== null && (
+              <div className="max-w-5xl mx-auto mb-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-zinc-400">
+                <span className="b-building-dot" />
+                Zeus is building your site…
+              </div>
+            )}
             <div
               className="b-canvas bg-white rounded-lg shadow-2xl max-w-5xl mx-auto overflow-hidden min-h-[400px]"
               style={{ ['--b-primary' as any]: theme.primary, ['--b-accent' as any]: theme.accent, ...backgroundVars(theme), ...STYLE_PRESETS[activeStyle].vars }}
             >
-              {sections.length === 0 ? (
+              {streamingPages !== null ? (
+                !streamingPreviewPage || streamingPreviewPage.sections.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
+                    <div className="b-building-dot" />
+                    <h3 className="text-slate-500 font-semibold">Sketching out your site…</h3>
+                  </div>
+                ) : (
+                  <div className="pointer-events-none">
+                    {streamingPreviewPage.sections.map((s) => (
+                      <div key={s.id} className="b-section-enter">
+                        <SectionView
+                          section={s}
+                          pages={streamingPages}
+                          selected={false}
+                          onSelect={() => {}}
+                          onCommit={() => {}}
+                          onMoveUp={() => {}}
+                          onMoveDown={() => {}}
+                          onDuplicate={() => {}}
+                          onDelete={() => {}}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : sections.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
                   <div className="text-4xl opacity-40">🏗️</div>
                   <h3 className="text-slate-500 font-semibold">This page will appear here</h3>
@@ -926,18 +1062,19 @@ export default function Builder({
                 </div>
               ) : (
                 sections.map((s) => (
-                  <SectionView
-                    key={s.id}
-                    section={s}
-                    pages={pages}
-                    selected={selectedId === s.id}
-                    onSelect={() => setSelectedId(s.id)}
-                    onCommit={(field, value) => updateField(s.id, field, value)}
-                    onMoveUp={() => moveSection(s.id, -1)}
-                    onMoveDown={() => moveSection(s.id, 1)}
-                    onDuplicate={() => duplicateSection(s.id)}
-                    onDelete={() => removeSection(s.id)}
-                  />
+                  <div key={s.id} className="b-section-enter">
+                    <SectionView
+                      section={s}
+                      pages={pages}
+                      selected={selectedId === s.id}
+                      onSelect={() => setSelectedId(s.id)}
+                      onCommit={(field, value) => updateField(s.id, field, value)}
+                      onMoveUp={() => moveSection(s.id, -1)}
+                      onMoveDown={() => moveSection(s.id, 1)}
+                      onDuplicate={() => duplicateSection(s.id)}
+                      onDelete={() => removeSection(s.id)}
+                    />
+                  </div>
                 ))
               )}
             </div>
