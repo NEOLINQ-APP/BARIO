@@ -124,15 +124,17 @@ const pageSchema = z.object({
 })
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
-// Field order here is the order the model actually writes them in — verified
-// live via a raw streaming curl against this exact schema, where a model
-// fills a tool call's JSON keys in declared order. With `explanation` first
-// (as it originally was), the model wrote that whole paragraph before
-// touching `pages` at all, so the live streaming preview (Builder.tsx) had
-// nothing to show for most of a 50s+ build. `pages` first means the actual
-// site content — the thing the progressive-reveal UI exists to display —
-// starts arriving immediately; `explanation` (just chat text nobody watches
-// stream character-by-character) fills in last.
+// `pages` first, `explanation` last — models generally fill a structured
+// call's JSON keys in declared order, so putting the actual site content
+// first means it's available to stream into the live preview (Builder.tsx)
+// as early as possible, rather than after a paragraph of chat explanation
+// nobody watches build character-by-character. Confirmed this reliably
+// changes OpenAI's generation order (structured-output field order is a
+// well-documented OpenAI behavior); verified live against Claude's tool-use
+// path that it does NOT change Claude's order the same way — Claude wrote
+// `explanation` first regardless of where it's declared here. Kept anyway
+// since it's free and helps the OpenAI path; Claude's progressive reveal
+// just has less to show during its explanation-writing phase.
 const responseSchema = z.object({
   pages: z.array(pageSchema).min(1),
   theme: z.object({

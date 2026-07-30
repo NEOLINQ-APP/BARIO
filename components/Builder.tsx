@@ -624,9 +624,13 @@ export default function Builder({
     // of *active* generation. Instead, abort only on genuine silence: reset
     // the timer on every chunk received, so a stalled/killed connection
     // still gets caught quickly while a slow-but-progressing one isn't cut
-    // off mid-build.
+    // off mid-build. 45s (not something tighter like 20-25s) because the
+    // gap BEFORE the first chunk arrives — cold start + model connection
+    // setup — measured as long as ~25-30s on its own in testing, before any
+    // real inactivity would even begin; once flowing, chunks arrive every
+    // ~100ms, so this only ever fires on a genuinely dead connection.
     const controller = new AbortController()
-    const IDLE_TIMEOUT_MS = 25_000
+    const IDLE_TIMEOUT_MS = 45_000
     let idleTimer: ReturnType<typeof setTimeout> = setTimeout(() => controller.abort(), IDLE_TIMEOUT_MS)
     const resetIdleTimer = () => {
       clearTimeout(idleTimer)
