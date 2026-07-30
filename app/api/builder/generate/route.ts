@@ -4,7 +4,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { SECTION_TYPES, type Section } from '@/lib/openai'
+import { type Section } from '@/lib/openai'
 import { searchImage } from '@/lib/unsplash'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey } from '@/lib/stylePresets'
 import { ensureCreditsRefreshed } from '@/lib/credits'
@@ -19,10 +19,102 @@ import { errorResponse } from '@/lib/errors'
 // throws with no repair attempt; (2) "theme"/"pages" can no longer come
 // back subtly wrong-shaped (e.g. a missing field) without being caught
 // before it ever reaches a customer's site.
-const sectionSchema = z.object({
-  type: z.enum(SECTION_TYPES),
-  data: z.record(z.string(), z.string()),
+//
+// `data` is a discriminated union keyed by `type` — one closed object shape
+// per section type — rather than an open `z.record()`. That's not a style
+// preference: Claude's strict tool-schema mode rejects `additionalProperties`
+// with a nested schema outright (400), and the Vercel AI SDK's Anthropic
+// provider silently downgrades an open record to `additionalProperties:
+// false` with no declared properties, which makes every `data` field
+// impossible to fill — the model still writes a normal explanation, but
+// every section comes back empty. A closed schema per type sidesteps both
+// failure modes and works identically on OpenAI's strict mode too.
+// Every field is a required string, not `.optional()` — a JSON-Schema
+// "optional" property (absent from `required`) is what OpenAI's real strict
+// mode disallows (it demands every property be listed as required, using
+// empty/null values for the ones that don't apply), so required-with-empty-
+// string is the one shape that's portable across both providers' strict
+// modes. It also matches what renderSite.ts already does: every "is this
+// slot used" check is a truthy check (`data.g1img ?`), so an empty string
+// and an absent key render identically — no behavior change from before.
+const navData = z.object({ logo: z.string() })
+const heroData = z.object({ headline: z.string(), sub: z.string(), cta: z.string(), image: z.string() })
+const featuresData = z.object({
+  title: z.string(),
+  f1t: z.string(), f1d: z.string(), f1img: z.string(),
+  f2t: z.string(), f2d: z.string(), f2img: z.string(),
+  f3t: z.string(), f3d: z.string(), f3img: z.string(),
 })
+const statsData = z.object({
+  s1n: z.string(), s1l: z.string(), s2n: z.string(), s2l: z.string(),
+  s3n: z.string(), s3l: z.string(), s4n: z.string(), s4l: z.string(),
+})
+const testimonialData = z.object({
+  title: z.string(),
+  t1q: z.string(), t1n: z.string(), t1r: z.string(),
+  t2q: z.string(), t2n: z.string(), t2r: z.string(),
+  t3q: z.string(), t3n: z.string(), t3r: z.string(),
+})
+const pricingData = z.object({
+  title: z.string(),
+  p1n: z.string(), p1p: z.string(), p1f: z.string(),
+  p2n: z.string(), p2p: z.string(), p2f: z.string(),
+  p3n: z.string(), p3p: z.string(), p3f: z.string(),
+})
+const ctaData = z.object({ headline: z.string(), sub: z.string(), cta: z.string() })
+const footerData = z.object({ logo: z.string(), copy: z.string() })
+const galleryData = z.object({
+  title: z.string(),
+  g1img: z.string(), g2img: z.string(), g3img: z.string(),
+  g4img: z.string(), g5img: z.string(), g6img: z.string(),
+})
+const teamData = z.object({
+  title: z.string(),
+  m1img: z.string(), m1n: z.string(), m1r: z.string(),
+  m2img: z.string(), m2n: z.string(), m2r: z.string(),
+  m3img: z.string(), m3n: z.string(), m3r: z.string(),
+})
+const faqData = z.object({
+  title: z.string(),
+  q1q: z.string(), q1a: z.string(),
+  q2q: z.string(), q2a: z.string(),
+  q3q: z.string(), q3a: z.string(),
+  q4q: z.string(), q4a: z.string(),
+})
+const contactData = z.object({ title: z.string(), sub: z.string(), email: z.string(), phone: z.string(), address: z.string() })
+const mapData = z.object({ title: z.string(), address: z.string() })
+const logosData = z.object({
+  title: z.string(),
+  l1n: z.string(), l2n: z.string(), l3n: z.string(),
+  l4n: z.string(), l5n: z.string(), l6n: z.string(),
+})
+const pagelinksData = z.object({
+  title: z.string(),
+  c1n: z.string(), c1s: z.string(), c1d: z.string(), c1img: z.string(),
+  c2n: z.string(), c2s: z.string(), c2d: z.string(), c2img: z.string(),
+  c3n: z.string(), c3s: z.string(), c3d: z.string(), c3img: z.string(),
+  c4n: z.string(), c4s: z.string(), c4d: z.string(), c4img: z.string(),
+  c5n: z.string(), c5s: z.string(), c5d: z.string(), c5img: z.string(),
+  c6n: z.string(), c6s: z.string(), c6d: z.string(), c6img: z.string(),
+})
+
+const sectionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('nav'), data: navData }),
+  z.object({ type: z.literal('hero'), data: heroData }),
+  z.object({ type: z.literal('features'), data: featuresData }),
+  z.object({ type: z.literal('stats'), data: statsData }),
+  z.object({ type: z.literal('testimonial'), data: testimonialData }),
+  z.object({ type: z.literal('pricing'), data: pricingData }),
+  z.object({ type: z.literal('cta'), data: ctaData }),
+  z.object({ type: z.literal('footer'), data: footerData }),
+  z.object({ type: z.literal('gallery'), data: galleryData }),
+  z.object({ type: z.literal('team'), data: teamData }),
+  z.object({ type: z.literal('faq'), data: faqData }),
+  z.object({ type: z.literal('contact'), data: contactData }),
+  z.object({ type: z.literal('map'), data: mapData }),
+  z.object({ type: z.literal('logos'), data: logosData }),
+  z.object({ type: z.literal('pagelinks'), data: pagelinksData }),
+])
 
 const pageSchema = z.object({
   name: z.string(),
@@ -69,15 +161,15 @@ The allowed section types and their data fields (same schema on every page) are:
 - pricing: { "title": string, "p1n": string, "p1p": string, "p1f": string, "p2n": string, "p2p": string, "p2f": string, "p3n": string, "p3p": string, "p3f": string } (the *f fields are comma-separated feature lists)
 - cta: { "headline": string, "sub": string, "cta": string }
 - footer: { "logo": string, "copy": string }
-- gallery: { "title": string, "g1img": string, "g2img": string, "g3img": string, "g4img": string, "g5img": string, "g6img": string } (2-6 images; omit/empty unused slots rather than always filling all 6)
-- team: { "title": string, "m1img": string, "m1n": string, "m1r": string, "m2img": string, "m2n": string, "m2r": string, "m3img": string, "m3n": string, "m3r": string } (up to 3 members: photo, name, role/title)
-- faq: { "title": string, "q1q": string, "q1a": string, "q2q": string, "q2a": string, "q3q": string, "q3a": string, "q4q": string, "q4a": string } (up to 4 question/answer pairs; omit unused ones)
-- contact: { "title": string, "sub": string, "email": string, "phone": string, "address": string } (a "get in touch" section with contact details; do not invent a real phone/email/address the user never gave you — leave those fields empty rather than making something up, and say so in your explanation)
+- gallery: { "title": string, "g1img": string, "g2img": string, "g3img": string, "g4img": string, "g5img": string, "g6img": string } (2-6 images; every field must be present, but set any unused slot to an empty string "" rather than always filling all 6)
+- team: { "title": string, "m1img": string, "m1n": string, "m1r": string, "m2img": string, "m2n": string, "m2r": string, "m3img": string, "m3n": string, "m3r": string } (up to 3 members: photo, name, role/title — set an unused member's fields to empty strings)
+- faq: { "title": string, "q1q": string, "q1a": string, "q2q": string, "q2a": string, "q3q": string, "q3a": string, "q4q": string, "q4a": string } (up to 4 question/answer pairs; set any unused pair's fields to empty strings)
+- contact: { "title": string, "sub": string, "email": string, "phone": string, "address": string } (a "get in touch" section with contact details; do not invent a real phone/email/address the user never gave you — leave those fields as empty strings rather than making something up, and say so in your explanation)
 - map: { "title": string, "address": string } (embeds a map for the given address — only use this if the user gave you a real address; never invent one)
-- logos: { "title": string, "l1n": string, "l2n": string, "l3n": string, "l4n": string, "l5n": string, "l6n": string } (a row of client/partner names, text only — there's no logo image search, so only use this if the user tells you real names to feature)
-- pagelinks: { "title": string, "c1n": string, "c1s": string, "c1d": string, "c1img": string, "c2n"/"c2s"/"c2d"/"c2img", ... up to c6 } (up to 6 cards, each linking to another page on this site — c*n is the card title, c*s is the exact "slug" value of the page it links to, c*d is a one-line description, c*img is an optional photo; omit unused slots. Use this on a category/parent page to link out to its own dedicated sub-pages — see the multi-page and nesting guidance below)
+- logos: { "title": string, "l1n": string, "l2n": string, "l3n": string, "l4n": string, "l5n": string, "l6n": string } (a row of client/partner names, text only — there's no logo image search, so only use this if the user tells you real names to feature; set any unused slot to an empty string)
+- pagelinks: { "title": string, "c1n": string, "c1s": string, "c1d": string, "c1img": string, "c2n"/"c2s"/"c2d"/"c2img", ... up to c6 } (up to 6 cards, each linking to another page on this site — c*n is the card title, c*s is the exact "slug" value of the page it links to, c*d is a one-line description, c*img is a photo search phrase or empty string; set any unused card's fields to empty strings. Use this on a category/parent page to link out to its own dedicated sub-pages — see the multi-page and nesting guidance below)
 
-Image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.m1img/m2img/m3img) are OPTIONAL. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. For team member photos, search for a generic professional headshot style (e.g. "smiling professional headshot man") since there's no way to find a photo of a specific real person. Leave the field empty/omitted if no image was requested.
+Every field listed above is a required key in the JSON you return — never omit a key — but image fields (hero.image; features.f1img/f2img/f3img; gallery.g1img-g6img; team.m1img/m2img/m3img) and any "unused slot" field are OPTIONAL in effect: set them to an empty string "" when there's no image or no content for that slot. When the user wants an image, set the field to a short, specific search phrase describing the photo (2-6 words, e.g. "cozy bakery storefront morning light") — NOT a URL. This phrase is used to automatically find a real, matching stock photo, so make it concrete and visual (subject + setting/mood), not colors — color matching isn't part of the search. For team member photos, search for a generic professional headshot style (e.g. "smiling professional headshot man") since there's no way to find a photo of a specific real person. Leave the field as an empty string if no image was requested.
 
 If the user attached a real image (you'll be told its URL directly), use that exact URL as the image field value for whichever section on whichever page makes the most sense given their message — this is a real uploaded photo, not a placeholder, so prefer it over a placehold.co URL. If they attached a video or audio file, there's no section field to embed it in yet — don't invent one; just acknowledge in your explanation that the file was uploaded and give back its URL so they can use it elsewhere in the meantime.
 
