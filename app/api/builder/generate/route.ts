@@ -124,15 +124,24 @@ const pageSchema = z.object({
 })
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
+// Field order here is the order the model actually writes them in — verified
+// live via a raw streaming curl against this exact schema, where a model
+// fills a tool call's JSON keys in declared order. With `explanation` first
+// (as it originally was), the model wrote that whole paragraph before
+// touching `pages` at all, so the live streaming preview (Builder.tsx) had
+// nothing to show for most of a 50s+ build. `pages` first means the actual
+// site content — the thing the progressive-reveal UI exists to display —
+// starts arriving immediately; `explanation` (just chat text nobody watches
+// stream character-by-character) fills in last.
 const responseSchema = z.object({
-  explanation: z.string(),
+  pages: z.array(pageSchema).min(1),
   theme: z.object({
     primary: z.string().regex(HEX_RE),
     accent: z.string().regex(HEX_RE),
     style: z.string().refine(isStylePresetKey),
     backgroundStyle: z.enum(['solid', 'gradient']),
   }),
-  pages: z.array(pageSchema).min(1),
+  explanation: z.string(),
 })
 
 type Page = { name: string; slug: string; sections: Section[] }
