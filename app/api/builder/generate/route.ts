@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { generateObject, NoObjectGeneratedError } from 'ai'
 import { openai } from '@ai-sdk/openai'
+import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
@@ -200,6 +201,89 @@ When EDITING an existing site: you'll be given the full current "pages" array an
 
 Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
 
+// Model selection — defaults to the OpenAI path that's run in production all
+// along; set ZEUS_MODEL_PROVIDER=anthropic in Vercel to switch Zeus over to
+// Claude for A/B comparison without a code change either way.
+const MODEL_PROVIDER: 'openai' | 'anthropic' = process.env.ZEUS_MODEL_PROVIDER === 'anthropic' ? 'anthropic' : 'openai'
+
+const anthropicClient = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null
+
+// Zod v4 exports a real JSON Schema directly, and — because every section
+// type now has its own closed shape instead of an open z.record() — that
+// export has no open dictionary left in it anywhere. That matters
+// specifically for Claude: calling it through the Vercel AI SDK's
+// generateObject forces Anthropic's strict tool-schema mode, and this
+// schema (15 section-type variants, one with 24 fields) is large enough
+// that Claude's strict-mode grammar compiler rejects it outright
+// ("compiled grammar is too large"). Calling Claude directly instead (see
+// generateWithClaude below) uses an ordinary, non-strict tool — no grammar
+// compilation, so the size ceiling doesn't apply — at the cost of losing
+// the SDK's built-in strict-schema guarantee, which we replace with an
+// explicit zod validate-and-retry-once below.
+const claudeToolSchema = z.toJSONSchema(responseSchema, { target: 'draft-07' }) as Anthropic.Tool.InputSchema
+
+class ModelGenerationError extends Error {}
+
+async function generateWithClaude(userPrompt: string): Promise<z.infer<typeof responseSchema>> {
+  if (!anthropicClient) throw new ModelGenerationError('ANTHROPIC_API_KEY is not configured')
+
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userPrompt }]
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const resp = await anthropicClient.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      messages,
+      tools: [{ name: 'build_site', description: 'Build or edit the website structure.', input_schema: claudeToolSchema }],
+      tool_choice: { type: 'tool', name: 'build_site' },
+    })
+
+    const toolUse = resp.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+    if (!toolUse) throw new ModelGenerationError('Claude did not return a tool call')
+
+    const validated = responseSchema.safeParse(toolUse.input)
+    if (validated.success) return validated.data
+
+    if (attempt === 0) {
+      // One repair attempt, same idea generateObject already gives the
+      // OpenAI path for free: echo the assistant's tool call back and tell
+      // it exactly what was wrong, then let it try again.
+      messages.push(
+        { role: 'assistant', content: resp.content },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: `That didn't match the required shape: ${validated.error.message}. Call build_site again with a corrected input.`,
+              is_error: true,
+            },
+          ],
+        }
+      )
+      continue
+    }
+    throw new ModelGenerationError('Claude could not produce a valid response after a retry')
+  }
+  throw new ModelGenerationError('Claude could not produce a valid response')
+}
+
+async function generateWithOpenAI(userPrompt: string): Promise<z.infer<typeof responseSchema>> {
+  const result = await generateObject({
+    model: openai('gpt-4o-mini'),
+    schema: responseSchema,
+    system: SYSTEM_PROMPT,
+    prompt: userPrompt,
+    // strictJsonSchema:false is no longer load-bearing for the open-record
+    // problem (the schema is closed now), but keeping it off still avoids
+    // paying for OpenAI's own strict-mode compile step we don't need here.
+    providerOptions: { openai: { strictJsonSchema: false } },
+  })
+  return result.object
+}
+
 // Reads the model's own proposed slug (which may contain "/" to nest a page
 // under another one, e.g. "services/plumbing-repair") and sanitizes it
 // segment-by-segment, falling back to a name-derived slug if the model left
@@ -326,30 +410,19 @@ export async function POST(req: Request) {
 
     let parsed: z.infer<typeof responseSchema>
     try {
-      const result = await generateObject({
-        model: openai('gpt-4o-mini'),
-        schema: responseSchema,
-        system: SYSTEM_PROMPT,
-        prompt: userPrompt,
-        // Section `data` fields vary per section type (hero vs. features vs.
-        // pricing, etc.), so the schema uses an open-ended record rather
-        // than one discriminated variant per section type. OpenAI's native
-        // Structured Outputs mode requires every field pre-enumerated and
-        // rejects open-ended records outright ("'propertyNames' is not
-        // permitted") — this falls back to JSON mode with the schema
-        // enforced client-side by the SDK instead (still validates/retries,
-        // just not via OpenAI's own strict enforcement).
-        providerOptions: { openai: { strictJsonSchema: false } },
-      })
-      parsed = result.object
+      parsed = MODEL_PROVIDER === 'anthropic' ? await generateWithClaude(userPrompt) : await generateWithOpenAI(userPrompt)
     } catch (err: any) {
-      if (err instanceof NoObjectGeneratedError) {
+      if (err instanceof NoObjectGeneratedError || err instanceof ModelGenerationError) {
         return NextResponse.json(
           { error: "The AI couldn't put together a valid response for that — try rephrasing your request." },
           { status: 502 }
         )
       }
-      if (err?.message?.includes('context_length') || err?.message?.includes('maximum context length')) {
+      if (
+        err?.message?.includes('context_length') ||
+        err?.message?.includes('maximum context length') ||
+        err?.message?.includes('prompt is too long')
+      ) {
         return NextResponse.json(
           {
             error:

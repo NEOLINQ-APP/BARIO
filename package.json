@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.24",
     "@ai-sdk/openai": "^4.0.24",
+    "@anthropic-ai/sdk": "^0.115.0",
     "@neondatabase/serverless": "^1.1.0",
     "@sentry/nextjs": "^10.67.0",
     "@vercel/blob": "^2.6.1",
@@ -19,6 +21,7 @@
     "jose": "^6.2.3",
     "next": "14.2.35",
     "openai": "^6.48.0",
+    "postgres": "^3.4.9",
     "react": "^18",
     "react-dom": "^18",
     "resend": "^6.17.2",
