@@ -390,6 +390,26 @@ async function ensureSchema() {
       PRIMARY KEY (crm_key, person_id)
     )
   `
+
+  // One row per Studio generation (video or voiceover). Credits are charged
+  // up front at submit time (same convention as the builder route) and
+  // refunded here if the job ends up failing — see app/api/studio/generate
+  // and app/api/cron/studio-reconcile.
+  await sql`
+    CREATE TABLE IF NOT EXISTS studio_jobs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      job_type TEXT NOT NULL,
+      provider_request_id TEXT,
+      input_params JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      output_url TEXT,
+      credits_charged INTEGER NOT NULL,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ
+    )
+  `
 }
 
 export async function db() {

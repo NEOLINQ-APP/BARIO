@@ -19,3 +19,10 @@ export function hasPaidPlan(user: Pick<User, 'subscription_status' | 'is_admin'>
   if (user.is_admin) return true
   return user.subscription_status === 'active'
 }
+
+// Same gate as the builder — verified email or admin. Studio isn't a
+// separate paid tier of its own; it's metered by credits like the builder,
+// so access itself follows the same "free to try, credits limit you" rule.
+export function hasStudioAccess(user: Pick<User, 'is_admin' | 'email_verified'>): boolean {
+  return hasBuilderAccess(user)
+}

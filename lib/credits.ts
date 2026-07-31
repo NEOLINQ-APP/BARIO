@@ -14,6 +14,26 @@ export function creditsForPlan(plan: string | null): number {
   return plan ? PLAN_CREDITS[plan] ?? PLAN_CREDITS.free : PLAN_CREDITS.free
 }
 
+// Studio (self-hosted video/voiceover generation on RunPod) is priced in
+// the same credit pool as the builder, but per-unit-of-real-compute rather
+// than a flat 1-per-generation — video generation cost scales with output
+// length, unlike a single LLM call. videoPerGpuSecond is a starting number,
+// not a measured one: it should be recalibrated against RunPod's actual
+// billed $/sec once the worker has real generation-time data (see the
+// approved Studio plan's verification step 7).
+export const STUDIO_CREDIT_COSTS = {
+  videoPerGpuSecond: 2,
+  voiceoverPer1kChars: 1,
+}
+
+export function creditsForVideoJob(estimatedGpuSeconds: number): number {
+  return Math.max(1, Math.ceil(estimatedGpuSeconds * STUDIO_CREDIT_COSTS.videoPerGpuSecond))
+}
+
+export function creditsForVoiceover(characterCount: number): number {
+  return Math.max(1, Math.ceil((characterCount / 1000) * STUDIO_CREDIT_COSTS.voiceoverPer1kChars))
+}
+
 // Lazily refills a user's credits if their reset date has passed, since
 // there's no cron job wired up — this runs the check on the next request
 // that touches credits rather than on a schedule. A null reset date means

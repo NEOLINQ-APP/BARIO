@@ -3,3 +3,4 @@
 // node:crypto, which lib/legal.ts needs for recordLegalAcceptance but can't
 // be bundled into browser JS.
 export const CURRENT_VPS_POLICY_VERSION = '2026-07-28'
+export const CURRENT_STUDIO_POLICY_VERSION = '2026-07-31'
