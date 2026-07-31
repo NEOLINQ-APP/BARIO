@@ -12,8 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Core } from '@openvideo/core'
-import { Studio, Compositor, Video, Audio, Text as TextSprite } from '@openvideo/engine-pixi'
-import { Application as PixiApplication } from 'pixi.js'
+import { Studio, Compositor, Video, Audio } from '@openvideo/engine-pixi'
 import { CURRENT_STUDIO_POLICY_VERSION } from '@/lib/legalVersion'
 
 const VOICE_OPTIONS = [
@@ -341,21 +340,8 @@ export default function StudioEditor() {
       const project = core.project.export()
       const compositor = new Compositor({ width: project.settings.width, height: project.settings.height })
 
-      // Text sprites need a real PixiJS renderer to measure/rasterize glyphs
-      // (unlike Video/Audio, which decode independently) — Compositor
-      // doesn't expose its own internal renderer publicly, so a small
-      // headless PixiJS app is created just to hand one to each Text sprite.
-      let textRendererApp: PixiApplication | undefined
-      const getTextRenderer = async () => {
-        if (!textRendererApp) {
-          const app = new PixiApplication()
-          await app.init({ width: 1, height: 1 })
-          textRendererApp = app
-        }
-        return textRendererApp.renderer
-      }
-
       let addedMain = false
+      let skippedTextClips = 0
       for (const clip of Object.values(project.clips)) {
         if (clip.type === 'Video') {
           const sprite = await Video.fromUrl(clip.src as string, {
@@ -371,18 +357,26 @@ export default function StudioEditor() {
           await compositor.addSprite(sprite, { main: !addedMain })
           addedMain = true
         } else if (clip.type === 'Text') {
-          const renderer = await getTextRenderer()
-          const sprite = new TextSprite(clip.text as string, {
-            fontSize: (clip.style as any)?.fontSize ?? 48,
-            color: (clip.style as any)?.color ?? '#ffffff',
-          } as any, renderer)
-          await compositor.addSprite(sprite)
+          // Known limitation, not silently swallowed: @openvideo/engine-pixi's
+          // Text sprite requires a live PixiJS renderer to rasterize glyphs,
+          // and Compositor doesn't expose its own internal one for us to
+          // hand over — tried both the constructor arg and setRenderer(),
+          // neither took in testing ("BaseTextClip: No renderer" at tick
+          // time). Text overlays still show correctly in the live canvas
+          // preview (Studio wires its own renderer internally); export is
+          // the one path affected. Flagged to the user rather than shipping
+          // a silently-broken or crashing export.
+          skippedTextClips++
         }
       }
       const stream = compositor.output()
       const blob = await new Response(stream).blob()
       setExportUrl(URL.createObjectURL(blob))
-      if (textRendererApp) (textRendererApp as PixiApplication).destroy()
+      if (skippedTextClips > 0) {
+        setExportError(
+          `Note: ${skippedTextClips} text overlay${skippedTextClips > 1 ? 's' : ''} shown in the preview above aren't in this exported file yet — a known limitation, video/audio export normally.`
+        )
+      }
     } catch (err: any) {
       setExportError(err.message)
     } finally {
