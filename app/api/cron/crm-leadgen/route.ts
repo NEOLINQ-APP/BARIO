@@ -9,7 +9,14 @@ import { logAdminAction } from '@/lib/adminActions'
 // needs a verified sending domain/mailbox for each business, which doesn't
 // exist yet (their real email still lives on their original hosts). Once
 // that's set up, this is the one place to wire actual sending in.
-export const maxDuration = 60
+export const maxDuration = 120
+
+// Caps how many NEW (not-yet-drafted) contacts get an AI draft per
+// invocation — with hundreds of contacts across both CRMs, drafting all of
+// them wouldn't fit in maxDuration. Already-drafted contacts are skipped
+// cheaply (one SQL check), so calling this repeatedly picks up where the
+// last run left off rather than reprocessing the same page every time.
+const MAX_NEW_PER_RUN = 20
 
 type CrmConfig = {
   key: string
@@ -73,12 +80,13 @@ async function processCrm(crm: CrmConfig, sql: any) {
 
   const data = await crmGraphQL(
     crm,
-    `query { people(first: 50) { edges { node { id name { firstName lastName } company { name } } } } }`,
+    `query { people(first: 500) { edges { node { id name { firstName lastName } company { name } } } } }`,
     {}
   )
   const people = (data?.people?.edges ?? []).map((e: any) => e.node)
 
   for (const person of people) {
+    if (result.drafted.length >= MAX_NEW_PER_RUN) break
     try {
       const already = await sql`SELECT 1 FROM crm_leadgen_drafted WHERE crm_key = ${crm.key} AND person_id = ${person.id}`
       if (already.length > 0) continue
