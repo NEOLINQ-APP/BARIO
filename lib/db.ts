@@ -1,13 +1,26 @@
-import { neon } from '@neondatabase/serverless'
+import postgres from 'postgres'
 
-let _sql: ReturnType<typeof neon> | undefined
+// Switched from @neondatabase/serverless to postgres.js when the project
+// moved off Neon to Supabase — Neon's driver only speaks its own HTTP proxy
+// protocol, not standard Postgres wire protocol, so it couldn't point at
+// Supabase at all. postgres.js supports the same `sql\`...\`` tagged-template
+// calling convention, so every call site elsewhere in the codebase is
+// unchanged. Points at Supabase's Supavisor pooler (transaction mode, port
+// 6543) rather than a direct connection — serverless functions can spin up
+// in large numbers, and a direct Postgres connection per invocation would
+// exhaust the database's connection limit fast; the pooler is built
+// specifically to absorb that. `max: 1` caps how many pooled connections any
+// single invocation opens, and `prepare: false` is required in transaction-
+// mode pooling, where a prepared statement from one query isn't guaranteed
+// to hit the same underlying connection on the next.
+let _sql: ReturnType<typeof postgres> | undefined
 let schemaReady: Promise<void> | undefined
 
 function getSql() {
   if (!_sql) {
     const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
     if (!url) throw new Error('DATABASE_URL is not set')
-    _sql = neon(url)
+    _sql = postgres(url, { ssl: 'require', max: 1, prepare: false })
   }
   return _sql
 }
@@ -212,6 +225,18 @@ async function ensureSchema() {
     )
   `
   await sql`
+    CREATE TABLE IF NOT EXISTS marketing_connections (
+      platform TEXT PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      access_token_secret TEXT,
+      refresh_token TEXT,
+      expires_at TIMESTAMPTZ,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      connected_by TEXT REFERENCES users(id),
+      connected_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
     CREATE TABLE IF NOT EXISTS gift_codes (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -350,6 +375,21 @@ async function ensureSchema() {
   // actually reach production, same as every other post-launch column
   // addition in this file.
   await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'`
+
+  // Tracks which CRM contacts already have an AI-drafted outreach note, so
+  // the lead-gen cron doesn't redraft the same person every run. Keyed by
+  // (crm_key, person_id) rather than a foreign key — the actual Person
+  // record lives in a separate Twenty CRM workspace's own Postgres, not
+  // this database.
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_leadgen_drafted (
+      crm_key TEXT NOT NULL,
+      person_id TEXT NOT NULL,
+      note_id TEXT,
+      drafted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (crm_key, person_id)
+    )
+  `
 }
 
 export async function db() {
@@ -511,6 +551,22 @@ export type MarketingPost = {
   created_by: string
   created_at: string
   posted_at: string | null
+}
+
+// One row per platform's OAuth connection. Facebook and Instagram share a
+// single Meta connection (a Page token covers both — Instagram posting just
+// needs the linked IG Business Account ID, stored in metadata_json), so
+// Instagram never gets its own row; its "connected" status is derived from
+// the facebook row having an igUserId in metadata.
+export type MarketingConnection = {
+  platform: MarketingPlatform
+  access_token: string
+  access_token_secret: string | null
+  refresh_token: string | null
+  expires_at: string | null
+  metadata_json: string
+  connected_by: string | null
+  connected_at: string
 }
 
 export type GiftCode = {
