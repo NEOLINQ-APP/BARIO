@@ -63,7 +63,7 @@ async function draftOutreachEmail(crm: CrmConfig, person: { firstName: string; l
         content: `Draft an outreach email to ${person.firstName} ${person.lastName}${person.companyName ? ` at ${person.companyName}` : ''}.`,
       },
     ],
-    max_tokens: 400,
+    max_completion_tokens: 400,
   })
   return completion.choices[0]?.message?.content?.trim() || ''
 }
