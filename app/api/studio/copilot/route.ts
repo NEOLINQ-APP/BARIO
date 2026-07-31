@@ -13,7 +13,7 @@ import { errorResponse } from '@/lib/errors'
 // the live canvas (see components/StudioEditor.tsx's copilot panel). One
 // round per user message — these are fire-once creation actions, not
 // lookups the model needs to reason over further within the same turn.
-const SYSTEM_PROMPT = `You are Bario Studio's AI assistant, embedded in a video/voiceover editor. Users describe what they want in plain language — in any language, respond in the same language they wrote in — and you call the right tool to create it for them. Not everyone using this is technical, so keep replies short, friendly, and non-jargon.
+const VIDEO_SYSTEM_PROMPT = `You are Bario Studio's AI assistant, embedded in a video/voiceover editor. Users describe what they want in plain language — in any language, respond in the same language they wrote in — and you call the right tool to create it for them. Not everyone using this is technical, so keep replies short, friendly, and non-jargon.
 
 Tools available:
 - generate_video: starts an AI video generation (takes a few minutes). Write a vivid, specific prompt yourself based on what the user described, don't just repeat their words verbatim if they were vague.
@@ -22,7 +22,15 @@ Tools available:
 
 Pick a sensible voice for generate_voiceover based on context (e.g. a warm female voice for a friendly brand video, unless the user asks for a specific gender/accent). Duration for generate_video must be between 1 and 10 seconds. If the user's request doesn't need a tool (e.g. they're just asking a question about how Studio works), just answer directly.`
 
-const TOOLS = [
+const DESIGN_SYSTEM_PROMPT = `You are Bario Studio's AI assistant, embedded in a static design tool (social media posts/stories). Users describe what they want in plain language — in any language, respond in the same language they wrote in — and you call the right tool to build it. Not everyone using this is technical, so keep replies short, friendly, and non-jargon.
+
+Tools available:
+- add_text_overlay: adds a headline/caption text layer directly.
+- search_stock_image: searches real stock photos and adds a matching one as an image layer — use this whenever the user wants a background or photo and hasn't uploaded their own.
+
+If the user's request doesn't need a tool, just answer directly.`
+
+const VIDEO_TOOLS = [
   {
     type: 'function' as const,
     function: {
@@ -57,19 +65,33 @@ const TOOLS = [
       },
     },
   },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'add_text_overlay',
-      description: 'Add a text overlay clip to the canvas immediately (no generation delay).',
-      parameters: {
-        type: 'object',
-        properties: { text: { type: 'string' } },
-        required: ['text'],
-      },
+]
+
+const ADD_TEXT_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'add_text_overlay',
+    description: 'Add a text overlay/layer to the canvas immediately (no generation delay).',
+    parameters: {
+      type: 'object',
+      properties: { text: { type: 'string' } },
+      required: ['text'],
     },
   },
-]
+}
+
+const SEARCH_STOCK_IMAGE_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'search_stock_image',
+    description: 'Search real stock photos and add a matching one as an image layer.',
+    parameters: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'A short, specific search query, e.g. "coffee shop interior"' } },
+      required: ['query'],
+    },
+  },
+}
 
 const MAX_MESSAGE_LENGTH = 2000
 const MAX_HISTORY = 20
@@ -89,6 +111,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => null)
     const incoming = Array.isArray(body?.messages) ? body.messages : null
     const clipsSummary = typeof body?.clipsSummary === 'string' ? body.clipsSummary.slice(0, 1000) : ''
+    const mode = body?.mode === 'design' ? 'design' : 'video'
     if (!incoming || incoming.length === 0) {
       return NextResponse.json({ error: 'No message provided' }, { status: 400 })
     }
@@ -102,13 +125,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No message provided' }, { status: 400 })
     }
 
+    const basePrompt = mode === 'design' ? DESIGN_SYSTEM_PROMPT : VIDEO_SYSTEM_PROMPT
+    const tools = mode === 'design' ? [ADD_TEXT_TOOL, SEARCH_STOCK_IMAGE_TOOL] : [...VIDEO_TOOLS, ADD_TEXT_TOOL]
+
     const openai = getOpenAI()
-    const systemContent = clipsSummary ? `${SYSTEM_PROMPT}\n\nCurrent canvas contents: ${clipsSummary}` : SYSTEM_PROMPT
+    const systemContent = clipsSummary ? `${basePrompt}\n\nCurrent canvas contents: ${clipsSummary}` : basePrompt
     const completion = await openai.chat.completions.create({
       model: 'gpt-5.6-luna',
       max_completion_tokens: 500,
       messages: [{ role: 'system', content: systemContent }, ...cleaned],
-      tools: TOOLS,
+      tools,
       // gpt-5.6-luna is a reasoning model — function tools on the chat
       // completions endpoint are only supported with reasoning disabled
       // (confirmed via a live 400: "Function tools with reasoning_effort

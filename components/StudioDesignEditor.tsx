@@ -26,6 +26,109 @@ const TEMPLATES = [
 
 type Template = (typeof TEMPLATES)[number]
 type ClipSummary = { id: string; type: string; name: string }
+type ChatMessage = { role: 'user' | 'assistant'; content: string }
+
+function DesignCopilotPanel({
+  clips,
+  addTextClip,
+  addImageFromUrl,
+}: {
+  clips: ClipSummary[]
+  addTextClip: (text: string) => Promise<void>
+  addImageFromUrl: (url: string, name: string) => Promise<void>
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: 'assistant', content: 'Tell me what to add — a headline, or a photo to search for.' },
+  ])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function runTool(name: string, args: any): Promise<string> {
+    if (name === 'add_text_overlay') {
+      await addTextClip(String(args.text || ''))
+      return 'Added the text layer.'
+    }
+    if (name === 'search_stock_image') {
+      const res = await fetch('/api/studio/stock-image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query: args.query }),
+      })
+      const data = await res.json()
+      if (!res.ok) return `Couldn't find a photo for "${args.query}": ${data.error}`
+      await addImageFromUrl(data.url, String(args.query || 'stock photo').slice(0, 40))
+      return 'Added a matching photo.'
+    }
+    return `Unknown tool: ${name}`
+  }
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || busy) return
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: text }]
+    setMessages(nextMessages)
+    setInput('')
+    setBusy(true)
+    try {
+      const clipsSummary = clips.length === 0 ? 'empty canvas' : clips.map((c) => `${c.type}: ${c.name}`).join('; ')
+      const res = await fetch('/api/studio/copilot', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: nextMessages, clipsSummary, mode: 'design' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.error || 'Something went wrong.' }])
+        return
+      }
+      for (const call of data.toolCalls || []) {
+        const resultText = await runTool(call.name, call.args)
+        setMessages((m) => [...m, { role: 'assistant', content: resultText }])
+      }
+      if (data.reply) setMessages((m) => [...m, { role: 'assistant', content: data.reply }])
+    } catch (err: any) {
+      setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong: ${err.message}` }])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-[420px]">
+      <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`text-sm rounded-lg px-3 py-2 max-w-[90%] ${
+              m.role === 'user' ? 'ml-auto bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200'
+            }`}
+          >
+            {m.content}
+          </div>
+        ))}
+        {busy && <div className="text-xs text-slate-400 animate-pulse">Working…</div>}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="e.g. Add a photo of a cozy coffee shop"
+          disabled={busy}
+          className="flex-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
+        />
+        <button
+          onClick={handleSend}
+          disabled={busy || !input.trim()}
+          className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Owns one canvas + Core + Studio for exactly one template. Keyed by
 // template.id at the call site so switching templates fully unmounts this
@@ -41,6 +144,7 @@ function DesignCanvasSession({ template }: { template: Template }) {
   const [text, setText] = useState('')
   const [exportUrl, setExportUrl] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
+  const [sidebarTab, setSidebarTab] = useState<'assistant' | 'manual'>('assistant')
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -84,6 +188,23 @@ function DesignCanvasSession({ template }: { template: Template }) {
 
   function removeClip(id: string) {
     coreRef.current?.clip.remove([id])
+  }
+
+  async function addTextClipFor(text: string) {
+    const core = coreRef.current
+    if (!core) return
+    await core.clip.add({
+      type: 'Text',
+      text,
+      name: text.slice(0, 40),
+      style: { fontSize: 64, color: '#ffffff', align: 'center' },
+    } as any)
+  }
+
+  async function addImageFromUrl(url: string, name: string) {
+    const core = coreRef.current
+    if (!core) return
+    await core.clip.add({ type: 'Image', src: url, name })
   }
 
   async function handleExportPng() {
@@ -133,28 +254,49 @@ function DesignCanvasSession({ template }: { template: Template }) {
         )}
       </div>
 
-      <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 space-y-4">
-        <div>
-          <label className="text-sm font-medium block mb-1">Add image</label>
-          <input type="file" accept="image/*" onChange={handleImageUpload} className="text-sm" />
-        </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Add text</label>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Your headline"
-            rows={3}
-            className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
-          />
+      <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
+        <div className="flex gap-2 mb-4">
           <button
-            onClick={handleAddText}
-            disabled={!text.trim()}
-            className="w-full mt-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+            onClick={() => setSidebarTab('assistant')}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${sidebarTab === 'assistant' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
           >
-            Add text
+            Assistant
+          </button>
+          <button
+            onClick={() => setSidebarTab('manual')}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${sidebarTab === 'manual' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
+          >
+            Manual
           </button>
         </div>
+
+        {sidebarTab === 'assistant' ? (
+          <DesignCopilotPanel clips={clips} addTextClip={addTextClipFor} addImageFromUrl={addImageFromUrl} />
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium block mb-1">Add image</label>
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Add text</label>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Your headline"
+                rows={3}
+                className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
+              />
+              <button
+                onClick={handleAddText}
+                disabled={!text.trim()}
+                className="w-full mt-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+              >
+                Add text
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
