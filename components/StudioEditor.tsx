@@ -93,6 +93,143 @@ function MusicAddPanel({ onAdd }: { onAdd: AddMusicClip }) {
   )
 }
 
+async function pollStudioJob(jobId: string): Promise<{ outputUrl: string } | { error: string }> {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000))
+    const res = await fetch(`/api/studio/status/${jobId}`)
+    const data = await res.json()
+    if (!res.ok) return { error: data.error ?? 'Something went wrong' }
+    if (data.status === 'complete') return { outputUrl: data.outputUrl }
+    if (data.status === 'failed') return { error: data.error ?? 'Generation failed — credits were refunded.' }
+  }
+}
+
+type ChatMessage = { role: 'user' | 'assistant'; content: string }
+
+function CopilotPanel({
+  clips,
+  addClipToCanvas,
+  addTextClip,
+}: {
+  clips: ClipSummary[]
+  addClipToCanvas: AddClip
+  addTextClip: AddTextClip
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { role: 'assistant', content: "Tell me what you want to create — I can generate video, voiceover, or add text, in any language." },
+  ])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function runTool(name: string, args: any): Promise<string> {
+    if (name === 'add_text_overlay') {
+      await addTextClip(String(args.text || ''))
+      return 'Added the text overlay to the canvas.'
+    }
+    if (name === 'generate_voiceover') {
+      const res = await fetch('/api/studio/voiceover', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: args.text, voiceId: args.voiceId }),
+      })
+      const data = await res.json()
+      if (!res.ok) return `Couldn't generate the voiceover: ${data.error}`
+      await addClipToCanvas('Audio', data.url, String(args.text || '').slice(0, 40))
+      return 'Voiceover generated and added to the canvas.'
+    }
+    if (name === 'generate_video') {
+      const res = await fetch('/api/studio/generate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: args.prompt, durationSeconds: args.durationSeconds }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.requiresAup) {
+          return 'You need to accept the Studio Acceptable Use Policy first — switch to the Video tab, check the box, then ask me again.'
+        }
+        return `Couldn't start the generation: ${data.error}`
+      }
+      const result = await pollStudioJob(data.jobId)
+      if ('error' in result) return `Video generation failed: ${result.error}`
+      await addClipToCanvas('Video', result.outputUrl, String(args.prompt || '').slice(0, 40))
+      return 'Video generated and added to the canvas.'
+    }
+    return `Unknown tool: ${name}`
+  }
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || busy) return
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: text }]
+    setMessages(nextMessages)
+    setInput('')
+    setBusy(true)
+    try {
+      const clipsSummary = clips.length === 0 ? 'empty canvas' : clips.map((c) => `${c.type}: ${c.name}`).join('; ')
+      const res = await fetch('/api/studio/copilot', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: nextMessages, clipsSummary }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.error || 'Something went wrong.' }])
+        return
+      }
+      for (const call of data.toolCalls || []) {
+        const resultText = await runTool(call.name, call.args)
+        setMessages((m) => [...m, { role: 'assistant', content: resultText }])
+      }
+      if (data.reply) {
+        setMessages((m) => [...m, { role: 'assistant', content: data.reply }])
+      }
+    } catch (err: any) {
+      setMessages((m) => [...m, { role: 'assistant', content: `Something went wrong: ${err.message}` }])
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-[420px]">
+      <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`text-sm rounded-lg px-3 py-2 max-w-[90%] ${
+              m.role === 'user'
+                ? 'ml-auto bg-amber-500 text-white'
+                : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200'
+            }`}
+          >
+            {m.content}
+          </div>
+        ))}
+        {busy && <div className="text-xs text-slate-400 animate-pulse">Working…</div>}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="e.g. Make a video of a sunset over the ocean with calm music"
+          disabled={busy}
+          className="flex-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
+        />
+        <button
+          onClick={handleSend}
+          disabled={busy || !input.trim()}
+          className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function VideoGeneratePanel({ onClipReady }: { onClipReady: AddClip }) {
   const [prompt, setPrompt] = useState('')
   const [sourceImageUrl, setSourceImageUrl] = useState('')
@@ -275,7 +412,7 @@ export default function StudioEditor() {
   const studioRef = useRef<Studio | null>(null)
   const [ready, setReady] = useState(false)
   const [clips, setClips] = useState<ClipSummary[]>([])
-  const [tab, setTab] = useState<'video' | 'voiceover' | 'text' | 'music'>('video')
+  const [tab, setTab] = useState<'assistant' | 'video' | 'voiceover' | 'text' | 'music'>('assistant')
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportUrl, setExportUrl] = useState<string | null>(null)
@@ -422,7 +559,7 @@ export default function StudioEditor() {
 
       <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
         <div className="flex gap-2 mb-4 flex-wrap">
-          {(['video', 'voiceover', 'text', 'music'] as const).map((t) => (
+          {(['assistant', 'video', 'voiceover', 'text', 'music'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -432,6 +569,7 @@ export default function StudioEditor() {
             </button>
           ))}
         </div>
+        {tab === 'assistant' && <CopilotPanel clips={clips} addClipToCanvas={addClipToCanvas} addTextClip={addTextClip} />}
         {tab === 'video' && <VideoGeneratePanel onClipReady={addClipToCanvas} />}
         {tab === 'voiceover' && <VoiceoverGeneratePanel onClipReady={addClipToCanvas} />}
         {tab === 'text' && <TextAddPanel onAdd={addTextClip} />}
