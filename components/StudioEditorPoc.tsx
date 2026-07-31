@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Core } from '@openvideo/core'
-import { Studio, Compositor } from '@openvideo/engine-pixi'
+import { Studio, Compositor, Video } from '@openvideo/engine-pixi'
 
 export default function StudioEditorPoc() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -66,9 +66,19 @@ export default function StudioEditorPoc() {
     const project = core.project.export()
     const compositor = new Compositor({ width: project.settings.width, height: project.settings.height })
     for (const clip of Object.values(project.clips)) {
-      // POC only adds the one uploaded clip as a sprite — the real
-      // integration (step 2+) will mirror the full track/clip list.
-      await compositor.addSprite(clip as any, { main: true })
+      // Compositor needs a real engine-pixi sprite instance (with tick/clone/
+      // getFrame), not the plain data object Core stores — Video.fromUrl()
+      // is the documented conversion for the video clip type. POC only
+      // handles Video; the real integration (step 2+) needs the equivalent
+      // for Audio/Image/Text too.
+      if (clip.type !== 'Video') continue
+      const sprite = await Video.fromUrl(clip.src as string, {
+        x: clip.transform.x,
+        y: clip.transform.y,
+        width: clip.transform.width,
+        height: clip.transform.height,
+      })
+      await compositor.addSprite(sprite, { main: true })
     }
     const stream = compositor.output()
     const response = new Response(stream)
