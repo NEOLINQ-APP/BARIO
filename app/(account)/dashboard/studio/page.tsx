@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import StudioEditor from '@/components/StudioEditor'
+import StudioModeSwitch from '@/components/StudioModeSwitch'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,10 +19,10 @@ export default async function StudioPage() {
       <div className="max-w-5xl">
         <h1 className="text-2xl font-bold">Studio</h1>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 mb-6">
-          Generate AI video and voiceover clips and combine them into a real export — credits are charged per generation.
+          Generate AI video/voiceover or design social posts — credits are charged per AI generation.
         </p>
 
-        <StudioEditor />
+        <StudioModeSwitch />
       </div>
     </main>
   )
