@@ -17,11 +17,29 @@ import { useEffect, useRef, useState } from 'react'
 import { Core } from '@openvideo/core'
 import { Studio } from '@openvideo/engine-pixi'
 
+// Print dimensions include a standard 0.125in bleed on each side (content
+// can extend to the trimmed edge with no visible white sliver) — this is
+// the actual canvas size; there's no separate crop-mark overlay in this
+// v1, callers should keep key content away from the outer ~0.125in.
+// Signs use 100 DPI rather than 300 — real print-industry practice for
+// large-format output viewed from a distance, not a corner cut; a 300 DPI
+// canvas at true poster size would also be far too large for a browser
+// canvas/WebGL texture to handle well.
+const BLEED_IN = 0.125
+function printSize(widthIn: number, heightIn: number, dpi: number) {
+  const w = widthIn + BLEED_IN * 2
+  const h = heightIn + BLEED_IN * 2
+  return { width: Math.round(w * dpi), height: Math.round(h * dpi), widthIn: w, heightIn: h, dpi }
+}
+
 const TEMPLATES = [
-  { id: 'ig-post', label: 'Instagram Post', width: 1080, height: 1080 },
-  { id: 'ig-story', label: 'Instagram/TikTok Story', width: 1080, height: 1920 },
-  { id: 'fb-post', label: 'Facebook Post', width: 1200, height: 630 },
-  { id: 'x-post', label: 'X (Twitter) Post', width: 1600, height: 900 },
+  { id: 'ig-post', label: 'Instagram Post', width: 1080, height: 1080, category: 'social' as const },
+  { id: 'ig-story', label: 'Instagram/TikTok Story', width: 1080, height: 1920, category: 'social' as const },
+  { id: 'fb-post', label: 'Facebook Post', width: 1200, height: 630, category: 'social' as const },
+  { id: 'x-post', label: 'X (Twitter) Post', width: 1600, height: 900, category: 'social' as const },
+  { id: 'business-card', label: 'Business Card (3.5×2in)', ...printSize(3.5, 2, 300), category: 'print' as const },
+  { id: 'flyer', label: 'Flyer / Brochure (Letter)', ...printSize(8.5, 11, 300), category: 'print' as const },
+  { id: 'sign', label: 'Yard Sign (18×24in)', ...printSize(18, 24, 100), category: 'print' as const },
 ] as const
 
 type Template = (typeof TEMPLATES)[number]
@@ -144,6 +162,8 @@ function DesignCanvasSession({ template }: { template: Template }) {
   const [text, setText] = useState('')
   const [exportUrl, setExportUrl] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
+  const [pdfExportUrl, setPdfExportUrl] = useState<string | null>(null)
+  const [pdfExportBusy, setPdfExportBusy] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'assistant' | 'manual'>('assistant')
 
   useEffect(() => {
@@ -219,6 +239,37 @@ function DesignCanvasSession({ template }: { template: Template }) {
     }
   }
 
+  // Print-ready PDF: pdf-lib pages are sized in points (1/72in) at the
+  // template's true physical size (including bleed) — the embedded PNG's
+  // own pixel resolution (300/100 DPI per printSize()) is what determines
+  // sharpness, not the page's point-dimensions, so this comes out correctly
+  // sized regardless. Honest caveat, not hidden: this embeds the canvas's
+  // native RGB output, not a real CMYK-converted file — most online print
+  // services accept and correctly convert high-res RGB themselves, but this
+  // isn't a full press-ready color-managed pipeline.
+  async function handleExportPdf() {
+    const studio = studioRef.current
+    if (!studio || template.category !== 'print') return
+    setPdfExportBusy(true)
+    try {
+      const dataUrl = await studio.snapshot()
+      const base64 = dataUrl.split(',')[1]
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+      const { PDFDocument } = await import('pdf-lib')
+      const pdfDoc = await PDFDocument.create()
+      const pngImage = await pdfDoc.embedPng(bytes)
+      const pageWidthPt = template.widthIn * 72
+      const pageHeightPt = template.heightIn * 72
+      const page = pdfDoc.addPage([pageWidthPt, pageHeightPt])
+      page.drawImage(pngImage, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt })
+      const pdfBytes = await pdfDoc.save()
+      const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' })
+      setPdfExportUrl(URL.createObjectURL(blob))
+    } finally {
+      setPdfExportBusy(false)
+    }
+  }
+
   return (
     <div className="grid md:grid-cols-[1fr_320px] gap-6">
       <div className="space-y-3">
@@ -237,18 +288,41 @@ function DesignCanvasSession({ template }: { template: Template }) {
           </ul>
         </div>
 
-        <button
-          onClick={handleExportPng}
-          disabled={!ready || clips.length === 0 || exportBusy}
-          className="rounded-lg bg-slate-800 dark:bg-zinc-700 text-white text-sm px-4 py-2 disabled:opacity-50"
-        >
-          {exportBusy ? 'Exporting…' : 'Export PNG'}
-        </button>
+        {template.category === 'print' && (
+          <p className="text-xs text-slate-500 dark:text-zinc-400">
+            {template.widthIn.toFixed(3)}×{template.heightIn.toFixed(3)}in at {template.dpi} DPI, includes {BLEED_IN}in bleed. PDF export embeds high-res RGB — not a full CMYK color-managed file.
+          </p>
+        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleExportPng}
+            disabled={!ready || clips.length === 0 || exportBusy}
+            className="rounded-lg bg-slate-800 dark:bg-zinc-700 text-white text-sm px-4 py-2 disabled:opacity-50"
+          >
+            {exportBusy ? 'Exporting…' : 'Export PNG'}
+          </button>
+          {template.category === 'print' && (
+            <button
+              onClick={handleExportPdf}
+              disabled={!ready || clips.length === 0 || pdfExportBusy}
+              className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm px-4 py-2 disabled:opacity-50"
+            >
+              {pdfExportBusy ? 'Exporting…' : 'Export PDF (print-ready)'}
+            </button>
+          )}
+        </div>
         {exportUrl && (
           <div className="space-y-1">
             <img src={exportUrl} alt="Export preview" className="w-full max-w-lg rounded-lg border border-slate-300 dark:border-zinc-700" />
             <a href={exportUrl} download={`bario-design-${template.id}.png`} className="text-xs text-amber-600 dark:text-[#f59e0b] underline">
-              Download
+              Download PNG
+            </a>
+          </div>
+        )}
+        {pdfExportUrl && (
+          <div className="space-y-1">
+            <a href={pdfExportUrl} download={`bario-design-${template.id}.pdf`} className="text-xs text-amber-600 dark:text-[#f59e0b] underline">
+              Download PDF
             </a>
           </div>
         )}
@@ -305,18 +379,36 @@ function DesignCanvasSession({ template }: { template: Template }) {
 export default function StudioDesignEditor() {
   const [template, setTemplate] = useState<Template>(TEMPLATES[0])
 
+  const socialTemplates = TEMPLATES.filter((t) => t.category === 'social')
+  const printTemplates = TEMPLATES.filter((t) => t.category === 'print')
+
   return (
     <div>
-      <div className="flex gap-2 flex-wrap mb-3">
-        {TEMPLATES.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTemplate(t)}
-            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${template.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
-          >
-            {t.label} ({t.width}×{t.height})
-          </button>
-        ))}
+      <div className="mb-3">
+        <p className="text-xs font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Social</p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          {socialTemplates.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTemplate(t)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg ${template.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs font-medium text-slate-500 dark:text-zinc-400 mb-1.5">Print</p>
+        <div className="flex gap-2 flex-wrap">
+          {printTemplates.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTemplate(t)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg ${template.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
       <DesignCanvasSession key={template.id} template={template} />
     </div>
