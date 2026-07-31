@@ -45,5 +45,10 @@ RUN pip install --no-cache-dir "kokoro>=0.9.4" soundfile numpy
 # same local ComfyUI server it expects at 127.0.0.1:8188 — /start.sh (from
 # the base image, unchanged) still launches ComfyUI itself; only which
 # Python file handles the actual RunPod job is being swapped here.
-COPY handler.py /handler.py
-COPY kokoro_tts.py /kokoro_tts.py
+#
+# Paths below are relative to the BUILD CONTEXT, not this Dockerfile's own
+# directory — RunPod's GitHub-repo build uses the repo root as context even
+# though this Dockerfile lives in studio-worker/ (confirmed via a real
+# failed build: "COPY handler.py /handler.py: not found" until prefixed).
+COPY studio-worker/handler.py /handler.py
+COPY studio-worker/kokoro_tts.py /kokoro_tts.py
