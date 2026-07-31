@@ -24,10 +24,15 @@ const TEMPLATES = [
   { id: 'x-post', label: 'X (Twitter) Post', width: 1600, height: 900 },
 ] as const
 
+type Template = (typeof TEMPLATES)[number]
 type ClipSummary = { id: string; type: string; name: string }
 
-export default function StudioDesignEditor() {
-  const [template, setTemplate] = useState<(typeof TEMPLATES)[number]>(TEMPLATES[0])
+// Owns one canvas + Core + Studio for exactly one template. Keyed by
+// template.id at the call site so switching templates fully unmounts this
+// (fresh <canvas> DOM node, fresh WebGL context) rather than recreating a
+// PixiJS Application on a reused canvas element — the latter hung the
+// entire tab in testing (real WebGL context-reuse bug, not just a UI glitch).
+function DesignCanvasSession({ template }: { template: Template }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const coreRef = useRef<Core | null>(null)
   const studioRef = useRef<Studio | null>(null)
@@ -37,14 +42,8 @@ export default function StudioDesignEditor() {
   const [exportUrl, setExportUrl] = useState<string | null>(null)
   const [exportBusy, setExportBusy] = useState(false)
 
-  // Re-mount the engine whenever the template (canvas size) changes —
-  // Studio's dimensions are fixed at construction time.
   useEffect(() => {
     if (!canvasRef.current) return
-    setReady(false)
-    setClips([])
-    setExportUrl(null)
-
     const core = new Core({ settings: { width: template.width, height: template.height, fps: 30, duration: 0 } })
     coreRef.current = core
 
@@ -102,18 +101,6 @@ export default function StudioDesignEditor() {
   return (
     <div className="grid md:grid-cols-[1fr_320px] gap-6">
       <div className="space-y-3">
-        <div className="flex gap-2 flex-wrap">
-          {TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTemplate(t)}
-              className={`text-sm font-medium px-3 py-1.5 rounded-lg ${template.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
-            >
-              {t.label} ({t.width}×{t.height})
-            </button>
-          ))}
-        </div>
-
         <canvas ref={canvasRef} className="w-full max-w-lg border border-slate-300 dark:border-zinc-700 rounded-lg bg-black" />
 
         <div className="rounded-lg border border-slate-300 dark:border-zinc-700 p-3">
@@ -169,6 +156,27 @@ export default function StudioDesignEditor() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+export default function StudioDesignEditor() {
+  const [template, setTemplate] = useState<Template>(TEMPLATES[0])
+
+  return (
+    <div>
+      <div className="flex gap-2 flex-wrap mb-3">
+        {TEMPLATES.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTemplate(t)}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${template.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
+          >
+            {t.label} ({t.width}×{t.height})
+          </button>
+        ))}
+      </div>
+      <DesignCanvasSession key={template.id} template={template} />
     </div>
   )
 }
