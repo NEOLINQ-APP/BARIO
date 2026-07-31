@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Core } from '@openvideo/core'
-import { Studio, Compositor, Video, Audio } from '@openvideo/engine-pixi'
+import { Studio, Compositor, Video, Audio, Text as TextSprite } from '@openvideo/engine-pixi'
 import { CURRENT_STUDIO_POLICY_VERSION } from '@/lib/legalVersion'
 
 const VOICE_OPTIONS = [
@@ -27,6 +27,71 @@ const VOICE_OPTIONS = [
 type JobStatus = 'idle' | 'submitting' | 'pending' | 'processing' | 'complete' | 'failed'
 type ClipSummary = { id: string; type: string; name: string }
 type AddClip = (type: 'Video' | 'Audio', src: string, name: string) => Promise<void>
+type AddTextClip = (text: string) => Promise<void>
+type AddMusicClip = (file: File) => Promise<void>
+
+function TextAddPanel({ onAdd }: { onAdd: AddTextClip }) {
+  const [text, setText] = useState('')
+
+  async function handleAdd() {
+    if (!text.trim()) return
+    await onAdd(text.trim())
+    setText('')
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-sm font-medium block mb-1">Text overlay</label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Your headline or caption"
+          rows={3}
+          className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
+        />
+      </div>
+      <button
+        onClick={handleAdd}
+        disabled={!text.trim()}
+        className="w-full rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2"
+      >
+        Add text to canvas
+      </button>
+    </div>
+  )
+}
+
+function MusicAddPanel({ onAdd }: { onAdd: AddMusicClip }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError(null)
+    setBusy(true)
+    try {
+      await onAdd(file)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="text-sm font-medium block mb-1">Upload a music/audio track</label>
+        <input type="file" accept="audio/*" onChange={handleFile} disabled={busy} className="text-sm" />
+      </div>
+      {busy && <p className="text-xs text-slate-500 dark:text-zinc-400">Adding…</p>}
+      {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+    </div>
+  )
+}
 
 function VideoGeneratePanel({ onClipReady }: { onClipReady: AddClip }) {
   const [prompt, setPrompt] = useState('')
@@ -210,7 +275,7 @@ export default function StudioEditor() {
   const studioRef = useRef<Studio | null>(null)
   const [ready, setReady] = useState(false)
   const [clips, setClips] = useState<ClipSummary[]>([])
-  const [tab, setTab] = useState<'video' | 'voiceover'>('video')
+  const [tab, setTab] = useState<'video' | 'voiceover' | 'text' | 'music'>('video')
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportUrl, setExportUrl] = useState<string | null>(null)
@@ -238,6 +303,24 @@ export default function StudioEditor() {
     const core = coreRef.current
     if (!core) return
     await core.clip.add({ type, src, name })
+  }, [])
+
+  const addTextClip = useCallback<AddTextClip>(async (text) => {
+    const core = coreRef.current
+    if (!core) return
+    await core.clip.add({
+      type: 'Text',
+      text,
+      name: text.slice(0, 40),
+      style: { fontSize: 48, color: '#ffffff', align: 'center' },
+    } as any)
+  }, [])
+
+  const addMusicClip = useCallback<AddMusicClip>(async (file) => {
+    const core = coreRef.current
+    if (!core) return
+    const objectUrl = URL.createObjectURL(file)
+    await core.clip.add({ type: 'Audio', src: objectUrl, name: file.name })
   }, [])
 
   function removeClip(id: string) {
@@ -271,6 +354,12 @@ export default function StudioEditor() {
           const sprite = await Audio.fromUrl(clip.src as string)
           await compositor.addSprite(sprite, { main: !addedMain })
           addedMain = true
+        } else if (clip.type === 'Text') {
+          const sprite = new TextSprite(clip.text as string, {
+            fontSize: (clip.style as any)?.fontSize ?? 48,
+            fill: (clip.style as any)?.color ?? '#ffffff',
+          } as any)
+          await compositor.addSprite(sprite)
         }
       }
       const stream = compositor.output()
@@ -320,21 +409,21 @@ export default function StudioEditor() {
       </div>
 
       <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setTab('video')}
-            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${tab === 'video' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
-          >
-            Video
-          </button>
-          <button
-            onClick={() => setTab('voiceover')}
-            className={`text-sm font-medium px-3 py-1.5 rounded-lg ${tab === 'voiceover' ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
-          >
-            Voiceover
-          </button>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {(['video', 'voiceover', 'text', 'music'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg capitalize ${tab === t ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300'}`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
-        {tab === 'video' ? <VideoGeneratePanel onClipReady={addClipToCanvas} /> : <VoiceoverGeneratePanel onClipReady={addClipToCanvas} />}
+        {tab === 'video' && <VideoGeneratePanel onClipReady={addClipToCanvas} />}
+        {tab === 'voiceover' && <VoiceoverGeneratePanel onClipReady={addClipToCanvas} />}
+        {tab === 'text' && <TextAddPanel onAdd={addTextClip} />}
+        {tab === 'music' && <MusicAddPanel onAdd={addMusicClip} />}
       </div>
     </div>
   )
