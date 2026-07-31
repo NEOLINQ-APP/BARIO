@@ -109,6 +109,13 @@ export async function POST(req: Request) {
       max_completion_tokens: 500,
       messages: [{ role: 'system', content: systemContent }, ...cleaned],
       tools: TOOLS,
+      // gpt-5.6-luna is a reasoning model — function tools on the chat
+      // completions endpoint are only supported with reasoning disabled
+      // (confirmed via a live 400: "Function tools with reasoning_effort
+      // are not supported... set reasoning_effort to 'none'"). These are
+      // simple, fast intent-classification calls, not deep reasoning tasks,
+      // so this isn't a real capability tradeoff here.
+      reasoning_effort: 'none',
     })
 
     const msg = completion.choices[0].message
