@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Core } from '@openvideo/core'
 import { Studio, Compositor, Video, Audio, Text as TextSprite } from '@openvideo/engine-pixi'
+import { Application as PixiApplication } from 'pixi.js'
 import { CURRENT_STUDIO_POLICY_VERSION } from '@/lib/legalVersion'
 
 const VOICE_OPTIONS = [
@@ -339,6 +340,21 @@ export default function StudioEditor() {
 
       const project = core.project.export()
       const compositor = new Compositor({ width: project.settings.width, height: project.settings.height })
+
+      // Text sprites need a real PixiJS renderer to measure/rasterize glyphs
+      // (unlike Video/Audio, which decode independently) — Compositor
+      // doesn't expose its own internal renderer publicly, so a small
+      // headless PixiJS app is created just to hand one to each Text sprite.
+      let textRendererApp: PixiApplication | undefined
+      const getTextRenderer = async () => {
+        if (!textRendererApp) {
+          const app = new PixiApplication()
+          await app.init({ width: 1, height: 1 })
+          textRendererApp = app
+        }
+        return textRendererApp.renderer
+      }
+
       let addedMain = false
       for (const clip of Object.values(project.clips)) {
         if (clip.type === 'Video') {
@@ -355,16 +371,18 @@ export default function StudioEditor() {
           await compositor.addSprite(sprite, { main: !addedMain })
           addedMain = true
         } else if (clip.type === 'Text') {
+          const renderer = await getTextRenderer()
           const sprite = new TextSprite(clip.text as string, {
             fontSize: (clip.style as any)?.fontSize ?? 48,
-            fill: (clip.style as any)?.color ?? '#ffffff',
-          } as any)
+            color: (clip.style as any)?.color ?? '#ffffff',
+          } as any, renderer)
           await compositor.addSprite(sprite)
         }
       }
       const stream = compositor.output()
       const blob = await new Response(stream).blob()
       setExportUrl(URL.createObjectURL(blob))
+      if (textRendererApp) (textRendererApp as PixiApplication).destroy()
     } catch (err: any) {
       setExportError(err.message)
     } finally {
