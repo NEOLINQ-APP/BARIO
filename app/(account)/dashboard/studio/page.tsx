@@ -17,10 +17,17 @@ export default async function StudioPage() {
   return (
     <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-5xl">
-        <h1 className="text-2xl font-bold">Studio</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 mb-6">
-          Generate AI video/voiceover or design social posts — credits are charged per AI generation.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Studio</h1>
+            <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 mb-6">
+              Generate AI video/voiceover or design social posts — credits are charged per AI generation.
+            </p>
+          </div>
+          <a href="/help/studio" target="_blank" rel="noopener noreferrer" className="text-sm text-amber-600 dark:text-[#f59e0b] underline whitespace-nowrap mt-1">
+            How to use Studio / FAQ
+          </a>
+        </div>
 
         <StudioModeSwitch />
       </div>

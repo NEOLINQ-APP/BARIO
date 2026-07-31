@@ -273,7 +273,9 @@ function DesignCanvasSession({ template }: { template: Template }) {
   return (
     <div className="grid md:grid-cols-[1fr_320px] gap-6">
       <div className="space-y-3">
-        <canvas ref={canvasRef} className="w-full max-w-lg border border-slate-300 dark:border-zinc-700 rounded-lg bg-black" />
+        <div className="max-h-[70vh] flex items-center justify-center border border-slate-300 dark:border-zinc-700 rounded-lg bg-black overflow-hidden">
+          <canvas ref={canvasRef} className="max-w-full max-h-[70vh] w-auto h-auto" />
+        </div>
 
         <div className="rounded-lg border border-slate-300 dark:border-zinc-700 p-3">
           <p className="text-xs font-medium mb-2">Layers ({clips.length})</p>
