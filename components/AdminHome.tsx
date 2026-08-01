@@ -26,6 +26,14 @@ export default function AdminHome() {
             <div className="font-semibold">Grant a Plan</div>
             <p className="text-xs text-zinc-400 mt-2">Comp a paid plan onto an account — no payment, e.g. for family.</p>
           </a>
+          <a href="/admin/assistant" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Assistant</div>
+            <p className="text-xs text-zinc-400 mt-2">General-purpose AI that can also fix low-risk account issues on its own.</p>
+          </a>
+          <a href="/admin/crm-outreach" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">CRM Outreach</div>
+            <p className="text-xs text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>
+          </a>
         </div>
       </div>
     </main>

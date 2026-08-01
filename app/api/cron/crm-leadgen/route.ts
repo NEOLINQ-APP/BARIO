@@ -63,7 +63,7 @@ async function draftOutreachEmail(crm: CrmConfig, person: { firstName: string; l
     messages: [
       {
         role: 'system',
-        content: `You draft short, genuine-sounding first-touch sales outreach emails for ${crm.businessName}. ${crm.context} No fluff, no hype, no "I hope this finds you well." One clear reason to reply. Under 120 words. Return ONLY the email body text, no subject line, no markdown headers.`,
+        content: `You draft short, genuine-sounding first-touch sales outreach emails for ${crm.businessName}, written as if from a real person on their team. ${crm.context} No fluff, no hype, no "I hope this finds you well." One clear reason to reply. Under 120 words. Never mention AI, automation, being a bot/assistant, or that the email was generated or drafted by anything other than a person — write it exactly as a human sender would. Return ONLY the email body text, no subject line, no markdown headers.`,
       },
       {
         role: 'user',

@@ -394,6 +394,35 @@ async function ensureSchema() {
   // drafted outreach note (see app/api/admin/crm-leadgen/send) — never set
   // automatically, per the deliberate no-auto-send decision.
   await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ`
+  // What was actually emailed — kept separate from the CRM Note's text since
+  // an admin can edit the subject/body before sending (see AdminCrmOutreach),
+  // so the note and the real sent content can diverge. sent_email is the
+  // exact address mail went to, used to match inbound replies back to this
+  // contact even if the CRM record's email later changes.
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_email TEXT`
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_subject TEXT`
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_body TEXT`
+
+  // One row per inbound reply detected in an outreach mailbox (see
+  // app/api/cron/crm-outreach-replies). response_mode/response_sent_at
+  // track how (and whether) a human answered it — nothing here sends a
+  // response automatically, matching the same no-auto-send principle as
+  // the initial outreach.
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_outreach_replies (
+      id TEXT PRIMARY KEY,
+      crm_key TEXT NOT NULL,
+      person_id TEXT,
+      from_email TEXT NOT NULL,
+      subject TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      message_id TEXT UNIQUE,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      response_mode TEXT,
+      response_body TEXT,
+      response_sent_at TIMESTAMPTZ
+    )
+  `
 
   // Tracks which CRM contacts have already been checked for a real email
   // address on their own company website, so the enrichment cron doesn't

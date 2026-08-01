@@ -16,7 +16,10 @@ export async function POST(req: Request) {
   const { sql } = adminCheck
 
   try {
-    const { crmKey, personId } = await req.json()
+    // subject/body are optional overrides — an admin can edit the draft in
+    // AdminCrmOutreach before sending; when omitted, falls back to the CRM
+    // Note's original AI-drafted text.
+    const { crmKey, personId, subject: subjectOverride, body: bodyOverride } = await req.json()
     const crm = findCrm(crmKey)
     if (!crm) return NextResponse.json({ error: 'Unknown crmKey' }, { status: 400 })
 
@@ -41,8 +44,8 @@ export async function POST(req: Request) {
     if (!note) return NextResponse.json({ error: 'Draft note no longer exists in the CRM' }, { status: 404 })
     if (!email) return NextResponse.json({ error: 'Contact no longer has an email on file' }, { status: 400 })
 
-    const subject = (note.title as string)?.replace(/^BARIO Draft: /, '') || `A message from ${crm.businessName}`
-    const body = note.bodyV2?.markdown ?? ''
+    const subject = subjectOverride?.trim() || (note.title as string)?.replace(/^BARIO Draft: /, '') || `A message from ${crm.businessName}`
+    const body = bodyOverride?.trim() || note.bodyV2?.markdown || ''
 
     const sendResult = await sendOutreachEmail({
       smtpUser,
@@ -53,10 +56,14 @@ export async function POST(req: Request) {
       text: body,
     })
 
-    await sql`UPDATE crm_leadgen_drafted SET sent_at = now() WHERE crm_key = ${crmKey} AND person_id = ${personId}`
+    await sql`
+      UPDATE crm_leadgen_drafted
+      SET sent_at = now(), sent_email = ${email}, sent_subject = ${subject}, sent_body = ${body}
+      WHERE crm_key = ${crmKey} AND person_id = ${personId}
+    `
     await logAdminAction(sql, {
       action: 'crm-outreach-sent',
-      params: { crmKey, personId, companyName: person.company?.name, email, messageId: sendResult.messageId },
+      params: { crmKey, personId, companyName: person.company?.name, email, messageId: sendResult.messageId, edited: !!(subjectOverride || bodyOverride) },
       result: 'ok',
       triggeredBy: 'admin',
     })
