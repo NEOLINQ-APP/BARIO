@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { findCrm } from '@/lib/crmOutreach'
+import { findCrm, EMAIL_TONES, isEmailTone } from '@/lib/crmOutreach'
 import { getOpenAI } from '@/lib/openai'
 import { errorResponse } from '@/lib/errors'
 
@@ -13,7 +13,8 @@ export async function POST(req: Request) {
   const { sql } = adminCheck
 
   try {
-    const { replyId } = await req.json()
+    const { replyId, tone } = await req.json()
+    const resolvedTone = isEmailTone(tone) ? tone : 'professional'
     const rows = (await sql`SELECT crm_key, from_email, subject, body FROM crm_outreach_replies WHERE id = ${replyId}`) as unknown as {
       crm_key: string
       from_email: string
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: 'system',
-          content: `You write short, natural email replies for ${crm.businessName}, as if from a real person on their team responding to a prospect who replied to an earlier outreach email. Match the tone of their message. Be direct and helpful, under 120 words. Never mention AI, automation, being a bot/assistant, or that this was generated — write it exactly as a human would. Return ONLY the reply body text, no subject line.`,
+          content: `You write short, natural email replies for ${crm.businessName}, as if from a real person on their team responding to a prospect who replied to an earlier outreach email. Tone: ${EMAIL_TONES[resolvedTone].instruction} Be direct and helpful, under 120 words. Never mention AI, automation, being a bot/assistant, or that this was generated — write it exactly as a human would. Return ONLY the reply body text, no subject line.`,
         },
         {
           role: 'user',

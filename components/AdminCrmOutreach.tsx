@@ -9,6 +9,15 @@ type ReplyItem = { id: string; person_id: string | null; from_email: string; sub
 type ReplyGroup = { crm: string; businessName: string; replies: ReplyItem[] }
 type ScheduledItem = { crm: string; businessName: string; kind: 'outreach' | 'reply'; id: string; scheduledAt: string; label: string }
 
+const TONE_OPTIONS = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'friendly', label: 'Friendly' },
+  { value: 'funny', label: 'Funny' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'urgent', label: 'Urgent' },
+  { value: 'anxious', label: 'Anxious / concerned' },
+]
+
 function toLocalInputValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -107,6 +116,27 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
   const [body, setBody] = useState(item.body)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tone, setTone] = useState('professional')
+  const [regenerating, setRegenerating] = useState(false)
+
+  async function regenerate() {
+    setRegenerating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/crm-leadgen/redraft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ crmKey, personId: item.personId, tone }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to redraft')
+      setBody(data.draft)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRegenerating(false)
+    }
+  }
 
   async function submit(scheduledAt?: string) {
     setBusy(true)
@@ -147,6 +177,16 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
         <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800 space-y-2">
           <input value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm font-medium" />
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
+          <div className="flex gap-2 items-center">
+            <select value={tone} onChange={(e) => setTone(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+              {TONE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <button onClick={regenerate} disabled={regenerating} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 disabled:opacity-50 px-3 py-1.5">
+              {regenerating ? 'Rewriting…' : 'Regenerate with this tone'}
+            </button>
+          </div>
         </div>
       )}
       {error && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{error}</p>}
@@ -160,8 +200,9 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
   const [drafting, setDrafting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tone, setTone] = useState('professional')
 
-  async function pickAi() {
+  async function draftWithTone(selectedTone: string) {
     setMode('ai')
     setDrafting(true)
     setError(null)
@@ -169,7 +210,7 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
       const res = await fetch('/api/admin/crm-leadgen/draft-reply', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ replyId: reply.id }),
+        body: JSON.stringify({ replyId: reply.id, tone: selectedTone }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to draft')
@@ -215,7 +256,7 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
           <button onClick={() => { setMode('manual'); setResponseBody('') }} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
             Reply manually
           </button>
-          <button onClick={pickAi} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
+          <button onClick={() => draftWithTone(tone)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
             AI-drafted reply
           </button>
         </div>
@@ -231,6 +272,18 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
             rows={6}
             className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
           />
+          {mode === 'ai' && (
+            <div className="flex gap-2 items-center">
+              <select value={tone} onChange={(e) => setTone(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+                {TONE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <button onClick={() => draftWithTone(tone)} disabled={drafting} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 disabled:opacity-50 px-3 py-1.5">
+                Redraft with this tone
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => setMode(null)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
               Cancel

@@ -37,6 +37,22 @@ export function findCrm(key: string): CrmConfig | undefined {
   return OUTREACH_CRMS.find((c) => c.key === key)
 }
 
+// Tone options for AI-drafted outreach/replies (see draft-reply and
+// redraft routes) — the prompt instruction per tone, plus a label for the
+// admin UI dropdown. Every tone still obeys the no-AI-disclosure rule.
+export const EMAIL_TONES = {
+  professional: { label: 'Professional', instruction: 'Formal, polished, businesslike. No slang, no exclamation points.' },
+  friendly: { label: 'Friendly', instruction: 'Warm and approachable, like a helpful colleague, still respectful of their time.' },
+  funny: { label: 'Funny', instruction: 'Genuinely light and a little witty — a real, tasteful joke or playful line, not corny or forced. Still gets the actual point across clearly.' },
+  casual: { label: 'Casual', instruction: 'Relaxed and conversational, like texting someone you know a bit, but still coherent and professional enough for a first business contact.' },
+  urgent: { label: 'Urgent', instruction: 'Conveys real time-sensitivity and a clear reason to respond soon, without sounding pushy or fake-urgent.' },
+  anxious: { label: 'Anxious / concerned', instruction: 'Sounds genuinely worried about missing an opportunity or a real problem needing attention — earnest and a little uneasy, not calm or detached.' },
+} as const
+export type EmailTone = keyof typeof EMAIL_TONES
+export function isEmailTone(v: unknown): v is EmailTone {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(EMAIL_TONES, v)
+}
+
 export async function crmGraphQL(crm: CrmConfig, query: string, variables: Record<string, unknown>) {
   const apiKey = process.env[crm.apiKeyEnvVar]
   if (!apiKey) throw new Error(`${crm.apiKeyEnvVar} is not set`)
