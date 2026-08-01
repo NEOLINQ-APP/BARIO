@@ -58,7 +58,12 @@ export async function runSync(input: StudioJobInput): Promise<{ outputBase64: st
   if (data.status !== 'COMPLETED') {
     throw new Error(data.error || `RunPod job ${String(data.status).toLowerCase()}`)
   }
-  return { outputBase64: data.output?.data ?? '', outputContentType: data.output?.contentType ?? null }
+  // handler.py returns {"output": {contentType, data}}, and RunPod's own job
+  // envelope wraps that again as {"output": <handler's return value>} — so
+  // the real payload is double-nested (output.output.data), confirmed via a
+  // live test call, not the single-nested shape that looked reasonable to
+  // assume before an actual endpoint existed to check against.
+  return { outputBase64: data.output?.output?.data ?? '', outputContentType: data.output?.output?.contentType ?? null }
 }
 
 export type RunPodJobStatus = {
@@ -81,8 +86,8 @@ export async function getJobStatus(requestId: string): Promise<RunPodJobStatus> 
   if (raw === 'COMPLETED') {
     return {
       status: 'complete',
-      outputBase64: data.output?.data ?? null,
-      outputContentType: data.output?.contentType ?? null,
+      outputBase64: data.output?.output?.data ?? null,
+      outputContentType: data.output?.output?.contentType ?? null,
       error: null,
     }
   }

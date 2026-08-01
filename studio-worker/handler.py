@@ -62,7 +62,17 @@ def load_workflow_template(has_source_image: bool) -> dict:
 
 
 def find_node_by_class(workflow: dict, class_type: str) -> list:
-    return [node_id for node_id, node in workflow.items() if node.get("class_type") == class_type]
+    # Confirmed via a real failed job (RunPod error: "'str' object has no
+    # attribute 'get'"): the workflow JSON isn't a pure node_id->node dict —
+    # it carries top-level metadata keys (e.g. "version") whose values are
+    # plain strings/numbers, not node dicts, alongside the actual nodes.
+    # Only dict-shaped entries are real nodes; everything else is skipped
+    # rather than assumed away.
+    return [
+        node_id
+        for node_id, node in workflow.items()
+        if isinstance(node, dict) and node.get("class_type") == class_type
+    ]
 
 
 def find_positive_prompt_node_id(workflow: dict) -> str:
@@ -90,6 +100,8 @@ def set_duration(workflow: dict, duration_seconds: float) -> None:
     default duration rather than failing the job."""
     frame_count = max(1, round(duration_seconds * FPS))
     for node in workflow.values():
+        if not isinstance(node, dict):
+            continue
         if "length" in node.get("inputs", {}) and isinstance(node["inputs"]["length"], int):
             node["inputs"]["length"] = frame_count
 
