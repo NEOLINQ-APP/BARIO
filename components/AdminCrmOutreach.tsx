@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import ThemeToggle from '@/components/ThemeToggle'
 
 type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; subject: string; body: string; scheduledAt: string | null }
 type CrmGroup = { crm: string; businessName: string; ready: ReadyItem[] }
@@ -36,10 +37,10 @@ const EMAIL_TYPE_OPTIONS = [
 ]
 
 const SENTIMENT_BADGE: Record<string, { emoji: string; label: string; className: string }> = {
-  interested: { emoji: '🟢', label: 'Interested', className: 'bg-emerald-950 text-emerald-300' },
-  not_interested: { emoji: '🔴', label: 'Not interested', className: 'bg-red-950 text-red-300' },
-  ooo_wrong_person: { emoji: '🟡', label: 'OOO / wrong person', className: 'bg-amber-950 text-amber-300' },
-  neutral: { emoji: '⚪', label: 'Neutral', className: 'bg-zinc-800 text-zinc-300' },
+  interested: { emoji: '🟢', label: 'Interested', className: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' },
+  not_interested: { emoji: '🔴', label: 'Not interested', className: 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300' },
+  ooo_wrong_person: { emoji: '🟡', label: 'OOO / wrong person', className: 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300' },
+  neutral: { emoji: '⚪', label: 'Neutral', className: 'bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300' },
 }
 
 // Simple flat-hours SLA check (not true business-hours math — good enough
@@ -302,7 +303,7 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
             {badge.emoji} {badge.label}
           </span>
           {overdue && (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-950 text-red-300 whitespace-nowrap">
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 whitespace-nowrap">
               ⏰ {Math.floor(hoursSince(reply.received_at))}h — overdue
             </span>
           )}
@@ -509,17 +510,20 @@ export default function AdminCrmOutreach() {
             Nothing here sends automatically — every outbound email and every reply response needs your explicit click.
           </p>
         </div>
-        <select
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm font-medium"
-        >
-          {companies.map((c) => (
-            <option key={c.crm} value={c.crm}>
-              {c.businessName}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <select
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm font-medium"
+          >
+            {companies.map((c) => (
+              <option key={c.crm} value={c.crm}>
+                {c.businessName}
+              </option>
+            ))}
+          </select>
+          <ThemeToggle />
+        </div>
       </div>
 
       <StatsRow stats={visibleStats} />

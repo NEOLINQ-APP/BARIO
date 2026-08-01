@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import ThemeToggle from '@/components/ThemeToggle'
 
 type Asset = {
   id: string
@@ -84,22 +85,25 @@ export default function AdminStorage() {
   const crumbs = folder ? folder.split('/') : []
 
   return (
-    <main className="min-h-screen bg-[#0b111c] text-zinc-100 antialiased px-6 py-16">
+    <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased px-6 py-16">
       <div className="max-w-4xl mx-auto">
-        <a href="/admin" className="text-sm text-zinc-400 hover:text-zinc-200">← Admin</a>
+        <div className="flex items-center justify-between gap-4">
+          <a href="/admin" className="text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200">← Admin</a>
+          <ThemeToggle />
+        </div>
         <h1 className="text-2xl font-bold mt-2">Storage</h1>
-        <p className="text-sm text-zinc-400 mt-1">
+        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
           Shared file storage for builds, templates, and media — organized into folders. Also reachable via the API with an admin key.
         </p>
 
         <div className="flex items-center gap-1.5 mt-6 text-sm flex-wrap">
-          <button onClick={() => goToFolder('')} className={`hover:text-white ${folder ? 'text-zinc-400' : 'text-white font-semibold'}`}>Root</button>
+          <button onClick={() => goToFolder('')} className={`hover:text-slate-900 dark:hover:text-white ${folder ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-900 dark:text-white font-semibold'}`}>Root</button>
           {crumbs.map((c, i) => (
             <span key={i} className="flex items-center gap-1.5">
-              <span className="text-zinc-600">/</span>
+              <span className="text-slate-400 dark:text-zinc-600">/</span>
               <button
                 onClick={() => goToFolder(crumbs.slice(0, i + 1).join('/'))}
-                className={`hover:text-white ${i === crumbs.length - 1 ? 'text-white font-semibold' : 'text-zinc-400'}`}
+                className={`hover:text-slate-900 dark:hover:text-white ${i === crumbs.length - 1 ? 'text-slate-900 dark:text-white font-semibold' : 'text-slate-500 dark:text-zinc-400'}`}
               >
                 {c}
               </button>
@@ -108,7 +112,7 @@ export default function AdminStorage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <label className="px-4 py-2 rounded-xl border border-zinc-700 text-sm font-semibold cursor-pointer text-zinc-200">
+          <label className="px-4 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-sm font-semibold cursor-pointer text-slate-700 dark:text-zinc-200">
             {uploading ? 'Uploading…' : 'Upload file'}
             <input ref={fileInputRef} type="file" onChange={handleUpload} disabled={uploading} className="hidden" />
           </label>
@@ -125,24 +129,24 @@ export default function AdminStorage() {
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               placeholder="New folder name"
-              className="px-3 py-2 rounded-xl bg-[#131b2a] border border-zinc-700 text-sm w-48"
+              className="px-3 py-2 rounded-xl bg-white dark:bg-[#131b2a] border border-slate-300 dark:border-zinc-700 text-sm w-48"
             />
-            <button type="submit" className="px-3 py-2 rounded-xl border border-zinc-700 text-sm font-semibold text-zinc-200">Go</button>
+            <button type="submit" className="px-3 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-sm font-semibold text-slate-700 dark:text-zinc-200">Go</button>
           </form>
         </div>
-        <p className="text-xs text-zinc-500 mt-2">Folders appear once they contain at least one file — upload after navigating into a new one.</p>
+        <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2">Folders appear once they contain at least one file — upload after navigating into a new one.</p>
 
-        {error && <p className="text-sm text-red-400 mt-4">{error}</p>}
+        {error && <p className="text-sm text-red-500 dark:text-red-400 mt-4">{error}</p>}
 
         {folders.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-xs uppercase tracking-wide text-zinc-500 mb-3">Folders</h2>
+            <h2 className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-500 mb-3">Folders</h2>
             <div className="grid sm:grid-cols-3 gap-3">
               {folders.map((f) => (
                 <button
                   key={f}
                   onClick={() => goToFolder(folder ? `${folder}/${f}` : f)}
-                  className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-[#131b2a] px-4 py-3 text-sm font-semibold hover:border-zinc-600 transition-colors text-left"
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] px-4 py-3 text-sm font-semibold hover:border-slate-300 dark:hover:border-zinc-600 transition-colors text-left"
                 >
                   📁 {f}
                 </button>
@@ -152,34 +156,34 @@ export default function AdminStorage() {
         )}
 
         <div className="mt-8">
-          <h2 className="text-xs uppercase tracking-wide text-zinc-500 mb-3">Files</h2>
-          {!assets && <p className="text-sm text-zinc-500">Loading…</p>}
-          {assets?.length === 0 && folders.length === 0 && <p className="text-sm text-zinc-500">Nothing here yet.</p>}
+          <h2 className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-500 mb-3">Files</h2>
+          {!assets && <p className="text-sm text-slate-500 dark:text-zinc-500">Loading…</p>}
+          {assets?.length === 0 && folders.length === 0 && <p className="text-sm text-slate-500 dark:text-zinc-500">Nothing here yet.</p>}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {assets?.map((a) => (
-              <div key={a.id} className="rounded-xl border border-zinc-800 bg-[#131b2a] p-3 flex flex-col gap-2">
+              <div key={a.id} className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-3 flex flex-col gap-2">
                 {a.content_type.startsWith('image/') ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.url} alt={a.filename} className="w-full h-32 object-cover rounded-lg bg-black/20" />
+                  <img src={a.url} alt={a.filename} className="w-full h-32 object-cover rounded-lg bg-black/10 dark:bg-black/20" />
                 ) : (
-                  <div className="w-full h-32 rounded-lg bg-black/20 flex items-center justify-center text-3xl">
+                  <div className="w-full h-32 rounded-lg bg-black/10 dark:bg-black/20 flex items-center justify-center text-3xl">
                     {a.content_type.startsWith('video/') ? '🎬' : a.content_type.startsWith('audio/') ? '🎵' : '📄'}
                   </div>
                 )}
                 <div className="text-xs font-semibold truncate" title={a.filename}>{a.filename}</div>
-                <div className="text-[10px] text-zinc-500">{formatSize(a.size_bytes)}</div>
+                <div className="text-[10px] text-slate-500 dark:text-zinc-500">{formatSize(a.size_bytes)}</div>
                 <div className="flex items-center gap-2">
                   <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-[#f59e0b] underline">Open</a>
                   <button
                     onClick={() => navigator.clipboard.writeText(a.url)}
-                    className="text-[11px] text-zinc-400 hover:text-zinc-200 underline"
+                    className="text-[11px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 underline"
                   >
                     Copy URL
                   </button>
                   <button
                     onClick={() => handleDelete(a.id)}
                     disabled={busyId === a.id}
-                    className="text-[11px] text-red-400 hover:text-red-300 underline ml-auto disabled:opacity-50"
+                    className="text-[11px] text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 underline ml-auto disabled:opacity-50"
                   >
                     {busyId === a.id ? 'Deleting…' : 'Delete'}
                   </button>
