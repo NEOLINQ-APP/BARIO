@@ -143,6 +143,14 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS cloudflare_zone_id TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS nameservers TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS show_badge BOOLEAN NOT NULL DEFAULT true`
+  // Manual payment-collection escalation for sites built outside the normal
+  // Stripe flow (e.g. friends/family sites live before payment) — admin-only,
+  // not tied to subscription_status. 'none' -> 'reminder_sent' (email) ->
+  // 'warning_shown' (dashboard popup) -> 'locked' (site serves a maintenance
+  // page instead of real content). See app/api/admin/users/collection-status.
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS collection_status TEXT NOT NULL DEFAULT 'none'`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS collection_note TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS collection_updated_at TIMESTAMPTZ`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_name TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_category TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_hours TEXT`

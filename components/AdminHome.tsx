@@ -34,6 +34,10 @@ export default function AdminHome() {
             <div className="font-semibold">CRM Outreach</div>
             <p className="text-xs text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>
           </a>
+          <a href="/admin/collections" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Payment Collections</div>
+            <p className="text-xs text-zinc-400 mt-2">3-strike reminder/lockout flow for sites live before payment is received.</p>
+          </a>
         </div>
       </div>
     </main>

@@ -47,6 +47,16 @@ export async function GET(req: Request, { params }: { params: { domain: string; 
     })
   }
 
+  // Manual payment-collection lockout (see app/api/admin/users/collection-status)
+  // — takes priority over everything else below; a locked site serves this
+  // page regardless of content_mode until an admin clears the status.
+  if ((site as any).collection_status === 'locked') {
+    return new Response(maintenanceHtml(), {
+      status: 503,
+      headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS },
+    })
+  }
+
   const seo = {
     metaTitle: site.meta_title,
     metaDescription: site.meta_description,
@@ -115,6 +125,15 @@ export async function GET(req: Request, { params }: { params: { domain: string; 
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS },
   })
+}
+
+function maintenanceHtml() {
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Site under maintenance</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:80px 20px;color:#334">
+<h1>This website is temporarily unavailable</h1>
+<p>Please contact <a href="mailto:support@bario.ca">support@bario.ca</a> for assistance.</p>
+</body></html>`
 }
 
 function notFoundHtml(domain: string) {

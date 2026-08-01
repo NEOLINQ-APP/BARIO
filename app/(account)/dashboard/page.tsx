@@ -5,6 +5,7 @@ import { ensureCreditsRefreshed } from '@/lib/credits'
 import { hasBuilderAccess } from '@/lib/access'
 import ResendVerificationButton from '@/components/ResendVerificationButton'
 import SupportAssistant from '@/components/SupportAssistant'
+import CollectionWarningPopup from '@/components/CollectionWarningPopup'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,10 @@ export default async function DashboardHome() {
 
   const builderAccess = hasBuilderAccess(user)
   const credits = user.is_admin ? -1 : builderAccess ? await ensureCreditsRefreshed(sql, user) : 0
+
+  const warningSites = (await sql`
+    SELECT name FROM sites WHERE user_id = ${user.id} AND collection_status = 'warning_shown'
+  `) as unknown as { name: string }[]
 
   return (
     <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
@@ -69,6 +74,7 @@ export default async function DashboardHome() {
         </div>
       </div>
       <SupportAssistant />
+      <CollectionWarningPopup siteNames={warningSites.map((s) => s.name)} />
     </main>
   )
 }

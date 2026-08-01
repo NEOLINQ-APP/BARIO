@@ -37,6 +37,20 @@ export async function sendVerificationEmail(to: string, verifyUrl: string) {
   })
 }
 
+export async function sendPaymentReminderEmail(to: string, siteName: string) {
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `Action needed on your website — ${siteName}`,
+    html: `
+      <p>Hi,</p>
+      <p>This is a reminder about your website, <strong>${siteName}</strong>, built through Bario.</p>
+      <p>Please contact <a href="mailto:support@bario.ca">support@bario.ca</a> regarding your site access at your earliest convenience.</p>
+      <p>Thanks,<br/>Bario</p>
+    `,
+  })
+}
+
 export async function sendFamilyInviteEmail(to: string, inviterEmail: string, acceptUrl: string) {
   await getResend().emails.send({
     from: FROM,
