@@ -10,14 +10,16 @@ export default function PricingButton({ plan, label, billingCycle = 'monthly' }:
     setLoading(true)
     setError(null)
     try {
+      const promoCode = new URLSearchParams(window.location.search).get('promo') ?? undefined
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ plan, billingCycle }),
+        body: JSON.stringify({ plan, billingCycle, promoCode }),
       })
 
       if (res.status === 401) {
-        window.location.href = `/signup?plan=${plan}&cycle=${billingCycle}`
+        const promoParam = promoCode ? `&promo=${encodeURIComponent(promoCode)}` : ''
+        window.location.href = `/signup?plan=${plan}&cycle=${billingCycle}${promoParam}`
         return
       }
 

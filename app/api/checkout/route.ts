@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const { plan, billingCycle } = await req.json()
+    const { plan, billingCycle, promoCode } = await req.json()
     const cycle = billingCycle === 'annual' ? 'annual' : 'monthly'
     const priceId = PLAN_PRICE_IDS[plan]?.[cycle]
     if (!priceId) {
@@ -44,7 +44,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ url: `${origin}/dashboard?checkout=success` })
     }
 
-    const checkoutSession = await getStripe().checkout.sessions.create({
+    // A promo link (bario.ca/hosting?promo=CODE, see app/api/admin/coupons)
+    // auto-applies that code instead of showing the manual entry field —
+    // Stripe doesn't allow both discounts and allow_promotion_codes on the
+    // same session, so this is one or the other. An invalid/expired code in
+    // the URL silently falls back to manual entry rather than blocking
+    // checkout entirely.
+    const stripe = getStripe()
+    let discounts: { promotion_code: string }[] | undefined
+    if (typeof promoCode === 'string' && promoCode.trim()) {
+      const found = await stripe.promotionCodes.list({ code: promoCode.trim().toUpperCase(), active: true, limit: 1 })
+      if (found.data[0]) discounts = [{ promotion_code: found.data[0].id }]
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer_email: user.email,
       client_reference_id: user.id,
@@ -52,7 +65,7 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/hosting#pricing`,
-      allow_promotion_codes: true,
+      ...(discounts ? { discounts } : { allow_promotion_codes: true }),
     })
 
     return NextResponse.json({ url: checkoutSession.url })

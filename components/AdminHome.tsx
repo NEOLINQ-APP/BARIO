@@ -38,6 +38,14 @@ export default function AdminHome() {
             <div className="font-semibold">Payment Collections</div>
             <p className="text-xs text-zinc-400 mt-2">3-strike reminder/lockout flow for sites live before payment is received.</p>
           </a>
+          <a href="/admin/costs" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Reseller Costs & Margin</div>
+            <p className="text-xs text-zinc-400 mt-2">Real Hetzner VPS cost vs. what's charged, so you know how much discount room exists.</p>
+          </a>
+          <a href="/admin/coupons" className="rounded-2xl border border-zinc-800 bg-[#131b2a] p-6 hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Coupons & Promoter Links</div>
+            <p className="text-xs text-zinc-400 mt-2">Create discount codes with a shareable auto-apply link for influencers/promoters.</p>
+          </a>
         </div>
       </div>
     </main>

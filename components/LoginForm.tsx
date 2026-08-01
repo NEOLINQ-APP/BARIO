@@ -8,6 +8,7 @@ import PasswordInput from '@/components/PasswordInput'
 export default function LoginForm() {
   const params = useSearchParams()
   const plan = params.get('plan')
+  const promoCode = params.get('promo')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +29,7 @@ export default function LoginForm() {
       setLoading(false)
       return
     }
-    await continueAfterAuth(plan)
+    await continueAfterAuth(plan, promoCode)
   }
 
   return (

@@ -8,6 +8,7 @@ import PasswordInput from '@/components/PasswordInput'
 export default function SignupForm() {
   const params = useSearchParams()
   const plan = params.get('plan')
+  const promoCode = params.get('promo')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +29,7 @@ export default function SignupForm() {
       setLoading(false)
       return
     }
-    await continueAfterAuth(plan)
+    await continueAfterAuth(plan, promoCode)
   }
 
   return (
@@ -60,7 +61,7 @@ export default function SignupForm() {
       </p>
       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Already have an account?{' '}
-        <a href={`/login${plan ? `?plan=${plan}` : ''}`} className="text-amber-600 dark:text-[#f59e0b]">Log in</a>
+        <a href={`/login${plan ? `?plan=${plan}${promoCode ? `&promo=${promoCode}` : ''}` : ''}`} className="text-amber-600 dark:text-[#f59e0b]">Log in</a>
       </p>
     </form>
   )
