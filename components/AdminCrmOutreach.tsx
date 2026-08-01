@@ -368,6 +368,62 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
   )
 }
 
+function BulkRegenerateControl({ crmKey, ready, onRegenerated }: { crmKey: string; ready: ReadyItem[]; onRegenerated: (crmKey: string, results: { personId: string; draft: string }[]) => void }) {
+  const [tone, setTone] = useState('professional')
+  const [emailType, setEmailType] = useState('direct_pitch')
+  const [target, setTarget] = useState('all')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function run() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/crm-leadgen/redraft-bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ crmKey, tone, emailType, personIds: target === 'all' ? undefined : [target] }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to regenerate')
+      onRegenerated(crmKey, data.results)
+      if (data.errors?.length) setError(`${data.errors.length} contact(s) failed to redraft`)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (ready.length === 0) return null
+
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 p-3 flex gap-2 items-center flex-wrap">
+      <span className="text-xs text-slate-500 dark:text-zinc-400">Bulk regenerate:</span>
+      <select value={target} onChange={(e) => setTarget(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+        <option value="all">All ({ready.length})</option>
+        {ready.map((item) => (
+          <option key={item.personId} value={item.personId}>{item.companyName}</option>
+        ))}
+      </select>
+      <select value={emailType} onChange={(e) => setEmailType(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+        {EMAIL_TYPE_OPTIONS.map((t) => (
+          <option key={t.value} value={t.value}>{t.label}</option>
+        ))}
+      </select>
+      <select value={tone} onChange={(e) => setTone(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+        {TONE_OPTIONS.map((t) => (
+          <option key={t.value} value={t.value}>{t.label}</option>
+        ))}
+      </select>
+      <button onClick={run} disabled={busy} className="text-xs rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-medium px-3 py-1.5">
+        {busy ? 'Regenerating…' : 'Regenerate'}
+      </button>
+      {error && <span className="text-xs text-red-500 dark:text-red-400">{error}</span>}
+    </div>
+  )
+}
+
 export default function AdminCrmOutreach() {
   const [stats, setStats] = useState<Stat[] | null>(null)
   const [groups, setGroups] = useState<CrmGroup[] | null>(null)
@@ -375,6 +431,7 @@ export default function AdminCrmOutreach() {
   const [scheduled, setScheduled] = useState<ScheduledItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [company, setCompany] = useState<string>('all')
+  const [revisions, setRevisions] = useState<Record<string, number>>({})
 
   function load() {
     setError(null)
@@ -415,6 +472,22 @@ export default function AdminCrmOutreach() {
   }
   function markReplyScheduled(crmKey: string, replyId: string, when: string) {
     load()
+  }
+  function handleBulkRegenerated(crmKey: string, results: { personId: string; draft: string }[]) {
+    const draftByPerson = new Map(results.map((r) => [r.personId, r.draft]))
+    setGroups((prev) =>
+      prev
+        ? prev.map((g) => (g.crm === crmKey ? { ...g, ready: g.ready.map((r) => (draftByPerson.has(r.personId) ? { ...r, body: draftByPerson.get(r.personId)! } : r)) } : g))
+        : prev
+    )
+    // OutreachCard seeds its editable subject/body from props only once on
+    // mount — bump a per-contact revision so the key changes and React
+    // remounts it with the freshly regenerated text instead of stale state.
+    setRevisions((prev) => {
+      const next = { ...prev }
+      for (const r of results) next[r.personId] = (next[r.personId] ?? 0) + 1
+      return next
+    })
   }
 
   const companies = useMemo(() => (stats ? [{ crm: 'all', businessName: 'All companies' }, ...stats.map((s) => ({ crm: s.crm, businessName: s.businessName }))] : []), [stats])
@@ -480,10 +553,11 @@ export default function AdminCrmOutreach() {
             <p className="text-sm font-medium text-slate-500 dark:text-zinc-400">
               {group.businessName} ({group.ready.length})
             </p>
+            <BulkRegenerateControl crmKey={group.crm} ready={group.ready} onRegenerated={handleBulkRegenerated} />
             {group.ready.length === 0 && <p className="text-sm text-slate-400">Nothing ready right now.</p>}
             {group.ready.map((item) => (
               <OutreachCard
-                key={item.personId}
+                key={`${item.personId}-${revisions[item.personId] ?? 0}`}
                 crmKey={group.crm}
                 item={item}
                 onSent={(personId) => markSent(group.crm, personId)}
