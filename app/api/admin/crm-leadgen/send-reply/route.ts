@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { findCrm } from '@/lib/crmOutreach'
-import { sendOutreachEmail } from '@/lib/mailSend'
-import { logAdminAction } from '@/lib/adminActions'
+import { findCrm, deliverReplyResponse } from '@/lib/crmOutreach'
 import { errorResponse } from '@/lib/errors'
 
-// Sends a response to an inbound reply — mode is 'manual' or 'ai' purely
-// for record-keeping (what the admin picked in AdminCrmOutreach); the actual
-// text sent is always whatever's in `body` (an AI draft the admin approved,
-// or something they typed themselves). Never sends without this explicit
-// call.
+// Sends (or schedules) a response to an inbound reply. mode is 'manual' or
+// 'ai' purely for record-keeping; the text sent is always whatever's in
+// `body`, reviewed by the admin either way.
 export async function POST(req: Request) {
   const adminCheck = await requireAdmin(req)
   if (adminCheck instanceof NextResponse) return adminCheck
   const { sql } = adminCheck
 
   try {
-    const { replyId, body, mode } = await req.json()
+    const { replyId, body, mode, scheduledAt } = await req.json()
     if (!body?.trim()) return NextResponse.json({ error: 'Response body is required' }, { status: 400 })
     if (mode !== 'manual' && mode !== 'ai') return NextResponse.json({ error: 'mode must be "manual" or "ai"' }, { status: 400 })
 
@@ -29,30 +25,21 @@ export async function POST(req: Request) {
 
     const crm = findCrm(reply.crm_key)
     if (!crm) return NextResponse.json({ error: 'Unknown crmKey' }, { status: 400 })
-    const smtpUser = process.env[crm.smtpUserEnvVar]
-    const smtpPass = process.env[crm.smtpPassEnvVar]
-    if (!smtpUser || !smtpPass) return NextResponse.json({ error: `${crm.smtpUserEnvVar}/${crm.smtpPassEnvVar} not configured` }, { status: 500 })
 
-    const subject = reply.subject?.toLowerCase().startsWith('re:') ? reply.subject : `Re: ${reply.subject || 'your message'}`
-    const sendResult = await sendOutreachEmail({
-      smtpUser,
-      smtpPass,
-      from: crm.fromAddress,
-      to: reply.from_email,
-      subject,
-      text: body,
-    })
+    if (scheduledAt) {
+      const when = new Date(scheduledAt)
+      if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        return NextResponse.json({ error: 'scheduledAt must be a valid future date/time' }, { status: 400 })
+      }
+      await sql`
+        UPDATE crm_outreach_replies
+        SET scheduled_response_at = ${when.toISOString()}, scheduled_response_body = ${body}, scheduled_response_mode = ${mode}
+        WHERE id = ${replyId}
+      `
+      return NextResponse.json({ ok: true, scheduled: true, scheduledAt: when.toISOString() })
+    }
 
-    await sql`
-      UPDATE crm_outreach_replies SET response_mode = ${mode}, response_body = ${body}, response_sent_at = now() WHERE id = ${replyId}
-    `
-    await logAdminAction(sql, {
-      action: 'crm-outreach-reply-sent',
-      params: { crmKey: reply.crm_key, replyId, to: reply.from_email, mode, messageId: sendResult.messageId },
-      result: 'ok',
-      triggeredBy: 'admin',
-    })
-
+    const sendResult = await deliverReplyResponse(sql, crm, replyId, reply.from_email, reply.subject, body, mode)
     return NextResponse.json({ ok: true, messageId: sendResult.messageId })
   } catch (err: any) {
     return errorResponse(err)

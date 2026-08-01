@@ -1,12 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; subject: string; body: string }
+type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; subject: string; body: string; scheduledAt: string | null }
 type CrmGroup = { crm: string; businessName: string; ready: ReadyItem[] }
 type Stat = { crm: string; businessName: string; drafted: number; sent: number; replied: number; unanswered: number }
 type ReplyItem = { id: string; person_id: string | null; from_email: string; subject: string; body: string; received_at: string }
 type ReplyGroup = { crm: string; businessName: string; replies: ReplyItem[] }
+type ScheduledItem = { crm: string; businessName: string; kind: 'outreach' | 'reply'; id: string; scheduledAt: string; label: string }
+
+function toLocalInputValue(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 function StatsRow({ stats }: { stats: Stat[] }) {
   return (
@@ -38,46 +44,103 @@ function StatsRow({ stats }: { stats: Stat[] }) {
   )
 }
 
-function OutreachCard({ crmKey, item, onSent }: { crmKey: string; item: ReadyItem; onSent: (personId: string) => void }) {
+function CalendarList({ items }: { items: ScheduledItem[] }) {
+  if (items.length === 0) return <p className="text-sm text-slate-400">Nothing scheduled.</p>
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={`${item.kind}:${item.id}`} className="flex items-center justify-between text-sm rounded-lg border border-slate-200 dark:border-zinc-800 px-3 py-2">
+          <div>
+            <span className="font-medium">{item.businessName}</span>
+            <span className="text-slate-400 mx-2">·</span>
+            <span>{item.label}</span>
+          </div>
+          <span className="text-xs text-slate-500 dark:text-zinc-400">{new Date(item.scheduledAt).toLocaleString()}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ScheduleControl({ onSendNow, onSchedule, disabled }: { onSendNow: () => void; onSchedule: (when: string) => void; disabled: boolean }) {
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [when, setWhen] = useState('')
+
+  if (!showSchedule) {
+    return (
+      <div className="flex gap-2">
+        <button onClick={onSendNow} disabled={disabled} className="text-xs rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-medium px-3 py-1.5">
+          Send now
+        </button>
+        <button onClick={() => setShowSchedule(true)} disabled={disabled} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
+          Send later
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="flex gap-2 items-center">
+      <input
+        type="datetime-local"
+        value={when}
+        min={toLocalInputValue(new Date())}
+        onChange={(e) => setWhen(e.target.value)}
+        className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5"
+      />
+      <button
+        onClick={() => when && onSchedule(new Date(when).toISOString())}
+        disabled={disabled || !when}
+        className="text-xs rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-medium px-3 py-1.5"
+      >
+        Schedule
+      </button>
+      <button onClick={() => setShowSchedule(false)} className="text-xs text-slate-400 hover:text-slate-600">
+        Cancel
+      </button>
+    </div>
+  )
+}
+
+function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; item: ReadyItem; onSent: (personId: string) => void; onScheduled: (personId: string, when: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [subject, setSubject] = useState(item.subject)
   const [body, setBody] = useState(item.body)
-  const [sending, setSending] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleSend() {
-    setSending(true)
+  async function submit(scheduledAt?: string) {
+    setBusy(true)
     setError(null)
     try {
       const res = await fetch('/api/admin/crm-leadgen/send', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ crmKey, personId: item.personId, subject, body }),
+        body: JSON.stringify({ crmKey, personId: item.personId, subject, body, scheduledAt }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to send')
-      onSent(item.personId)
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      if (scheduledAt) onScheduled(item.personId, scheduledAt)
+      else onSent(item.personId)
     } catch (err: any) {
       setError(err.message)
     } finally {
-      setSending(false)
+      setBusy(false)
     }
   }
 
   return (
     <div className="rounded-xl border border-slate-300 dark:border-zinc-700 p-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="font-medium">{item.companyName}</p>
           <p className="text-xs text-slate-500 dark:text-zinc-400">{item.email}</p>
+          {item.scheduledAt && <p className="text-xs text-amber-600 dark:text-[#f59e0b] mt-1">Scheduled for {new Date(item.scheduledAt).toLocaleString()}</p>}
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 items-center flex-wrap">
           <button onClick={() => setExpanded(!expanded)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
             {expanded ? 'Hide' : 'Review & edit'}
           </button>
-          <button onClick={handleSend} disabled={sending} className="text-xs rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-medium px-3 py-1.5">
-            {sending ? 'Sending…' : 'Send'}
-          </button>
+          <ScheduleControl onSendNow={() => submit()} onSchedule={(w) => submit(w)} disabled={busy} />
         </div>
       </div>
       {expanded && (
@@ -91,11 +154,11 @@ function OutreachCard({ crmKey, item, onSent }: { crmKey: string; item: ReadyIte
   )
 }
 
-function ReplyCard({ crmKey, reply, onResponded }: { crmKey: string; reply: ReplyItem; onResponded: (id: string) => void }) {
+function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onResponded: (id: string) => void; onScheduled: (id: string, when: string) => void }) {
   const [mode, setMode] = useState<'manual' | 'ai' | null>(null)
   const [responseBody, setResponseBody] = useState('')
   const [drafting, setDrafting] = useState(false)
-  const [sending, setSending] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function pickAi() {
@@ -118,23 +181,24 @@ function ReplyCard({ crmKey, reply, onResponded }: { crmKey: string; reply: Repl
     }
   }
 
-  async function handleSend() {
+  async function submit(scheduledAt?: string) {
     if (!mode) return
-    setSending(true)
+    setBusy(true)
     setError(null)
     try {
       const res = await fetch('/api/admin/crm-leadgen/send-reply', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ replyId: reply.id, body: responseBody, mode }),
+        body: JSON.stringify({ replyId: reply.id, body: responseBody, mode, scheduledAt }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Failed to send')
-      onResponded(reply.id)
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      if (scheduledAt) onScheduled(reply.id, scheduledAt)
+      else onResponded(reply.id)
     } catch (err: any) {
       setError(err.message)
     } finally {
-      setSending(false)
+      setBusy(false)
     }
   }
 
@@ -167,13 +231,11 @@ function ReplyCard({ crmKey, reply, onResponded }: { crmKey: string; reply: Repl
             rows={6}
             className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm"
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => setMode(null)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
               Cancel
             </button>
-            <button onClick={handleSend} disabled={sending || drafting || !responseBody.trim()} className="text-xs rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-medium px-3 py-1.5">
-              {sending ? 'Sending…' : 'Send response'}
-            </button>
+            <ScheduleControl onSendNow={() => submit()} onSchedule={(w) => submit(w)} disabled={busy || drafting || !responseBody.trim()} />
           </div>
         </div>
       )}
@@ -186,7 +248,9 @@ export default function AdminCrmOutreach() {
   const [stats, setStats] = useState<Stat[] | null>(null)
   const [groups, setGroups] = useState<CrmGroup[] | null>(null)
   const [replyGroups, setReplyGroups] = useState<ReplyGroup[] | null>(null)
+  const [scheduled, setScheduled] = useState<ScheduledItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [company, setCompany] = useState<string>('all')
 
   function load() {
     setError(null)
@@ -194,14 +258,17 @@ export default function AdminCrmOutreach() {
       fetch('/api/admin/crm-leadgen/stats').then((r) => r.json()),
       fetch('/api/admin/crm-leadgen/pending').then((r) => r.json()),
       fetch('/api/admin/crm-leadgen/replies').then((r) => r.json()),
+      fetch('/api/admin/crm-leadgen/scheduled').then((r) => r.json()),
     ])
-      .then(([statsData, pendingData, repliesData]) => {
+      .then(([statsData, pendingData, repliesData, scheduledData]) => {
         if (!statsData.ok) throw new Error(statsData.error)
         if (!pendingData.ok) throw new Error(pendingData.error)
         if (!repliesData.ok) throw new Error(repliesData.error)
+        if (!scheduledData.ok) throw new Error(scheduledData.error)
         setStats(statsData.results)
         setGroups(pendingData.results)
         setReplyGroups(repliesData.results)
+        setScheduled(scheduledData.items)
       })
       .catch((err) => setError(err.message))
   }
@@ -214,36 +281,67 @@ export default function AdminCrmOutreach() {
     setGroups((prev) => (prev ? prev.map((g) => (g.crm === crmKey ? { ...g, ready: g.ready.filter((r) => r.personId !== personId) } : g)) : prev))
     setStats((prev) => (prev ? prev.map((s) => (s.crm === crmKey ? { ...s, sent: s.sent + 1 } : s)) : prev))
   }
-
+  function markScheduled(crmKey: string, personId: string, when: string) {
+    setGroups((prev) => (prev ? prev.map((g) => (g.crm === crmKey ? { ...g, ready: g.ready.map((r) => (r.personId === personId ? { ...r, scheduledAt: when } : r)) } : g)) : prev))
+    load() // refresh the calendar list too, simplest correct way to keep it in sync
+  }
   function markResponded(crmKey: string, replyId: string) {
     setReplyGroups((prev) => (prev ? prev.map((g) => (g.crm === crmKey ? { ...g, replies: g.replies.filter((r) => r.id !== replyId) } : g)) : prev))
     setStats((prev) => (prev ? prev.map((s) => (s.crm === crmKey ? { ...s, unanswered: Math.max(0, s.unanswered - 1) } : s)) : prev))
   }
+  function markReplyScheduled(crmKey: string, replyId: string, when: string) {
+    load()
+  }
+
+  const companies = useMemo(() => (stats ? [{ crm: 'all', businessName: 'All companies' }, ...stats.map((s) => ({ crm: s.crm, businessName: s.businessName }))] : []), [stats])
 
   if (error) return <p className="text-sm text-red-500 dark:text-red-400 p-6">{error}</p>
-  if (!stats || !groups || !replyGroups) return <p className="text-sm text-slate-500 dark:text-zinc-400 p-6">Loading…</p>
+  if (!stats || !groups || !replyGroups || !scheduled) return <p className="text-sm text-slate-500 dark:text-zinc-400 p-6">Loading…</p>
+
+  const visibleStats = company === 'all' ? stats : stats.filter((s) => s.crm === company)
+  const visibleGroups = company === 'all' ? groups : groups.filter((g) => g.crm === company)
+  const visibleReplyGroups = company === 'all' ? replyGroups : replyGroups.filter((g) => g.crm === company)
+  const visibleScheduled = company === 'all' ? scheduled : scheduled.filter((s) => s.crm === company)
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-10">
-      <div>
-        <h1 className="text-2xl font-bold">CRM Outreach</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-          Nothing here sends automatically — every outbound email and every reply response needs your explicit click.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">CRM Outreach</h1>
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
+            Nothing here sends automatically — every outbound email and every reply response needs your explicit click.
+          </p>
+        </div>
+        <select
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm font-medium"
+        >
+          {companies.map((c) => (
+            <option key={c.crm} value={c.crm}>
+              {c.businessName}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <StatsRow stats={stats} />
+      <StatsRow stats={visibleStats} />
 
-      {replyGroups.some((g) => g.replies.length > 0) && (
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Scheduled</h2>
+        <CalendarList items={visibleScheduled} />
+      </div>
+
+      {visibleReplyGroups.some((g) => g.replies.length > 0) && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Replies awaiting a response</h2>
-          {replyGroups.map(
+          {visibleReplyGroups.map(
             (g) =>
               g.replies.length > 0 && (
                 <div key={g.crm} className="space-y-3">
                   <p className="text-sm font-medium text-slate-500 dark:text-zinc-400">{g.businessName}</p>
                   {g.replies.map((r) => (
-                    <ReplyCard key={r.id} crmKey={g.crm} reply={r} onResponded={(id) => markResponded(g.crm, id)} />
+                    <ReplyCard key={r.id} reply={r} onResponded={(id) => markResponded(g.crm, id)} onScheduled={(id, when) => markReplyScheduled(g.crm, id, when)} />
                   ))}
                 </div>
               )
@@ -253,14 +351,20 @@ export default function AdminCrmOutreach() {
 
       <div className="space-y-6">
         <h2 className="text-lg font-semibold">Outreach ready to send</h2>
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.crm} className="space-y-3">
             <p className="text-sm font-medium text-slate-500 dark:text-zinc-400">
               {group.businessName} ({group.ready.length})
             </p>
             {group.ready.length === 0 && <p className="text-sm text-slate-400">Nothing ready right now.</p>}
             {group.ready.map((item) => (
-              <OutreachCard key={item.personId} crmKey={group.crm} item={item} onSent={(personId) => markSent(group.crm, personId)} />
+              <OutreachCard
+                key={item.personId}
+                crmKey={group.crm}
+                item={item}
+                onSent={(personId) => markSent(group.crm, personId)}
+                onScheduled={(personId, when) => markScheduled(group.crm, personId, when)}
+              />
             ))}
           </div>
         ))}

@@ -402,6 +402,12 @@ async function ensureSchema() {
   await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_email TEXT`
   await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_subject TEXT`
   await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_body TEXT`
+  // "Send later" — when set (and sent_at is still null), app/api/cron/crm-
+  // outreach-scheduled sends it once scheduled_at has passed, using
+  // scheduled_subject/scheduled_body exactly like an immediate edited send.
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ`
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS scheduled_subject TEXT`
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS scheduled_body TEXT`
 
   // One row per inbound reply detected in an outreach mailbox (see
   // app/api/cron/crm-outreach-replies). response_mode/response_sent_at
@@ -423,6 +429,10 @@ async function ensureSchema() {
       response_sent_at TIMESTAMPTZ
     )
   `
+  // Same "send later" pattern as crm_leadgen_drafted, for reply responses.
+  await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_at TIMESTAMPTZ`
+  await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_body TEXT`
+  await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_mode TEXT`
 
   // Tracks which CRM contacts have already been checked for a real email
   // address on their own company website, so the enrichment cron doesn't

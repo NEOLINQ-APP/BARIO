@@ -18,9 +18,9 @@ export async function GET(req: Request) {
     const results = []
     for (const crm of OUTREACH_CRMS) {
       const draftedRows = (await sql`
-        SELECT person_id, note_id FROM crm_leadgen_drafted
+        SELECT person_id, note_id, scheduled_at FROM crm_leadgen_drafted
         WHERE crm_key = ${crm.key} AND sent_at IS NULL AND note_id IS NOT NULL
-      `) as unknown as { person_id: string; note_id: string }[]
+      `) as unknown as { person_id: string; note_id: string; scheduled_at: string | null }[]
       if (draftedRows.length === 0) {
         results.push({ crm: crm.key, businessName: crm.businessName, ready: [] })
         continue
@@ -47,6 +47,7 @@ export async function GET(req: Request) {
           email,
           subject: note.title?.replace(/^BARIO Draft: /, '') ?? 'Outreach',
           body: note.bodyV2?.markdown ?? '',
+          scheduledAt: row.scheduled_at,
         })
       }
       results.push({ crm: crm.key, businessName: crm.businessName, ready })
