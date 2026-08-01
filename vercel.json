@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/vps-reconcile", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/crm-leadgen", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/crm-email-enrich", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/studio-reconcile", "schedule": "0 */6 * * *" }
   ]
 }

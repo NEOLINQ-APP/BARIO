@@ -390,6 +390,25 @@ async function ensureSchema() {
       PRIMARY KEY (crm_key, person_id)
     )
   `
+  // sent_at stays null until a human reviews and explicitly sends the
+  // drafted outreach note (see app/api/admin/crm-leadgen/send) — never set
+  // automatically, per the deliberate no-auto-send decision.
+  await sql`ALTER TABLE crm_leadgen_drafted ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ`
+
+  // Tracks which CRM contacts have already been checked for a real email
+  // address on their own company website, so the enrichment cron doesn't
+  // re-fetch the same site every run. found=false is still a useful record
+  // (that business just doesn't publish a contact email) — don't retry it
+  // forever.
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_email_enrichment (
+      crm_key TEXT NOT NULL,
+      person_id TEXT NOT NULL,
+      found BOOLEAN NOT NULL,
+      checked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (crm_key, person_id)
+    )
+  `
 
   // One row per Studio generation (video or voiceover). Credits are charged
   // up front at submit time (same convention as the builder route) and
