@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { findCrm, crmGraphQL, EMAIL_TONES, isEmailTone } from '@/lib/crmOutreach'
+import { findCrm, crmGraphQL, EMAIL_TONES, isEmailTone, EMAIL_TYPES, isEmailTypeKey } from '@/lib/crmOutreach'
 import { getOpenAI } from '@/lib/openai'
 import { errorResponse } from '@/lib/errors'
 
@@ -13,10 +13,11 @@ export async function POST(req: Request) {
   if (adminCheck instanceof NextResponse) return adminCheck
 
   try {
-    const { crmKey, personId, tone } = await req.json()
+    const { crmKey, personId, tone, emailType } = await req.json()
     const crm = findCrm(crmKey)
     if (!crm) return NextResponse.json({ error: 'Unknown crmKey' }, { status: 400 })
     if (!isEmailTone(tone)) return NextResponse.json({ error: `tone must be one of: ${Object.keys(EMAIL_TONES).join(', ')}` }, { status: 400 })
+    const resolvedType = isEmailTypeKey(emailType) ? emailType : 'direct_pitch'
 
     const personData = await crmGraphQL(
       crm,
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: 'system',
-          content: `You draft short, first-touch sales outreach emails for ${crm.businessName}, written as if from a real person on their team. Tone: ${EMAIL_TONES[tone as keyof typeof EMAIL_TONES].instruction} One clear reason to reply. Under 120 words. Never mention AI, automation, being a bot/assistant, or that this was generated — write it exactly as a human would. Return ONLY the email body text, no subject line, no markdown headers.`,
+          content: `You draft short, first-touch sales outreach emails for ${crm.businessName}, written as if from a real person on their team. Email type: ${EMAIL_TYPES[resolvedType].instruction} Tone: ${EMAIL_TONES[tone as keyof typeof EMAIL_TONES].instruction} Under 120 words. Never mention AI, automation, being a bot/assistant, or that this was generated — write it exactly as a human would. Return ONLY the email body text, no subject line, no markdown headers.`,
         },
         {
           role: 'user',

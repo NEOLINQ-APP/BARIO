@@ -53,6 +53,116 @@ export function isEmailTone(v: unknown): v is EmailTone {
   return typeof v === 'string' && Object.prototype.hasOwnProperty.call(EMAIL_TONES, v)
 }
 
+// The 14 B2B email types the user specified, generalized to work for
+// either CRM (businessName/context substituted in, same as the existing
+// draft prompts) rather than hardcoded to one business. `instruction` is
+// the actual content brief passed to the model; `suggestedTiming` is
+// display-only context for the admin picking a type — there's no automated
+// day/time-of-week scheduler behind it (that's real, separate follow-up
+// work, not built here).
+export const EMAIL_TYPES = {
+  direct_pitch: {
+    label: 'Direct Commercial Pitch',
+    purpose: 'Acquisition, repositioning, and scope capability.',
+    suggestedTiming: 'Tuesday @ 8:15 AM',
+    instruction: 'A direct commercial pitch. Mention the business\'s core specialty and service area. End with a low-pressure question asking if they have upcoming projects needing a reliable partner.',
+  },
+  unit_turnover: {
+    label: 'Unit Turnover / Maintenance',
+    purpose: 'Targets property managers needing quick contractor turnaround.',
+    suggestedTiming: 'Wednesday @ 7:45 AM',
+    instruction: 'Targeted at property management companies for unit turnovers and maintenance repairs. Direct and focused on fast turnarounds and quality work. Ask if they are currently accepting new vendors on their approved contractor list.',
+  },
+  pre_budget: {
+    label: 'Pre-Budget / Planning',
+    purpose: 'Reaches decision-makers during their budget planning cycle.',
+    suggestedTiming: 'Thursday @ 8:30 AM',
+    instruction: 'To real estate investors or asset managers, offering early-stage scope assessment and budgeting help for planned renovations or capital improvements.',
+  },
+  backup_partner: {
+    label: 'Subcontractor / Backup Partner',
+    purpose: 'Positions the business as a backup when current contractors fail.',
+    suggestedTiming: 'Tuesday @ 1:15 PM',
+    instruction: 'Offers the business as a reliable backup partner when their current contractor is booked up or delayed. Focus on reliability and clear timelines.',
+  },
+  local_reference: {
+    label: 'Local Project Reference',
+    purpose: 'Mentions local experience or scope capability.',
+    suggestedTiming: 'Wednesday @ 2:00 PM',
+    instruction: 'Emphasizes local licensing, safety compliance, and project delivery experience in the region. Simple call to action: a 5-minute phone alignment.',
+  },
+  gentle_bump: {
+    label: '"Gentle Bump" Follow-Up',
+    purpose: 'Short follow-up to unread/unanswered initial outreach.',
+    suggestedTiming: '3 days later @ 8:45 AM',
+    instruction: 'A 2-sentence follow-up to a previous unanswered note. Just ask if the previous email made it to the right person regarding support for their upcoming projects.',
+  },
+  value_add: {
+    label: 'Value-Add / Scope Checklist',
+    purpose: 'Offers a brief site walkthrough or scope assessment.',
+    suggestedTiming: 'Thursday @ 9:00 AM',
+    instruction: 'Offers a quick, complimentary on-site scope assessment for any project the contact may be reviewing this quarter. Clean and direct.',
+  },
+  rapid_response: {
+    label: 'Emergency / Rapid Response',
+    purpose: 'Highlights fast mobilization for urgent repairs.',
+    suggestedTiming: 'Monday @ 8:00 AM',
+    instruction: 'Highlights the ability to mobilize quickly for urgent repairs, structural updates, or emergency situations.',
+  },
+  seasonal: {
+    label: 'Seasonal Maintenance Offer',
+    purpose: 'Winterization, spring repairs, or exterior work.',
+    suggestedTiming: 'Wednesday @ 8:15 AM',
+    instruction: 'A seasonal outreach offering repairs, site updates, or maintenance before the season changes. Focus on protecting asset/property value.',
+  },
+  capex: {
+    label: 'CapEx / Facility Upgrade',
+    purpose: 'Targets capital expenditure projects for building owners.',
+    suggestedTiming: 'Tuesday @ 1:45 PM',
+    instruction: 'Tailored for asset managers addressing capital expenditure projects. Highlight clear planning, budgeting, and project execution.',
+  },
+  re_engagement: {
+    label: 'Break-in / Re-engagement',
+    purpose: 'For cold leads that went quiet months ago.',
+    suggestedTiming: 'Tuesday @ 10:15 AM',
+    instruction: 'For a lead that hasn\'t replied in a long while. Ask if relevant projects are back on their radar for the upcoming quarter.',
+  },
+  case_study: {
+    label: 'Case Study / Before & After',
+    purpose: 'Text summary of a recently completed project success.',
+    suggestedTiming: 'Thursday @ 1:30 PM',
+    instruction: 'A brief 3-bullet-point email describing how the business recently completed a project on time and within budget, then ask if the contact needs similar support.',
+  },
+  breakup: {
+    label: '"Breakup" Email',
+    purpose: 'Final quick note asking if project timing is off right now.',
+    suggestedTiming: 'Wednesday @ 3:00 PM',
+    instruction: 'A polite, 2-line final outreach asking whether to close their file for now, or check back in 6 months when new projects start.',
+  },
+  post_meeting: {
+    label: 'Post-Meeting Thank You',
+    purpose: 'Immediate follow-up after a phone call or site walk.',
+    suggestedTiming: 'Within 2 hours of the call',
+    instruction: 'A quick thank-you following up after a brief intro call. Summarize that you look forward to reviewing their scope details and delivering a proposal.',
+  },
+} as const
+export type EmailTypeKey = keyof typeof EMAIL_TYPES
+export function isEmailTypeKey(v: unknown): v is EmailTypeKey {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(EMAIL_TYPES, v)
+}
+
+// Hard block on unresolved placeholders — [Name], [Your Name], [Company],
+// {{Company Name}}, etc. Catches exactly the "Hi [Company Name] team"
+// failure mode: an AI draft (or a manual edit) that left a template
+// bracket in place. Checked inside deliverOutreach/deliverReplyResponse
+// themselves so it applies no matter which route triggers a send —
+// immediate, scheduled, or a reply response.
+const PLACEHOLDER_RE = /\[[^\]\n]{1,40}\]|\{\{[^}\n]{1,40}\}\}/
+export function findPlaceholder(text: string): string | null {
+  const match = text.match(PLACEHOLDER_RE)
+  return match ? match[0] : null
+}
+
 export async function crmGraphQL(crm: CrmConfig, query: string, variables: Record<string, unknown>) {
   const apiKey = process.env[crm.apiKeyEnvVar]
   if (!apiKey) throw new Error(`${crm.apiKeyEnvVar} is not set`)
@@ -97,6 +207,9 @@ export async function deliverOutreach(
   const subject = subjectOverride?.trim() || (note.title as string)?.replace(/^BARIO Draft: /, '') || `A message from ${crm.businessName}`
   const body = bodyOverride?.trim() || note.bodyV2?.markdown || ''
 
+  const placeholder = findPlaceholder(subject) || findPlaceholder(body)
+  if (placeholder) throw new Error(`Blocked: draft still contains an unfilled placeholder (${placeholder}) — edit it before sending`)
+
   const sendResult = await sendOutreachEmail({ smtpUser, smtpPass, from: crm.fromAddress, to: email, subject, text: body })
 
   await sql`
@@ -124,6 +237,10 @@ export async function deliverReplyResponse(sql: any, crm: CrmConfig, replyId: st
   if (!smtpUser || !smtpPass) throw new Error(`${crm.smtpUserEnvVar}/${crm.smtpPassEnvVar} not configured`)
 
   const subject = subjectBase?.toLowerCase().startsWith('re:') ? subjectBase : `Re: ${subjectBase || 'your message'}`
+
+  const placeholder = findPlaceholder(subject) || findPlaceholder(body)
+  if (placeholder) throw new Error(`Blocked: response still contains an unfilled placeholder (${placeholder}) — edit it before sending`)
+
   const sendResult = await sendOutreachEmail({ smtpUser, smtpPass, from: crm.fromAddress, to: toEmail, subject, text: body })
 
   await sql`

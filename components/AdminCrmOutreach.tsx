@@ -18,6 +18,23 @@ const TONE_OPTIONS = [
   { value: 'anxious', label: 'Anxious / concerned' },
 ]
 
+const EMAIL_TYPE_OPTIONS = [
+  { value: 'direct_pitch', label: 'Direct Commercial Pitch' },
+  { value: 'unit_turnover', label: 'Unit Turnover / Maintenance' },
+  { value: 'pre_budget', label: 'Pre-Budget / Planning' },
+  { value: 'backup_partner', label: 'Subcontractor / Backup Partner' },
+  { value: 'local_reference', label: 'Local Project Reference' },
+  { value: 'gentle_bump', label: '"Gentle Bump" Follow-Up' },
+  { value: 'value_add', label: 'Value-Add / Scope Checklist' },
+  { value: 'rapid_response', label: 'Emergency / Rapid Response' },
+  { value: 'seasonal', label: 'Seasonal Maintenance Offer' },
+  { value: 'capex', label: 'CapEx / Facility Upgrade' },
+  { value: 're_engagement', label: 'Break-in / Re-engagement' },
+  { value: 'case_study', label: 'Case Study / Before & After' },
+  { value: 'breakup', label: '"Breakup" Email' },
+  { value: 'post_meeting', label: 'Post-Meeting Thank You' },
+]
+
 function toLocalInputValue(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -117,6 +134,7 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tone, setTone] = useState('professional')
+  const [emailType, setEmailType] = useState('direct_pitch')
   const [regenerating, setRegenerating] = useState(false)
 
   async function regenerate() {
@@ -126,7 +144,7 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
       const res = await fetch('/api/admin/crm-leadgen/redraft', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ crmKey, personId: item.personId, tone }),
+        body: JSON.stringify({ crmKey, personId: item.personId, tone, emailType }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to redraft')
@@ -177,14 +195,19 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
         <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800 space-y-2">
           <input value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm font-medium" />
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            <select value={emailType} onChange={(e) => setEmailType(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
+              {EMAIL_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
             <select value={tone} onChange={(e) => setTone(e.target.value)} className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-1.5">
               {TONE_OPTIONS.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
             <button onClick={regenerate} disabled={regenerating} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 disabled:opacity-50 px-3 py-1.5">
-              {regenerating ? 'Rewriting…' : 'Regenerate with this tone'}
+              {regenerating ? 'Rewriting…' : 'Regenerate'}
             </button>
           </div>
         </div>

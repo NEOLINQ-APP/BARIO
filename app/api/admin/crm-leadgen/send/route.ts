@@ -37,8 +37,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, scheduled: true, scheduledAt: when.toISOString() })
     }
 
-    const sendResult = await deliverOutreach(sql, crm, personId, draft.note_id, subject, body)
-    return NextResponse.json({ ok: true, messageId: sendResult.messageId })
+    try {
+      const sendResult = await deliverOutreach(sql, crm, personId, draft.note_id, subject, body)
+      return NextResponse.json({ ok: true, messageId: sendResult.messageId })
+    } catch (deliverErr: any) {
+      // deliverOutreach only ever throws expected, user-actionable messages
+      // (unfilled placeholder, missing email, etc.) — safe to show directly,
+      // unlike an unexpected internal error.
+      return NextResponse.json({ error: deliverErr.message }, { status: 400 })
+    }
   } catch (err: any) {
     return errorResponse(err)
   }

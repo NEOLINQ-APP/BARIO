@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { findCrm, deliverReplyResponse } from '@/lib/crmOutreach'
+import { findCrm, deliverReplyResponse, findPlaceholder } from '@/lib/crmOutreach'
 import { errorResponse } from '@/lib/errors'
 
 // Sends (or schedules) a response to an inbound reply. mode is 'manual' or
@@ -15,6 +15,8 @@ export async function POST(req: Request) {
     const { replyId, body, mode, scheduledAt } = await req.json()
     if (!body?.trim()) return NextResponse.json({ error: 'Response body is required' }, { status: 400 })
     if (mode !== 'manual' && mode !== 'ai') return NextResponse.json({ error: 'mode must be "manual" or "ai"' }, { status: 400 })
+    const placeholder = findPlaceholder(body)
+    if (placeholder) return NextResponse.json({ error: `Response still contains an unfilled placeholder (${placeholder}) — edit it before sending` }, { status: 400 })
 
     const rows = (await sql`
       SELECT crm_key, from_email, subject, response_sent_at FROM crm_outreach_replies WHERE id = ${replyId}
@@ -39,8 +41,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, scheduled: true, scheduledAt: when.toISOString() })
     }
 
-    const sendResult = await deliverReplyResponse(sql, crm, replyId, reply.from_email, reply.subject, body, mode)
-    return NextResponse.json({ ok: true, messageId: sendResult.messageId })
+    try {
+      const sendResult = await deliverReplyResponse(sql, crm, replyId, reply.from_email, reply.subject, body, mode)
+      return NextResponse.json({ ok: true, messageId: sendResult.messageId })
+    } catch (deliverErr: any) {
+      return NextResponse.json({ error: deliverErr.message }, { status: 400 })
+    }
   } catch (err: any) {
     return errorResponse(err)
   }
