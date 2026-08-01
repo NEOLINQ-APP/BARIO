@@ -441,6 +441,25 @@ async function ensureSchema() {
   await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_at TIMESTAMPTZ`
   await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_body TEXT`
   await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS scheduled_response_mode TEXT`
+  // AI sentiment classification (see app/api/cron/crm-outreach-replies) —
+  // 'interested' | 'not_interested' | 'ooo_wrong_person' | 'neutral'. Purely
+  // a UI/routing signal; 'not_interested' additionally inserts a row into
+  // crm_do_not_contact so future outreach cron runs skip that person, but
+  // nothing here auto-sends anything.
+  await sql`ALTER TABLE crm_outreach_replies ADD COLUMN IF NOT EXISTS sentiment TEXT`
+
+  // Suppresses future outreach drafts/re-engagement for a contact who
+  // explicitly asked not to be contacted (detected via reply sentiment).
+  // Checked by app/api/cron/crm-leadgen before drafting a new note.
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_do_not_contact (
+      crm_key TEXT NOT NULL,
+      person_id TEXT NOT NULL,
+      reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (crm_key, person_id)
+    )
+  `
 
   // Tracks which CRM contacts have already been checked for a real email
   // address on their own company website, so the enrichment cron doesn't

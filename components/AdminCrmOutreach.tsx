@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; subject: string; body: string; scheduledAt: string | null }
 type CrmGroup = { crm: string; businessName: string; ready: ReadyItem[] }
 type Stat = { crm: string; businessName: string; drafted: number; sent: number; replied: number; unanswered: number }
-type ReplyItem = { id: string; person_id: string | null; from_email: string; subject: string; body: string; received_at: string }
+type ReplyItem = { id: string; person_id: string | null; from_email: string; subject: string; body: string; received_at: string; sentiment: string | null }
 type ReplyGroup = { crm: string; businessName: string; replies: ReplyItem[] }
 type ScheduledItem = { crm: string; businessName: string; kind: 'outreach' | 'reply'; id: string; scheduledAt: string; label: string }
 
@@ -33,6 +33,26 @@ const EMAIL_TYPE_OPTIONS = [
   { value: 'case_study', label: 'Case Study / Before & After' },
   { value: 'breakup', label: '"Breakup" Email' },
   { value: 'post_meeting', label: 'Post-Meeting Thank You' },
+]
+
+const SENTIMENT_BADGE: Record<string, { emoji: string; label: string; className: string }> = {
+  interested: { emoji: '🟢', label: 'Interested', className: 'bg-emerald-950 text-emerald-300' },
+  not_interested: { emoji: '🔴', label: 'Not interested', className: 'bg-red-950 text-red-300' },
+  ooo_wrong_person: { emoji: '🟡', label: 'OOO / wrong person', className: 'bg-amber-950 text-amber-300' },
+  neutral: { emoji: '⚪', label: 'Neutral', className: 'bg-zinc-800 text-zinc-300' },
+}
+
+// Simple flat-hours SLA check (not true business-hours math — good enough
+// for "is this getting old", not a precise timer).
+const SLA_HOURS = 4
+function hoursSince(iso: string) {
+  return (Date.now() - new Date(iso).getTime()) / 3_600_000
+}
+
+const QUICK_TEMPLATES = [
+  { label: 'Approve & book intro call', text: "Thanks for getting back to me — would you be open to a quick 15-minute call this week to go over what you need? Happy to work around your schedule, just let me know a few times that work." },
+  { label: 'Approve & ask for more detail', text: "Appreciate the reply — could you share a bit more detail on scope/timeline so I can put together something useful for you?" },
+  { label: 'Polite decline acknowledgment', text: "Understood, thanks for letting me know — I'll close this out on my end. Feel free to reach out anytime down the road if that changes." },
 ]
 
 function toLocalInputValue(d: Date) {
@@ -266,22 +286,50 @@ function ReplyCard({ reply, onResponded, onScheduled }: { reply: ReplyItem; onRe
     }
   }
 
+  const badge = SENTIMENT_BADGE[reply.sentiment ?? 'neutral'] ?? SENTIMENT_BADGE.neutral
+  const overdue = hoursSince(reply.received_at) > SLA_HOURS
+
   return (
-    <div className="rounded-xl border border-slate-300 dark:border-zinc-700 p-4 space-y-3">
-      <div>
-        <p className="font-medium">{reply.from_email}</p>
-        <p className="text-xs text-slate-500 dark:text-zinc-400">{reply.subject}</p>
-        <p className="text-sm mt-2 whitespace-pre-wrap text-slate-700 dark:text-zinc-300">{reply.body}</p>
+    <div className={`rounded-xl border p-4 space-y-3 ${overdue ? 'border-red-400 dark:border-red-700' : 'border-slate-300 dark:border-zinc-700'}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{reply.from_email}</p>
+          <p className="text-xs text-slate-500 dark:text-zinc-400">{reply.subject}</p>
+          <p className="text-sm mt-2 whitespace-pre-wrap text-slate-700 dark:text-zinc-300">{reply.body}</p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${badge.className}`}>
+            {badge.emoji} {badge.label}
+          </span>
+          {overdue && (
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-950 text-red-300 whitespace-nowrap">
+              ⏰ {Math.floor(hoursSince(reply.received_at))}h — overdue
+            </span>
+          )}
+        </div>
       </div>
 
       {!mode && (
-        <div className="flex gap-2">
-          <button onClick={() => { setMode('manual'); setResponseBody('') }} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
-            Reply manually
-          </button>
-          <button onClick={() => draftWithTone(tone)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
-            AI-drafted reply
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => { setMode('manual'); setResponseBody('') }} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
+              Reply manually
+            </button>
+            <button onClick={() => draftWithTone(tone)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
+              AI-drafted reply
+            </button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {QUICK_TEMPLATES.map((qt) => (
+              <button
+                key={qt.label}
+                onClick={() => { setMode('manual'); setResponseBody(qt.text) }}
+                className="text-xs rounded-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 px-3 py-1.5"
+              >
+                {qt.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

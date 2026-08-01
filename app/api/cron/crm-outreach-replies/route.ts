@@ -5,6 +5,38 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { OUTREACH_CRMS, findCrm, crmGraphQL } from '@/lib/crmOutreach'
 import { logAdminAction } from '@/lib/adminActions'
+import { getOpenAI } from '@/lib/openai'
+
+const VALID_SENTIMENTS = ['interested', 'not_interested', 'ooo_wrong_person', 'neutral'] as const
+type Sentiment = (typeof VALID_SENTIMENTS)[number]
+
+// Classifies a reply so AdminCrmOutreach can show it with the right
+// urgency/color without a human reading every single one first. A
+// misclassification only affects a UI badge and (for not_interested) a
+// do-not-contact suppression — never anything that sends mail on its own.
+async function classifySentiment(body: string): Promise<Sentiment> {
+  try {
+    const openai = getOpenAI()
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-5.6-luna',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Classify this email reply into exactly one word: "interested" (wants to talk / asks for more info / positive), "not_interested" (declines, says stop contacting, unsubscribe, not needed), "ooo_wrong_person" (out-of-office auto-reply, or says they are the wrong contact / redirects to someone else), or "neutral" (anything else, unclear, or just a question). Reply with only that one word.',
+        },
+        { role: 'user', content: body.slice(0, 2000) },
+      ],
+      max_completion_tokens: 10,
+    })
+    const raw = completion.choices[0]?.message?.content?.trim().toLowerCase().replace(/[^a-z_]/g, '') ?? ''
+    return (VALID_SENTIMENTS as readonly string[]).includes(raw) ? (raw as Sentiment) : 'neutral'
+  } catch {
+    // A classification failure shouldn't block filing the reply itself —
+    // it just shows up untagged (UI treats missing sentiment as neutral).
+    return 'neutral'
+  }
+}
 
 // Polls each outreach mailbox (send.afclogistics.ca / send.sunbuiltgroup.com,
 // on the self-hosted Mailcow server) for new inbound mail — real replies to
@@ -45,12 +77,22 @@ async function fetchNewReplies(crm: (typeof OUTREACH_CRMS)[number], sql: any) {
           SELECT person_id FROM crm_leadgen_drafted WHERE crm_key = ${crm.key} AND sent_email = ${fromEmail} LIMIT 1
         `) as unknown as { person_id: string }[]
         const personId = sentRow[0]?.person_id ?? null
+        const replyText = parsed.text ?? ''
+        const sentiment = await classifySentiment(replyText)
 
         await sql`
-          INSERT INTO crm_outreach_replies (id, crm_key, person_id, from_email, subject, body, message_id)
-          VALUES (${randomUUID()}, ${crm.key}, ${personId}, ${fromEmail}, ${parsed.subject ?? ''}, ${parsed.text ?? ''}, ${messageId})
+          INSERT INTO crm_outreach_replies (id, crm_key, person_id, from_email, subject, body, message_id, sentiment)
+          VALUES (${randomUUID()}, ${crm.key}, ${personId}, ${fromEmail}, ${parsed.subject ?? ''}, ${replyText}, ${messageId}, ${sentiment})
           ON CONFLICT (message_id) DO NOTHING
         `
+        // Contact explicitly declined — stop drafting them future outreach.
+        // Never auto-sends anything; just suppresses the leadgen cron.
+        if (sentiment === 'not_interested' && personId) {
+          await sql`
+            INSERT INTO crm_do_not_contact (crm_key, person_id, reason) VALUES (${crm.key}, ${personId}, 'reply classified not_interested')
+            ON CONFLICT (crm_key, person_id) DO NOTHING
+          `
+        }
         found.push(messageId)
         await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
       }

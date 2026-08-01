@@ -90,6 +90,11 @@ async function processCrm(crm: CrmConfig, sql: any) {
     try {
       const already = await sql`SELECT 1 FROM crm_leadgen_drafted WHERE crm_key = ${crm.key} AND person_id = ${person.id}`
       if (already.length > 0) continue
+      // Skip anyone who explicitly declined via a reply classified
+      // not_interested (see app/api/cron/crm-outreach-replies) — never
+      // re-draft outreach to someone who asked to be left alone.
+      const declined = await sql`SELECT 1 FROM crm_do_not_contact WHERE crm_key = ${crm.key} AND person_id = ${person.id}`
+      if (declined.length > 0) continue
 
       const firstName = person.name?.firstName || ''
       const lastName = person.name?.lastName || ''

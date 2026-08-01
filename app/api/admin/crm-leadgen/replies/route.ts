@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const results = []
     for (const crm of OUTREACH_CRMS) {
       const rows = await sql`
-        SELECT id, person_id, from_email, subject, body, received_at
+        SELECT id, person_id, from_email, subject, body, received_at, sentiment
         FROM crm_outreach_replies
         WHERE crm_key = ${crm.key} AND response_sent_at IS NULL
         ORDER BY received_at DESC
