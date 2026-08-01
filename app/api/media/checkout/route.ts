@@ -26,6 +26,14 @@ export async function POST(req: Request) {
     const origin = req.headers.get('origin') ?? 'https://bario.ca'
     const tierInfo = STORAGE_TIERS[tier]
 
+    // Admin bypass — see app/api/checkout/route.ts for the reasoning. Storage
+    // is Bario's own infrastructure (not a reseller product), so it's
+    // included in the blanket admin bypass.
+    if (user.is_admin) {
+      await sql`UPDATE users SET storage_tier = ${tier}, storage_subscription_status = 'active' WHERE id = ${user.id}`
+      return NextResponse.json({ url: `${origin}/media?storage=success` })
+    }
+
     const checkoutSession = await getStripe().checkout.sessions.create({
       mode: 'subscription',
       // Reuse the existing Stripe customer if this account already has one

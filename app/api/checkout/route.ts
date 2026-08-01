@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStripe, PLAN_PRICE_IDS } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { creditsForPlan } from '@/lib/credits'
 import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
@@ -26,6 +27,22 @@ export async function POST(req: Request) {
     }
 
     const origin = req.headers.get('origin') ?? 'https://bario.ca'
+
+    // Admin bypass: no reason the account owner should ever hand Stripe a
+    // real card for a plan they already get every paid perk of via
+    // hasPaidPlan()'s is_admin check — just comp it directly, same effect
+    // as the admin grant-plan tool. Reseller products (VPS, mail hosting)
+    // are deliberately NOT covered here — those carry real third-party
+    // infrastructure cost, not something Bario can just wave through.
+    if (user.is_admin) {
+      await sql`
+        UPDATE users
+        SET plan = ${plan}, subscription_status = 'active',
+            credits_remaining = ${creditsForPlan(plan)}, credits_reset_at = now() + interval '1 month'
+        WHERE id = ${user.id}
+      `
+      return NextResponse.json({ url: `${origin}/dashboard?checkout=success` })
+    }
 
     const checkoutSession = await getStripe().checkout.sessions.create({
       mode: 'subscription',
