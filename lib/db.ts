@@ -115,6 +115,43 @@ async function ensureSchema() {
   // to decrypt; it's safe to store in the clear (an IV isn't secret).
   await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS encrypted BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS iv TEXT`
+  // content_hash (client-computed SHA-256 of the plaintext file, sent as a
+  // form field on upload) and updated_at are what the X-Drive desktop sync
+  // client needs to do real delta sync — without them the only way to know
+  // "did this file change" is name+size+mtime, which is what the browser's
+  // tab-only watcher falls back to today and is genuinely fragile.
+  await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS content_hash TEXT`
+  await sql`ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+  // Durable, revocable credentials for the desktop sync client — the only
+  // auth a regular (non-admin) user has today is the browser session
+  // cookie (lib/session.ts), which isn't something a native app should
+  // hold onto indefinitely. token stores only a hash, never the raw token
+  // (same "never store the secret itself" principle as password_hash).
+  await sql`
+    CREATE TABLE IF NOT EXISTS personal_access_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      token_hash TEXT NOT NULL UNIQUE,
+      device_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ
+    )
+  `
+  // Real per-contact conversation memory for Victoria's SMS/WhatsApp replies
+  // (app/api/twilio/miko-sms) — without this, every inbound text would be
+  // answered with zero memory of anything said before it in the same thread.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_messages (
+      id TEXT PRIMARY KEY,
+      phone_number TEXT NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'sms',
+      direction TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS victoria_messages_phone_idx ON victoria_messages (phone_number, created_at)`
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -1168,6 +1205,27 @@ export type MediaAsset = {
   created_at: string
   encrypted: boolean
   iv: string | null
+  content_hash: string | null
+  updated_at: string
+}
+
+export type PersonalAccessToken = {
+  id: string
+  user_id: string
+  token_hash: string
+  device_name: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+export type VictoriaMessage = {
+  id: string
+  phone_number: string
+  channel: string
+  direction: 'inbound' | 'outbound'
+  body: string
+  created_at: string
 }
 
 export type FamilyGroup = {

@@ -792,6 +792,9 @@ export default function MediaLibrary() {
             </div>
           )}
           {watchError && <p className="text-xs text-red-400 mt-2">{watchError}</p>}
+          <p className="text-xs text-zinc-500 mt-3">
+            Want real background sync, even with this tab closed? <a href="/dashboard/devices" className="underline hover:text-zinc-300">Manage synced devices</a>.
+          </p>
         </div>
 
         {/* Files */}

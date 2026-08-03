@@ -22,7 +22,16 @@ You're also happy to answer general payroll/paystub questions (what CPP2 is, how
 const MAX_MESSAGE_LENGTH = 2000
 const MAX_HISTORY = 20
 
+// Soft-disabled for now (2026-08-03, cost-reduction pass) — code and data
+// stay intact, just not reachable, so this can be turned back on by
+// flipping the flag rather than rebuilding anything.
+const AMBER_DISABLED = true
+
 export async function POST(req: Request) {
+  if (AMBER_DISABLED) {
+    return NextResponse.json({ reply: "Amber is temporarily paused. Ask Mr. Mendoza to re-enable her if you need invoice help." })
+  }
+
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

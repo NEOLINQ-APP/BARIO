@@ -13,12 +13,28 @@ const REQUIRED_CONTACT_FIELDS: (keyof RegistrantContact)[] = [
   'firstName', 'lastName', 'address1', 'city', 'stateProvince', 'postalCode', 'country', 'phone', 'emailAddress',
 ]
 
+// Temporarily held: the registrar backend is still pointed at Namecheap's
+// sandbox (see [[bario_domain_reseller]]), and Stripe is in live mode — a
+// real customer could be really charged for a domain that never actually
+// registers. Blocked here at the API level (not just hidden in the UI) so
+// this can never be reached by calling the route directly either. Remove
+// once the registrar proxy is switched to production Namecheap credentials
+// and a real end-to-end purchase has been verified.
+const DOMAIN_PURCHASE_ON_HOLD = true
+
 // Starts a domain purchase — creates a pending order and a real Stripe
 // Checkout session. The domain is NOT registered here; that only happens
 // once Stripe confirms payment (app/api/webhooks/stripe/route.ts), so a
 // customer can never end up charged-but-not-registered or registered-for-
 // free. Currently pointed at Namecheap's sandbox — see [[bario_domain_reseller]].
 export async function POST(req: Request) {
+  if (DOMAIN_PURCHASE_ON_HOLD) {
+    return NextResponse.json(
+      { error: "Domain registration is temporarily unavailable while we finish setting up our registrar. We're working on it and it'll be back very soon — sorry for the inconvenience!" },
+      { status: 503 }
+    )
+  }
+
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { put } from '@vercel/blob'
-import { getSession } from '@/lib/session'
+import { getApiSession } from '@/lib/session'
 import { db, type User, type MediaAsset } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { getEffectiveStorage } from '@/lib/mediaQuota'
@@ -18,7 +18,7 @@ async function loadUser(sql: any, userId: string): Promise<User | null> {
 
 export async function GET(req: Request) {
   try {
-    const session = await getSession()
+    const session = await getApiSession(req)
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const sql = await db()
@@ -71,7 +71,7 @@ const MAX_SIZE = 200 * 1024 * 1024 // 200MB per file — generous for a single p
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession()
+    const session = await getApiSession(req)
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const sql = await db()
@@ -90,6 +90,11 @@ export async function POST(req: Request) {
     const encrypted = form.get('encrypted') === 'true'
     const iv = form.get('iv') as string | null
     const contentTypeOverride = form.get('contentType')
+    // Client-computed SHA-256 of the plaintext file — optional so existing
+    // browser callers (which don't send it) are unaffected; the desktop sync
+    // client relies on it to detect real content changes vs. just an mtime bump.
+    const contentHashRaw = form.get('contentHash')
+    const contentHash = typeof contentHashRaw === 'string' && contentHashRaw ? contentHashRaw : null
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
@@ -115,8 +120,8 @@ export async function POST(req: Request) {
 
     const id = randomUUID()
     await sql`
-      INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes, encrypted, iv)
-      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${contentType}, ${file.size}, ${encrypted}, ${encrypted ? iv : null})
+      INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes, encrypted, iv, content_hash)
+      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${contentType}, ${file.size}, ${encrypted}, ${encrypted ? iv : null}, ${contentHash})
     `
 
     return NextResponse.json({ ok: true, id, url: blob.url })

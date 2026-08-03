@@ -60,13 +60,8 @@ export default function AdminInvoicesList() {
           <a href="/admin/invoices/new" className="inline-block px-4 py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm">
             + New quote/invoice
           </a>
-          <a
-            href="/admin/invoices/amber"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-amber-400/50 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold text-sm"
-          >
-            💬 Ask Amber (finance assistant)
-            {pendingCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-amber-950 text-xs">{pendingCount} pending</span>}
-          </a>
+          {/* Amber temporarily paused (2026-08-03 cost-reduction pass) — button
+              hidden rather than removed, route still exists behind a flag. */}
         </div>
 
         {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}

@@ -114,7 +114,17 @@ export default function DomainRegistration() {
     setSearching(false)
   }
 
+  // Held for now — see app/api/domains/register/route.ts's own
+  // DOMAIN_PURCHASE_ON_HOLD flag, which blocks the same thing server-side
+  // so this can't be bypassed by calling the API directly either.
+  const PURCHASE_ON_HOLD = true
+  const [showHoldNotice, setShowHoldNotice] = useState(false)
+
   function openRegisterForm(r: SearchResult) {
+    if (PURCHASE_ON_HOLD) {
+      setShowHoldNotice(true)
+      return
+    }
     setShowForm(r)
   }
 
@@ -140,9 +150,33 @@ export default function DomainRegistration() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-        🧪 Sandbox mode — domain registration runs against Namecheap's sandbox. Real Stripe payment is required to proceed, but no real domain has been purchased yet.
-      </div>
+      {PURCHASE_ON_HOLD ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+          🔧 Domain registration is available for search right now, but purchasing is temporarily paused while we finish setting up — available again soon!
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+          🧪 Sandbox mode — domain registration runs against Namecheap's sandbox. Real Stripe payment is required to proceed, but no real domain has been purchased yet.
+        </div>
+      )}
+
+      {showHoldNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-6 shadow-xl text-center">
+            <div className="text-3xl mb-3">🚧</div>
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Available soon!</h3>
+            <p className="text-sm text-slate-600 dark:text-zinc-400 mb-5">
+              Sorry — domain registration isn&apos;t quite ready to purchase yet. We&apos;re putting the finishing touches on it and it&apos;ll be live very soon. Thanks for your patience!
+            </p>
+            <button
+              onClick={() => setShowHoldNotice(false)}
+              className="w-full py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {searchParams.get('purchased') === '1' && (
         <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 text-sm text-cyan-700 dark:text-cyan-400">
