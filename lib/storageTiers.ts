@@ -1,21 +1,15 @@
-export type StorageTierKey = 'free' | 'starter' | 'plus' | 'pro' | 'ultra' | 'max' | 'elite' | 'enterprise'
+export type StorageTierKey = 'free' | 'starter' | 'plus' | 'pro' | 'max' | 'ultra'
 
-// Bario's own storage tiers — informed by researching iCloud/Google
-// One/Amazon Photos/MEGA (cheap entry tier, meaningful jumps, family
-// sharing bundled free on paid tiers) but sized for website media rather
-// than full-device backup, and priced as our own product, not a resale of
-// anyone else's numbers. CAD, billed monthly. Price-per-GB keeps decreasing
-// tier over tier (bulk discount), same pattern every competitor researched
-// uses: $0.1495/GB, $0.0799, $0.03998, $0.0293, $0.0156, $0.0117, $0.0088.
+// X-Drive (formerly "Media Library") storage tiers — set directly by the
+// user 2026-07-27, replacing the earlier researched pricing below. CAD,
+// billed monthly.
 export const STORAGE_TIERS: Record<StorageTierKey, { label: string; bytes: number; priceCentsCad: number }> = {
-  free: { label: 'Free', bytes: 2 * 1024 ** 3, priceCentsCad: 0 },
-  starter: { label: 'Starter', bytes: 20 * 1024 ** 3, priceCentsCad: 299 },
-  plus: { label: 'Plus', bytes: 100 * 1024 ** 3, priceCentsCad: 799 },
-  pro: { label: 'Pro', bytes: 500 * 1024 ** 3, priceCentsCad: 1999 },
-  ultra: { label: 'Ultra', bytes: 1 * 1024 ** 4, priceCentsCad: 2999 },
-  max: { label: 'Max', bytes: 5 * 1024 ** 4, priceCentsCad: 7999 },
-  elite: { label: 'Elite', bytes: 10 * 1024 ** 4, priceCentsCad: 11999 },
-  enterprise: { label: 'Enterprise', bytes: 20 * 1024 ** 4, priceCentsCad: 17999 },
+  free: { label: 'Free', bytes: 10 * 1024 ** 3, priceCentsCad: 0 },
+  starter: { label: 'Starter', bytes: 50 * 1024 ** 3, priceCentsCad: 99 },
+  plus: { label: 'Plus', bytes: 200 * 1024 ** 3, priceCentsCad: 299 },
+  pro: { label: 'Pro', bytes: 2 * 1024 ** 4, priceCentsCad: 999 },
+  max: { label: 'Max', bytes: 6 * 1024 ** 4, priceCentsCad: 2999 },
+  ultra: { label: 'Ultra', bytes: 12 * 1024 ** 4, priceCentsCad: 5999 },
 }
 
 export const STORAGE_TIER_KEYS = Object.keys(STORAGE_TIERS) as StorageTierKey[]

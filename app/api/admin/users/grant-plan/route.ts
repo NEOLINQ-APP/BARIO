@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { creditsForPlan } from '@/lib/credits'
+import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 
 const VALID_PLANS = ['starter', 'business', 'agency']
@@ -37,9 +38,11 @@ export async function POST(req: Request) {
     `) as unknown as { id: string; email: string; plan: string }[]
 
     if (!rows[0]) {
+      await logAdminAction(sql, { action: 'grant-plan', targetEmail: email, params: { plan }, result: 'error', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
       return NextResponse.json({ error: `No account found for ${email} — they need to sign up first` }, { status: 404 })
     }
 
+    await logAdminAction(sql, { action: 'grant-plan', targetEmail: rows[0].email, params: { plan }, result: 'ok', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
     return NextResponse.json({ ok: true, user: rows[0] })
   } catch (err: any) {
     return errorResponse(err)

@@ -91,7 +91,7 @@ export default function PricingSection() {
           )
         })}
       </div>
-      <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Zeus — manual text edits are always free. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
+      <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Sky — manual text edits are always free. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
     </>
   )
 }

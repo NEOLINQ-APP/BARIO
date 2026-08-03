@@ -41,6 +41,10 @@ export default function AdminHome() {
             <div className="font-semibold">CRM Outreach</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>
           </a>
+          <a href="/admin/dialer" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Bario Dialer 📞</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Installable per-business apps — real calls as AFC Logistics, Sunbuilt Group, or Unique Group Inc. Separate installable link per business: /admin/dialer/afc, /sunbuilt, /unique.</p>
+          </a>
           <a href="/admin/collections" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Payment Collections</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">3-strike reminder/lockout flow for sites live before payment is received.</p>
@@ -52,6 +56,30 @@ export default function AdminHome() {
           <a href="/admin/coupons" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Coupons & Promoter Links</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Create discount codes with a shareable auto-apply link for influencers/promoters.</p>
+          </a>
+          <a href="/admin/sales" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Sales & Records</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every completed sale across all products, live from Stripe — what sold, to whom, and when.</p>
+          </a>
+          <a href="/admin/invoices" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Quotes & Invoices</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Manually build a quote or invoice from real product prices, with a custom discount, a shareable link, and a real Pay Now button.</p>
+          </a>
+          <a href="/admin/agents" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Agents</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every AI agent (Victoria, Miko, Amber), their real responsibilities, and their task list — nothing gets duplicated.</p>
+          </a>
+          <a href="/admin/payroll" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Payroll</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Staff roster and paystubs — real CPP/CPP2/EI + federal tax; Alberta provincial tax verified, other provinces flagged for review.</p>
+          </a>
+          <a href="/admin/victoria" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Victoria Call Log</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Real per-call cost across all three business lines — actual token usage + Twilio rates on real call duration.</p>
+          </a>
+          <a href="/admin/ai-integrations" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">AI Integrations & Domains</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every place Bario calls an AI model, which provider/model, and which domain(s) it serves.</p>
           </a>
         </div>
       </div>

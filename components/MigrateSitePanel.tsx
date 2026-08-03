@@ -116,7 +116,7 @@ export default function MigrateSitePanel({ isPaid }: { isPaid: boolean }) {
             <div className="text-amber-600 dark:text-amber-400">
               Styling for this site still loads from {result.externalAssetDomains.join(', ')} — if that site ever goes
               offline, this page's layout could break even though the content itself is fully on Bario. Rebuilding it
-              with Zeus removes that dependency entirely.
+              with Sky removes that dependency entirely.
             </div>
           )}
           {result.failedPages.length > 0 && (

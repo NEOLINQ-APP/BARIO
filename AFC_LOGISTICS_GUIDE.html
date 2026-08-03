@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AFC Logistics — Access & How-To Reference</title>
+    <style>
+        :root {
+            --primary: #0B192C;
+            --secondary: #1E3E62;
+            --accent: #FF6500;
+            --accent-hover: #e55a00;
+            --bg-color: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --text-main: #334155;
+            --text-heading: #0F172A;
+            --border-color: #E2E8F0;
+            --code-bg: #F1F5F9;
+            --code-text: #0F172A;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            padding: 2.5rem;
+            border-top: 5px solid var(--accent);
+        }
+
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1.5rem;
+        }
+
+        h1 {
+            color: var(--text-heading);
+            font-size: 2rem;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #64748B;
+        }
+
+        .subtitle a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .subtitle a:hover {
+            text-decoration: underline;
+        }
+
+        .notice-box {
+            background-color: #FFF7ED;
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.25rem;
+            margin-bottom: 2rem;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.95rem;
+            color: #7C2D12;
+        }
+
+        h2 {
+            color: var(--secondary);
+            font-size: 1.4rem;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        ul, ol {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .info-card {
+            background: #F8FAFC;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+        }
+
+        .info-card h3 {
+            margin-top: 0;
+            color: var(--secondary);
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: #64748B;
+            text-align: center;
+            font-style: italic;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                padding: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>AFC Logistics — Access & How-To Reference</h1>
+            <div class="subtitle">
+                <strong>Site:</strong> <a href="https://afclogistics.ca" target="_blank" rel="noopener noreferrer">https://afclogistics.ca</a> (Single-page app backed by <code>afc-backend</code> on port 4200)
+            </div>
+        </header>
+
+        <div class="notice-box">
+            <strong>Note:</strong> Not part of BARIO itself — this is a separate client (logistics dispatch business) hosted on the same Hostinger VPS (<code>2.25.139.207</code>). Kept alongside BARIO's own docs since that's where your other persistent reference files live this session.
+        </div>
+
+        <section>
+            <h2>Admin Access</h2>
+            <p>You need <strong>two separate unlocks</strong>, in either order (whichever prompts first):</p>
+            <ol>
+                <li><strong>Page passcode</strong> — Scroll to the footer $\rightarrow$ Click <strong>Admin</strong> $\rightarrow$ Enter passcode <code>AFCAdmin2026!</code> $\rightarrow$ Click "Unlock Dashboard". This gates the page from casual visitors rather than providing real security.</li>
+                <li><strong>Real staff login</strong> — Click <strong>Sign In</strong> (top right) $\rightarrow$ Use email <code>admin@afclogistics.ca</code>, password <code>AFCAdmin2026!</code>. This provides actual account access to live data.</li>
+            </ol>
+            <p>Once both steps are complete, the dashboard displays real stats, the live driver map, jobs, invoices, driver applications, and more. Performing only the passcode step without signing in displays a "demo dashboard" placeholder instead.</p>
+            
+            <div class="info-card">
+                <h3>What's in the Admin Dashboard</h3>
+                <ul>
+                    <li>High-level statistics (drivers, jobs, revenue, driver pay, profit)</li>
+                    <li>Live driver map</li>
+                    <li>Driver Applications review (Approve/Reject functionality)</li>
+                    <li>Add Driver & Create Job (featuring fixed dollar or percentage driver pay structures)</li>
+                    <li>Rate Sheets (individual driver standing pay rates)</li>
+                    <li>Change My Password & Password Reset capability for any driver or client</li>
+                    <li>Comprehensive view of All Jobs and Invoices</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>Driver Access (Once Approved)</h2>
+            <p>Drivers use the exact same <strong>Sign In</strong> button (top right) as everyone else, entering the email and password provided after approval. The platform automatically detects their role and routes them straight to the Driver Portal without requiring manual navigation.</p>
+            
+            <div class="info-card">
+                <h3>What's in the Driver Portal</h3>
+                <ul>
+                    <li>Exclusive access to their own assigned jobs only (never other drivers' or customers' data)</li>
+                    <li>Accept or decline new job offer prompts</li>
+                    <li>Status workflow controls: Mark as Picked Up $\rightarrow$ In Transit $\rightarrow$ Delivered</li>
+                    <li>Proof-of-Delivery photo uploading</li>
+                    <li>Automated background <strong>live GPS sharing</strong> that starts the moment an active job is present (no toggle required while the tab/page remains open)</li>
+                    <li>Complete earnings overview (YTD, all-time, pending) and full historical pay record</li>
+                </ul>
+            </div>
+            
+            <p><strong>Known gap:</strong> Drivers currently lack a self-service "change my password" option (only admins can change their own password). This is a worthwhile feature to add if drivers need to update temporary passwords independently.</p>
+        </section>
+
+        <section>
+            <h2>How a Driver Signs Up (Applies)</h2>
+            <ol>
+                <li>On the homepage, click <strong>Drive For Us</strong> (located in the top navigation, mobile menu, or footer).</li>
+                <li>Fill out the form: Name, email, phone, service area, vehicle type/make-model/capacity, license number/class, insurance provider/policy, years of experience, availability, and notes.</li>
+                <li>Submitting displays a confirmation message; the entry is stored as a <strong>pending application</strong>.</li>
+                <li><strong>Admin Review:</strong> Navigate to the Admin dashboard $\rightarrow$ <strong>Driver Applications</strong> section (indicated by a pending count badge) $\rightarrow$ Review submitted details $\rightarrow$ Click <strong>Approve</strong> or <strong>Reject</strong>.</li>
+                <li><strong>Upon Approval:</strong> A real driver account is created automatically.
+                    <ul>
+                        <li><em>Note on SMTP:</em> If SMTP were configured, credentials would email automatically. Since it is not configured yet, the temporary password appears directly inside the dashboard for manual distribution (text, call, or email).</li>
+                    </ul>
+                </li>
+                <li>The driver signs in using that email and temporary password, landing directly in the Driver Portal ready for dispatch.</li>
+            </ol>
+        </section>
+
+        <footer>
+            Keep this updated the same way as <code>TODO.md</code>/<code>ADMIN_GUIDE.md</code> — if a login, passcode, or flow changes, update this file in the same pass.
+        </footer>
+    </div>
+
+</body>
+</html>

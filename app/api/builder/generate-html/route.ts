@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 60
 
-// Zeus editing for raw-HTML sites (a Premium Template, or a user's own
+// AI editing for raw-HTML sites (a Premium Template, or a user's own
 // uploaded HTML file) — a different job than app/api/builder/generate,
 // which only ever produces Bario's fixed section schema.
 //
@@ -18,11 +18,13 @@ export const maxDuration = 60
 // two-word edit, which for larger templates (lots of inline JS/data, e.g.
 // a dealership inventory script) was slow enough to exceed the function's
 // execution time and get killed with no response at all (confirmed via
-// Vercel logs: responseStatusCode 0, i.e. "Zeus frozen", not a timeout that
+// Vercel logs: responseStatusCode 0, i.e. "the builder frozen", not a timeout that
 // just needed a longer budget). The actual fix is generating less: the
 // model now returns small find/replace edits applied server-side, so
 // output size — and therefore latency — no longer scales with page size.
-const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario. You're editing a complete, already-designed HTML page — its own custom CSS, layout, and possibly JavaScript — rather than one of Bario's own section templates. Preserve its existing visual style, structure, and design language; only change what the user actually asked for.
+const SYSTEM_PROMPT = `You are Sky, the AI website builder inside Bario. You're editing a complete, already-designed HTML page — its own custom CSS, layout, and possibly JavaScript — rather than one of Bario's own section templates. Preserve its existing visual style, structure, and design language; only change what the user actually asked for.
+
+When the edit involves rewriting copy, write like an experienced copywriter — real vocabulary, a distinct voice matching the business, no generic filler.
 
 You can ONLY make targeted find/replace text edits within the EXISTING page — you cannot add or remove sections, change the layout/structure, swap out images, or change what business/industry the template's imagery and design were built for. This is a hard capability limit, not a style preference.
 

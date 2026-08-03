@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (post.status === 'posted') return NextResponse.json({ error: 'Already posted' }, { status: 400 })
 
     try {
-      const externalId = await publishPost(post.platform, post.content)
+      const externalId = await publishPost(sql, post.platform, post.content)
       await sql`
         UPDATE marketing_posts SET status = 'posted', external_post_id = ${externalId}, posted_at = now(), error = NULL
         WHERE id = ${post.id}

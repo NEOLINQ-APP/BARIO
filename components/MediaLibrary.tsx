@@ -397,6 +397,57 @@ export default function MediaLibrary() {
     setBusyId(null)
   }
 
+  async function handleRename(id: string, currentName: string) {
+    const next = window.prompt('Rename to:', currentName)
+    if (!next || !next.trim() || next.trim() === currentName) return
+    setBusyId(id)
+    try {
+      const res = await fetch(`/api/media/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ filename: next.trim() }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Rename failed')
+      loadMedia(folder)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setBusyId(null)
+  }
+
+  async function handleMove(id: string) {
+    const next = window.prompt('Move to folder (leave blank for the top level):', folder)
+    if (next === null) return
+    setBusyId(id)
+    try {
+      const res = await fetch(`/api/media/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ folder: next }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Move failed')
+      loadMedia(folder)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setBusyId(null)
+  }
+
+  async function handleCopy(id: string) {
+    setBusyId(id)
+    try {
+      const res = await fetch(`/api/media/${id}`, { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Copy failed')
+      loadMedia(folder)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setBusyId(null)
+  }
+
   async function handleUpgrade(tier: string) {
     setCheckoutBusy(tier)
     setError(null)
@@ -819,10 +870,15 @@ export default function MediaLibrary() {
                   {a.encrypted && '🔒 '}{a.filename}
                 </div>
                 <div className="text-[10px] text-zinc-500">{formatBytes(a.size_bytes)}</div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {!a.encrypted && (
                     <button onClick={() => navigator.clipboard.writeText(a.url)} className="text-[11px] text-zinc-400 hover:text-zinc-200 underline">Copy URL</button>
                   )}
+                  <button onClick={() => handleRename(a.id, a.filename)} disabled={busyId === a.id} className="text-[11px] text-zinc-400 hover:text-zinc-200 underline disabled:opacity-50">Rename</button>
+                  <button onClick={() => handleMove(a.id)} disabled={busyId === a.id} className="text-[11px] text-zinc-400 hover:text-zinc-200 underline disabled:opacity-50">Move</button>
+                  <button onClick={() => handleCopy(a.id)} disabled={busyId === a.id} className="text-[11px] text-zinc-400 hover:text-zinc-200 underline disabled:opacity-50">
+                    {busyId === a.id ? 'Working…' : 'Duplicate'}
+                  </button>
                   <button onClick={() => handleDelete(a.id)} disabled={busyId === a.id} className="text-[11px] text-red-400 hover:text-red-300 underline ml-auto disabled:opacity-50">
                     {busyId === a.id ? 'Deleting…' : 'Delete'}
                   </button>

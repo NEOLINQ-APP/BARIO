@@ -28,7 +28,7 @@ export default function FamilyAccept({ token }: { token: string }) {
     return (
       <>
         <p className="text-sm text-emerald-400 mb-6">You're in! You now share the family storage plan.</p>
-        <a href="/media" className="px-4 py-2 rounded-xl bg-[#f59e0b] text-[#1a1200] text-sm font-semibold">Go to Media Library</a>
+        <a href="/media" className="px-4 py-2 rounded-xl bg-[#f59e0b] text-[#1a1200] text-sm font-semibold">Go to X-Drive</a>
       </>
     )
   }

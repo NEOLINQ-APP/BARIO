@@ -5,7 +5,7 @@ import { upload } from '@vercel/blob/client'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 
-type ChatMsg = { role: 'zeus' | 'user'; text: string }
+type ChatMsg = { role: 'assistant' | 'user'; text: string }
 
 export default function TemplateBuilder({
   siteId,
@@ -68,7 +68,7 @@ export default function TemplateBuilder({
 
   // The document lives in the iframe's own DOM (contentEditable text, image
   // swaps, link edits all mutate it directly) — this state only exists to
-  // force a fresh srcDoc load when Zeus hands back a whole new document.
+  // force a fresh srcDoc load when Sky hands back a whole new document.
   // Plain edits never touch it, so they don't cause a reload mid-edit.
   const [html, setHtml] = useState(initialHtml)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -76,7 +76,7 @@ export default function TemplateBuilder({
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'zeus', text: "This page came from a template, so I'm editing the real HTML directly rather than Bario's sections. Click any text to edit it, click an image to replace it, click a link to change where it goes, or tell me what to change here." },
+    { role: 'assistant', text: "This page came from a template, so I'm editing the real HTML directly rather than Bario's sections. Click any text to edit it, click an image to replace it, click a link to change where it goes, or tell me what to change here." },
   ])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -225,7 +225,7 @@ export default function TemplateBuilder({
     const currentHtml = getEditedHtml()
     // A killed serverless function (timeout) sends no response at all, so
     // without this the fetch just hangs forever with nothing to catch —
-    // exactly what "Zeus frozen" turned out to be. Give up client-side
+    // exactly what "Sky frozen" turned out to be. Give up client-side
     // slightly before the server's own 60s limit so there's always a
     // definite answer instead of an indefinite spinner.
     const controller = new AbortController()
@@ -242,10 +242,10 @@ export default function TemplateBuilder({
       lastHtmlRef.current = d.html
       setHtml(d.html)
       if (typeof d.creditsRemaining === 'number') setCredits(d.creditsRemaining)
-      addMsg('zeus', d.explanation ?? 'Done.')
+      addMsg('assistant', d.explanation ?? 'Done.')
       scheduleAutosave()
     } catch (err: any) {
-      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long and timed out. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
+      addMsg('assistant', err.name === 'AbortError' ? '⚠️ That took too long and timed out. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
     }
     clearTimeout(timeout)
     setBusy(false)
@@ -297,7 +297,7 @@ export default function TemplateBuilder({
                 </div>
               </div>
             ))}
-            {busy && <div className="text-xs text-zinc-500">Zeus is editing…</div>}
+            {busy && <div className="text-xs text-zinc-500">Sky is editing…</div>}
           </div>
 
           <div className="p-3 border-t border-zinc-800">
@@ -317,7 +317,7 @@ export default function TemplateBuilder({
                     handleSend()
                   }
                 }}
-                placeholder="Ask Zeus to change something on this page…"
+                placeholder="Ask Sky to change something on this page…"
                 rows={2}
                 disabled={outOfCredits}
                 className="flex-1 bg-[#131b2a] border border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"

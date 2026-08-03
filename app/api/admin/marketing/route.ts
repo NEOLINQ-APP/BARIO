@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireAdmin } from '@/lib/admin'
 import type { MarketingPost } from '@/lib/db'
-import { ALL_PLATFORMS, isPlatformConnected } from '@/lib/marketing/platforms'
+import { ALL_PLATFORMS, isAppConfigured } from '@/lib/marketing/platforms'
+import { isConnected } from '@/lib/marketing/connections'
 import { generateDrafts } from '@/lib/marketing/generate'
 import { errorResponse } from '@/lib/errors'
 
@@ -12,8 +13,9 @@ export async function GET(req: Request) {
   const { sql } = auth
 
   const posts = (await sql`SELECT * FROM marketing_posts ORDER BY created_at DESC LIMIT 100`) as unknown as MarketingPost[]
-  const connected = Object.fromEntries(ALL_PLATFORMS.map((p) => [p, isPlatformConnected(p)]))
-  return NextResponse.json({ posts, connected })
+  const connected = Object.fromEntries(await Promise.all(ALL_PLATFORMS.map(async (p) => [p, await isConnected(sql, p)])))
+  const appConfigured = Object.fromEntries(ALL_PLATFORMS.map((p) => [p, isAppConfigured(p)]))
+  return NextResponse.json({ posts, connected, appConfigured })
 }
 
 export async function POST(req: Request) {

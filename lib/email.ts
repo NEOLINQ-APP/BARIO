@@ -51,6 +51,21 @@ export async function sendPaymentReminderEmail(to: string, siteName: string) {
   })
 }
 
+export async function sendInvoiceEmail(to: string, opts: { type: 'quote' | 'invoice'; number: string; totalDisplay: string; viewUrl: string }) {
+  const label = opts.type === 'quote' ? 'quote' : 'invoice'
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `${opts.type === 'quote' ? 'Quote' : 'Invoice'} ${opts.number} from Bario — ${opts.totalDisplay}`,
+    html: `
+      <p>Hi,</p>
+      <p>Please find your ${label} <strong>${opts.number}</strong> for <strong>${opts.totalDisplay}</strong> attached below.</p>
+      <p><a href="${opts.viewUrl}">View ${label} and pay online</a></p>
+      <p>Thanks,<br/>Bario</p>
+    `,
+  })
+}
+
 export async function sendFamilyInviteEmail(to: string, inviterEmail: string, acceptUrl: string) {
   await getResend().emails.send({
     from: FROM,

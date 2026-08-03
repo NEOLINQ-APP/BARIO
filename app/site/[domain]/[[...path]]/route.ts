@@ -105,7 +105,7 @@ export async function GET(req: Request, { params }: { params: { domain: string; 
     // ignores the requested path entirely (unchanged legacy behavior).
     html = injectBadgeIntoHtml(injectSeoIntoHtml(site.raw_html, seo), showBadge)
   } else {
-    // Zeus/section-builder sites. sections_json is either a bare array
+    // AI/section-builder sites. sections_json is either a bare array
     // (legacy — one implicit page, renders regardless of path, same as
     // before multi-page existed) or { pages: [...] } (multi-page — resolve
     // the requested slug, 404 if it doesn't match any page).

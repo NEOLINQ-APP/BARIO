@@ -495,6 +495,467 @@ async function ensureSchema() {
       completed_at TIMESTAMPTZ
     )
   `
+
+  // Bario Build — the new self-hosted AI app/site builder (chat -> real
+  // files -> real sandbox -> real hosting), separate product from the
+  // section-based Sky/Zeus builder above. See the plan at
+  // C:\Users\surew\.claude\plans\unified-wishing-salamander.md.
+  await sql`
+    CREATE TABLE IF NOT EXISTS build_projects (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      name TEXT NOT NULL,
+      framework_hint TEXT NOT NULL DEFAULT 'node',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // File-tree state, one row per file — not a real git repo per project,
+  // see the plan's "why rows-per-file" note. Binary/large assets go to
+  // Vercel Blob and blob_url references them instead of inlining content.
+  await sql`
+    CREATE TABLE IF NOT EXISTS build_files (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES build_projects(id) ON DELETE CASCADE,
+      path TEXT NOT NULL,
+      content TEXT,
+      is_binary BOOLEAN NOT NULL DEFAULT false,
+      blob_url TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (project_id, path)
+    )
+  `
+
+  // Persisted chat history per project — Builder.tsx keeps this
+  // client-side only, but an agent loop that runs real shell commands
+  // needs a durable transcript so a project can be closed and resumed.
+  await sql`
+    CREATE TABLE IF NOT EXISTS build_chat_messages (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES build_projects(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tool_calls_json TEXT NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // One row per live ephemeral dev sandbox — the vps_instances analog for
+  // this product. container_id/preview_url are set once the sandbox host
+  // confirms creation (lib/sandboxHost.ts). expires_at is the idle-timeout
+  // reap target, extended on activity by whatever polls session health.
+  await sql`
+    CREATE TABLE IF NOT EXISTS build_sandbox_sessions (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES build_projects(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      container_id TEXT,
+      status TEXT NOT NULL DEFAULT 'starting',
+      preview_url TEXT,
+      last_active_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Long-lived hosting for a "published" project — the sites-table analog
+  // for Bario Build. Reuses lib/cloudflare.ts's per-domain zone pattern for
+  // custom_domain/domain_status, same as sites.custom_domain does today.
+  await sql`
+    CREATE TABLE IF NOT EXISTS build_published_apps (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES build_projects(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      subdomain TEXT UNIQUE,
+      custom_domain TEXT UNIQUE,
+      domain_status TEXT NOT NULL DEFAULT 'none',
+      cloudflare_zone_id TEXT,
+      container_id TEXT,
+      status TEXT NOT NULL DEFAULT 'building',
+      published_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Bario Dialer's call history — logged from the client at call-start and
+  // updated at call-end, since the actual call is placed browser-to-Twilio
+  // directly (Voice SDK/WebRTC), not through a BARIO backend route that
+  // could log it server-side on its own.
+  await sql`
+    CREATE TABLE IF NOT EXISTS dialer_call_log (
+      id TEXT PRIMARY KEY,
+      business_key TEXT NOT NULL,
+      placed_by TEXT NOT NULL REFERENCES users(id),
+      to_number TEXT NOT NULL,
+      contact_name TEXT,
+      status TEXT NOT NULL DEFAULT 'in_progress',
+      duration_seconds INTEGER,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at TIMESTAMPTZ
+    )
+  `
+
+  // Customer-facing custom-domain mailboxes, backed by the real Mailcow
+  // instance on reseller.bario.ca (lib/mailcow.ts). Mailcow itself is the
+  // source of truth for the mailbox's password/auth — this table only
+  // tracks which BARIO account a given address belongs to, plus the
+  // Cloudflare DNS record IDs auto-created for it so they can be cleaned
+  // up if the mailbox is ever deleted.
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_mailboxes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      site_id TEXT NOT NULL REFERENCES sites(id),
+      domain TEXT NOT NULL,
+      local_part TEXT NOT NULL,
+      full_address TEXT NOT NULL UNIQUE,
+      quota_mb INTEGER NOT NULL DEFAULT 1024,
+      status TEXT NOT NULL DEFAULT 'active',
+      mx_record_id TEXT,
+      spf_record_id TEXT,
+      dkim_record_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Domain registrations bought through Bario (lib/registrar.ts, via the
+  // registrar-proxy service — see that file's header comment for why a
+  // proxy is needed at all). Registrant contact info is stored so a renewal
+  // or a second purchase doesn't require re-entering it, but the actual
+  // registration/billing system of record is Namecheap itself — this table
+  // is BARIO's own order history, not the authoritative WHOIS record.
+  await sql`
+    CREATE TABLE IF NOT EXISTS domain_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      site_id TEXT REFERENCES sites(id),
+      domain TEXT NOT NULL,
+      years INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'pending',
+      registrar_order_id TEXT,
+      charged_amount TEXT,
+      environment TEXT NOT NULL DEFAULT 'sandbox',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  // contact_json holds the registrant info collected at checkout time so the
+  // Stripe webhook (which runs after payment, with no access to the
+  // original request body) has what it needs to actually call
+  // registerDomain. retail_price_cents is what the customer was actually
+  // charged, separate from charged_amount (Namecheap's own wholesale charge
+  // in USD) — the two currencies/amounts are expected to differ.
+  await sql`ALTER TABLE domain_orders ADD COLUMN IF NOT EXISTS contact_json TEXT`
+  await sql`ALTER TABLE domain_orders ADD COLUMN IF NOT EXISTS retail_price_cents INTEGER`
+  await sql`ALTER TABLE domain_orders ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT`
+  await sql`ALTER TABLE domain_orders ADD COLUMN IF NOT EXISTS stripe_payment_intent TEXT`
+  await sql`ALTER TABLE domain_orders ADD COLUMN IF NOT EXISTS connected_to_site BOOLEAN NOT NULL DEFAULT false`
+
+  // Native CRM feature — superseded the shared multi-tenant crm.bario.ca
+  // approach (that instance caps out at 5 workspaces without a paid Twenty
+  // Enterprise key, confirmed live) with a dedicated Twenty stack per
+  // customer, matching the pattern already proven manually for AFC/Sunbuilt.
+  // Kept around unused rather than dropped — this feature never had real
+  // customers, but a DROP wasn't verified safe against production data.
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_workspaces (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      workspace_display_name TEXT NOT NULL,
+      login_email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'provisioning',
+      login_token TEXT,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // One dedicated Docker stack (own Postgres/Redis/Twenty/worker containers,
+  // own subdomain, own cert) per customer, provisioned via the VPS-side
+  // crm-provision-agent (lib/crmStack.ts) — no shared-instance workspace cap.
+  // step mirrors the agent's own step field for the polling UI; slug is the
+  // stack's directory/container-name prefix on the VPS and also the
+  // subdomain label (<slug>.crm.bario.ca).
+  await sql`
+    CREATE TABLE IF NOT EXISTS crm_stacks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      slug TEXT NOT NULL UNIQUE,
+      subdomain TEXT NOT NULL,
+      workspace_display_name TEXT NOT NULL,
+      login_email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'provisioning',
+      step TEXT,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Manual quotes/invoices tool for Bario's own business (admin-only, not
+  // exposed to regular customer accounts) — public_token is the unguessable
+  // id used for the no-login shareable link (app/invoice/[token]), same
+  // "unguessable UUID is the access boundary" shape as other public-link
+  // features in this codebase.
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'invoice',
+      number TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'draft',
+      public_token TEXT NOT NULL UNIQUE,
+      client_name TEXT NOT NULL,
+      client_email TEXT,
+      client_address TEXT,
+      currency TEXT NOT NULL DEFAULT 'CAD',
+      tax_percent NUMERIC NOT NULL DEFAULT 0,
+      discount_type TEXT NOT NULL DEFAULT 'none',
+      discount_value NUMERIC NOT NULL DEFAULT 0,
+      notes TEXT,
+      due_date DATE,
+      stripe_checkout_session_id TEXT,
+      stripe_payment_intent TEXT,
+      paid_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_phone TEXT`
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_line_items (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      quantity NUMERIC NOT NULL DEFAULT 1,
+      unit_price_cents INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `
+
+  // Amber (finance assistant) never writes to invoices/invoice_line_items
+  // directly — every create/edit she proposes lands here as 'pending'
+  // first. Only an explicit admin approve/reject in
+  // app/api/admin/invoices/change-requests/[id] ever touches the real
+  // invoice, which is what makes decided_at/decided_by a genuine approval
+  // record rather than just an activity log.
+  await sql`
+    CREATE TABLE IF NOT EXISTS invoice_change_requests (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT REFERENCES invoices(id) ON DELETE CASCADE,
+      agent_name TEXT NOT NULL DEFAULT 'amber',
+      change_type TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      decided_at TIMESTAMPTZ,
+      decided_by TEXT,
+      last_error TEXT
+    )
+  `
+
+  // The one real roster of every AI agent on the platform — so tasks don't
+  // get duplicated across agents and every agent's actual responsibilities
+  // are written down in one place, not scattered across separate system
+  // prompts only Claude can see.
+  await sql`
+    CREATE TABLE IF NOT EXISTS agents (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      description TEXT NOT NULL,
+      responsibilities TEXT NOT NULL,
+      channels TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS agent_tasks (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Seeded once with what's actually built (not aspirational) — ON
+  // CONFLICT DO NOTHING so re-running ensureSchema never clobbers edits
+  // made later through the /admin/agents UI. Fully parameterized (no
+  // manual quote-escaping) since these strings contain apostrophes.
+  const seedAgents = [
+    {
+      id: 'agent-victoria', slug: 'victoria', name: 'Victoria',
+      role: 'Executive Assistant & Receptionist (Unique Group Inc.)',
+      description: "Answers Unique Group Inc.'s live phone line, recognizes known callers by number, and acts as Mr. Mendoza's personal assistant on his own calls.",
+      responsibilities: "Answer/route inbound calls; ask who a caller is and which company/department they need before transferring; say hold on and connect them properly; take messages and orders and text them to Mr. Mendoza immediately; place outbound calls; keep personal notes/contacts/calendar for Mr. Mendoza with SMS reminders (private to him only); speak/understand English, Spanish, Canadian French, and Mandarin; never share one caller's information with another.",
+      channels: 'Phone: +18254650880 (Unique Group Inc. line)',
+    },
+    {
+      id: 'agent-miko', slug: 'miko', name: 'Miko',
+      role: 'CRM Assistant (AFC Logistics / Sunbuilt Group)',
+      description: "Lives inside each client's own Twenty CRM instance as their in-app AI copilot for leads and outreach.",
+      responsibilities: "Answer questions about leads/contacts/deals inside AFC Logistics' and Sunbuilt Group's own separate CRM workspaces; draft outreach; surface what's in the CRM to whoever is logged into that workspace.",
+      channels: 'In-app chat inside afc.crm.bario.ca / sunbuilt.crm.bario.ca',
+    },
+    {
+      id: 'agent-amber', slug: 'amber', name: 'Amber',
+      role: 'Finance Assistant (Bario invoicing)',
+      description: "Helps draft and edit Bario's own quotes/invoices — scoped only to Bario's business, never AFC Logistics' or Sunbuilt Group's own client work.",
+      responsibilities: "Look up existing quotes/invoices and the real product catalog freely; draft new quotes/invoices on command; propose price or line-item changes — every create or price change requires Mr. Mendoza's explicit approval and is recorded with who approved it and when, never applied automatically.",
+      channels: 'Chat: /admin/invoices/amber',
+    },
+  ]
+  for (const a of seedAgents) {
+    await sql`
+      INSERT INTO agents (id, slug, name, role, description, responsibilities, channels)
+      VALUES (${a.id}, ${a.slug}, ${a.name}, ${a.role}, ${a.description}, ${a.responsibilities}, ${a.channels})
+      ON CONFLICT (slug) DO NOTHING
+    `
+  }
+
+  // Bario's own staff payroll — deliberately no SIN field (never asked
+  // for, sensitive PII not worth storing without a clear need). pay_rate_cents
+  // is per-hour if pay_type='hourly', per pay-period if 'salary'.
+  // federal/provincial_claim_amount_cents let a specific employee's real
+  // TD1 claim amount override the default BPA used in withholding calc.
+  await sql`
+    CREATE TABLE IF NOT EXISTS staff (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      address TEXT,
+      province TEXT NOT NULL DEFAULT 'AB',
+      pay_type TEXT NOT NULL DEFAULT 'hourly',
+      pay_rate_cents INTEGER NOT NULL DEFAULT 0,
+      pay_frequency TEXT NOT NULL DEFAULT 'biweekly',
+      federal_claim_amount_cents INTEGER,
+      provincial_claim_amount_cents INTEGER,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // One row per paystub. ytd_*_cents are snapshots of the running totals
+  // AS OF this paystub (after including it) — real payroll running totals,
+  // not just this period's numbers, so CPP/EI correctly stop withholding
+  // once the year's maximum is reached and year-end totals are always a
+  // simple read of the latest row per staff member.
+  await sql`
+    CREATE TABLE IF NOT EXISTS paystubs (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      pay_period_start DATE NOT NULL,
+      pay_period_end DATE NOT NULL,
+      pay_date DATE NOT NULL,
+      province TEXT NOT NULL,
+      gross_pay_cents INTEGER NOT NULL,
+      bonuses_json TEXT NOT NULL DEFAULT '[]',
+      additional_deductions_json TEXT NOT NULL DEFAULT '[]',
+      cpp_cents INTEGER NOT NULL DEFAULT 0,
+      cpp2_cents INTEGER NOT NULL DEFAULT 0,
+      ei_cents INTEGER NOT NULL DEFAULT 0,
+      federal_tax_cents INTEGER NOT NULL DEFAULT 0,
+      provincial_tax_cents INTEGER NOT NULL DEFAULT 0,
+      net_pay_cents INTEGER NOT NULL,
+      ytd_gross_cents INTEGER NOT NULL,
+      ytd_pensionable_cents INTEGER NOT NULL,
+      ytd_insurable_cents INTEGER NOT NULL,
+      ytd_deductions_cents INTEGER NOT NULL,
+      ytd_net_cents INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Simple key/value store for platform-wide settings that don't need
+  // their own table — currently: the custom logo shown on invoices/
+  // paystubs (falls back to Bario's own logo if unset), and employer
+  // details required on a compliant paystub (legal name, address, CRA
+  // Business Number/payroll program account number).
+  await sql`
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // One row per completed Victoria call, logged by the VPS-side
+  // server.js at ws.on('close') via /api/admin/victoria/log-call. Claude
+  // cost is real (actual token usage from the Anthropic API response ×
+  // real Sonnet 5 pricing); Twilio cost is calculated from the real call
+  // duration × Twilio's published per-minute rates (ConversationRelay +
+  // underlying voice minute) — not an estimate pulled from Twilio's
+  // actual billing API, so treat it as very close but not
+  // penny-for-penny reconciled against your Twilio invoice.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_calls (
+      id TEXT PRIMARY KEY,
+      call_sid TEXT NOT NULL UNIQUE,
+      business_key TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      from_number TEXT NOT NULL,
+      to_number TEXT NOT NULL,
+      duration_seconds INTEGER NOT NULL,
+      claude_input_tokens INTEGER NOT NULL DEFAULT 0,
+      claude_output_tokens INTEGER NOT NULL DEFAULT 0,
+      claude_cost_cents NUMERIC NOT NULL DEFAULT 0,
+      twilio_cost_cents NUMERIC NOT NULL DEFAULT 0,
+      total_cost_cents NUMERIC NOT NULL DEFAULT 0,
+      started_at TIMESTAMPTZ NOT NULL,
+      ended_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // A real, code-derived registry of every place Bario calls an AI model —
+  // not aspirational, built by grepping the actual codebase for every
+  // anthropic.messages.create/openai.chat.completions.create call site.
+  // has_cost_tracking is honest: only Victoria has real per-call token
+  // usage logged today (victoria_calls) — everything else here is a
+  // real inventory entry, not yet instrumented for live cost.
+  await sql`
+    CREATE TABLE IF NOT EXISTS ai_integrations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      domains TEXT NOT NULL,
+      description TEXT NOT NULL,
+      has_cost_tracking BOOLEAN NOT NULL DEFAULT false,
+      source_file TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  const seedIntegrations = [
+    { id: 'ai-victoria', name: 'Victoria (voice)', provider: 'anthropic', model: 'claude-sonnet-5', domains: '+18254650880 (Unique Group Inc.), +18253607175 (AFC Logistics), +18254352121 (Sunbuilt Group)', description: "Live phone-call AI receptionist/executive assistant — answers all three business lines.", hasCostTracking: true, sourceFile: '/var/www/miko-voice/server.js (VPS, not in this repo)' },
+    { id: 'ai-amber', name: 'Amber (finance)', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca — /admin/invoices/amber', description: 'Drafts/edits Bario\'s own quotes and invoices, gated behind admin approval.', hasCostTracking: false, sourceFile: 'app/api/admin/invoices/amber/route.ts' },
+    { id: 'ai-admin-assistant', name: 'Admin Assistant', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca — /admin/assistant', description: 'General-purpose ops assistant with autonomous low-risk account-fix tools.', hasCostTracking: false, sourceFile: 'app/api/admin/assistant/chat/route.ts' },
+    { id: 'ai-pricing-bot', name: 'Pricing Assistant (pre-login)', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca — public marketing pages', description: 'Answers pricing/plan questions for visitors who have not signed up yet.', hasCostTracking: false, sourceFile: 'app/api/assistant/chat/route.ts' },
+    { id: 'ai-support-bot', name: 'Support Assistant (post-login)', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca — customer dashboard', description: 'In-dashboard support chat for logged-in customers.', hasCostTracking: false, sourceFile: 'app/api/assistant/support/route.ts' },
+    { id: 'ai-builder-sections', name: 'Bario AI — website builder (sections)', provider: 'anthropic', model: 'claude-sonnet-5', domains: 'bario.ca + every *.bario.ca subdomain and connected custom domain', description: "The core AI site builder — generates a site's structured sections_json.", hasCostTracking: false, sourceFile: 'app/api/builder/generate/route.ts' },
+    { id: 'ai-builder-html', name: 'Bario AI — website builder (HTML edit mode)', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca + every *.bario.ca subdomain and connected custom domain', description: 'Targeted find/replace edits against imported/raw-HTML sites.', hasCostTracking: false, sourceFile: 'app/api/builder/generate-html/route.ts' },
+    { id: 'ai-crm-outreach', name: 'CRM Outreach (draft/redraft replies)', provider: 'openai', model: 'gpt-5.6-luna', domains: 'afclogistics.ca, sunbuiltgroup.com (via afc.crm.bario.ca / sunbuilt.crm.bario.ca)', description: 'Drafts and redrafts AI outreach replies to real leads for AFC/Sunbuilt.', hasCostTracking: false, sourceFile: 'app/api/admin/crm-leadgen/{draft-reply,redraft,redraft-bulk}/route.ts' },
+    { id: 'ai-crm-cron', name: 'CRM lead-gen & reply-check (scheduled)', provider: 'openai', model: 'gpt-5.6-luna', domains: 'afclogistics.ca, sunbuiltgroup.com (via afc.crm.bario.ca / sunbuilt.crm.bario.ca)', description: 'Cron-triggered lead generation and outreach-reply checking, unattended.', hasCostTracking: false, sourceFile: 'app/api/cron/{crm-leadgen,crm-outreach-replies}/route.ts' },
+    { id: 'ai-studio-copilot', name: 'Bario Studio Copilot', provider: 'openai', model: 'gpt-5.6-luna', domains: 'bario.ca — /dashboard/studio', description: 'AI copilot inside the video/design Studio editor.', hasCostTracking: false, sourceFile: 'app/api/studio/copilot/route.ts' },
+    { id: 'ai-build-agent', name: 'Bario Build agent (beta)', provider: 'multi (openai/xai/anthropic)', model: 'gpt-5.6-luna / grok-code-fast-1 / claude-opus-5, provider-switched', domains: 'bario.ca — /build/apps (beta)', description: 'AI app/site sandbox builder, still in beta rollout.', hasCostTracking: false, sourceFile: 'lib/buildAgentModel.ts' },
+    { id: 'ai-marketing', name: 'Marketing post generator', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca admin — used for all client businesses\' marketing posts', description: 'Drafts AI social/marketing posts for admin review and approval.', hasCostTracking: false, sourceFile: 'lib/marketing/generate.ts' },
+    { id: 'ai-crm-copilot', name: 'Miko (Twenty CRM built-in copilot)', provider: 'anthropic (Twenty\'s own key, separate from this app)', model: 'configured inside Twenty\'s own Docker stack', domains: 'crm.bario.ca, afc.crm.bario.ca, sunbuilt.crm.bario.ca', description: "Twenty CRM's own native AI chat feature — runs entirely inside that Docker stack, not this codebase, so its usage/cost isn't visible from here at all.", hasCostTracking: false, sourceFile: null },
+  ]
+  for (const i of seedIntegrations) {
+    await sql`
+      INSERT INTO ai_integrations (id, name, provider, model, domains, description, has_cost_tracking, source_file)
+      VALUES (${i.id}, ${i.name}, ${i.provider}, ${i.model}, ${i.domains}, ${i.description}, ${i.hasCostTracking}, ${i.sourceFile})
+      ON CONFLICT (id) DO NOTHING
+    `
+  }
 }
 
 export async function db() {
@@ -527,6 +988,143 @@ export type User = {
   e2e_recovery_salt: string | null
   e2e_recovery_wrapped_mek: string | null
   e2e_recovery_wrapped_mek_iv: string | null
+}
+
+export type InvoiceChangeRequest = {
+  id: string
+  invoice_id: string | null
+  agent_name: string
+  change_type: 'create' | 'update'
+  summary: string
+  payload_json: string
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+  decided_at: string | null
+  decided_by: string | null
+  last_error: string | null
+}
+
+export type AiIntegration = {
+  id: string
+  name: string
+  provider: string
+  model: string
+  domains: string
+  description: string
+  has_cost_tracking: boolean
+  source_file: string | null
+  created_at: string
+}
+
+export type VictoriaCall = {
+  id: string
+  call_sid: string
+  business_key: 'unique' | 'afc' | 'sunbuilt'
+  direction: string
+  from_number: string
+  to_number: string
+  duration_seconds: number
+  claude_input_tokens: number
+  claude_output_tokens: number
+  claude_cost_cents: number
+  twilio_cost_cents: number
+  total_cost_cents: number
+  started_at: string
+  ended_at: string
+  created_at: string
+}
+
+export type Staff = {
+  id: string
+  name: string
+  email: string | null
+  address: string | null
+  province: string
+  pay_type: 'hourly' | 'salary'
+  pay_rate_cents: number
+  pay_frequency: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly'
+  federal_claim_amount_cents: number | null
+  provincial_claim_amount_cents: number | null
+  status: string
+  created_at: string
+}
+
+export type Paystub = {
+  id: string
+  staff_id: string
+  pay_period_start: string
+  pay_period_end: string
+  pay_date: string
+  province: string
+  gross_pay_cents: number
+  bonuses_json: string
+  additional_deductions_json: string
+  cpp_cents: number
+  cpp2_cents: number
+  ei_cents: number
+  federal_tax_cents: number
+  provincial_tax_cents: number
+  net_pay_cents: number
+  ytd_gross_cents: number
+  ytd_pensionable_cents: number
+  ytd_insurable_cents: number
+  ytd_deductions_cents: number
+  ytd_net_cents: number
+  created_at: string
+}
+
+export type Agent = {
+  id: string
+  slug: string
+  name: string
+  role: string
+  description: string
+  responsibilities: string
+  channels: string
+  status: string
+  created_at: string
+}
+
+export type AgentTask = {
+  id: string
+  agent_id: string
+  title: string
+  description: string | null
+  status: 'open' | 'in_progress' | 'done'
+  created_at: string
+  updated_at: string
+}
+
+export type Invoice = {
+  id: string
+  type: 'quote' | 'invoice'
+  number: string
+  status: 'draft' | 'sent' | 'paid' | 'void'
+  public_token: string
+  client_name: string
+  client_email: string | null
+  client_address: string | null
+  client_phone: string | null
+  currency: string
+  tax_percent: string
+  discount_type: 'none' | 'percent' | 'fixed'
+  discount_value: string
+  notes: string | null
+  due_date: string | null
+  stripe_checkout_session_id: string | null
+  stripe_payment_intent: string | null
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InvoiceLineItem = {
+  id: string
+  invoice_id: string
+  description: string
+  quantity: string
+  unit_price_cents: number
+  sort_order: number
 }
 
 export type VpsInstance = {

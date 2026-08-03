@@ -49,9 +49,11 @@ export async function POST(req: Request) {
 
     let finalId = siteId
     if (siteId) {
+      // Snapshot the outgoing content before overwriting it — lets the
+      // admin-restore tool undo a bad edit if this breaks the live site.
       await sql`
         UPDATE sites SET
-          name = ${name}, raw_html = ${html}, content_mode = 'template', updated_at = now()
+          name = ${name}, raw_html_backup = raw_html, raw_html = ${html}, content_mode = 'template', updated_at = now()
         WHERE id = ${siteId}
       `
     } else {

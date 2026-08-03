@@ -88,7 +88,7 @@ export async function POST(req: Request) {
     // mime type for rendering post-decrypt, since file.type on an encrypted
     // blob is just 'application/octet-stream'.
     const encrypted = form.get('encrypted') === 'true'
-    const iv = form.get('iv')
+    const iv = form.get('iv') as string | null
     const contentTypeOverride = form.get('contentType')
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })

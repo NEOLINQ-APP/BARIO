@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { addDomainToVercel, wwwSibling } from '@/lib/vercel'
 import { createZone, getZoneByDomain, createDnsRecord } from '@/lib/cloudflare'
+import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 
 // Admin equivalent of /api/sites/domain — connects a custom domain to an
@@ -40,7 +41,10 @@ export async function POST(req: Request) {
 
     const userRows = (await sql`SELECT id FROM users WHERE email = ${email.trim().toLowerCase()}`) as unknown as { id: string }[]
     const targetUser = userRows[0]
-    if (!targetUser) return NextResponse.json({ error: `No account found for ${email} — they need to sign up first` }, { status: 404 })
+    if (!targetUser) {
+      await logAdminAction(sql, { action: 'connect-domain', targetEmail: email, params: { domain: clean }, result: 'error', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
+      return NextResponse.json({ error: `No account found for ${email} — they need to sign up first` }, { status: 404 })
+    }
 
     let siteId = await resolveSiteId(sql, targetUser.id, null)
     if (!siteId) {
@@ -78,6 +82,7 @@ export async function POST(req: Request) {
       WHERE id = ${siteId}
     `
 
+    await logAdminAction(sql, { action: 'connect-domain', targetEmail: email, params: { domain: clean }, result: 'ok', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
     return NextResponse.json({
       ok: true,
       siteId,

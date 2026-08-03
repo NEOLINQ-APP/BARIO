@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { isStorageTierKey, STORAGE_TIER_KEYS } from '@/lib/storageTiers'
+import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 
-// Comps a Media Library storage tier onto an existing account — same
+// Comps an X-Drive storage tier onto an existing account — same
 // pattern as grant-plan: no Stripe subscription involved, so
 // stripe_storage_subscription_id stays untouched, and the tier just stays
 // active indefinitely since there's nothing to lapse.
@@ -29,9 +30,11 @@ export async function POST(req: Request) {
     `) as unknown as { id: string; email: string; storage_tier: string }[]
 
     if (!rows[0]) {
+      await logAdminAction(sql, { action: 'grant-storage', targetEmail: email, params: { tier }, result: 'error', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
       return NextResponse.json({ error: `No account found for ${email} — they need to sign up first` }, { status: 404 })
     }
 
+    await logAdminAction(sql, { action: 'grant-storage', targetEmail: rows[0].email, params: { tier }, result: 'ok', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
     return NextResponse.json({ ok: true, user: rows[0] })
   } catch (err: any) {
     return errorResponse(err)

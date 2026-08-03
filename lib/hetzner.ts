@@ -40,6 +40,20 @@ export async function listServerTypes(): Promise<{ name: string; cores: number; 
   return data.server_types.map((t: any) => ({ name: t.name, cores: t.cores, memory: t.memory, disk: t.disk, deprecated: !!t.deprecated }))
 }
 
+// Server type availability genuinely varies by location (e.g. Hetzner's US
+// locations don't offer every EU shared-vCPU type), and guessing wastes a
+// failed provisioning call — this surfaces the real per-location pricing
+// entries (each one names the location it's actually available in) so a
+// caller can pick a real, valid combination first.
+export async function listServerTypesWithLocations(): Promise<{ name: string; deprecated: boolean; locations: string[] }[]> {
+  const data = await hzFetch('/server_types')
+  return data.server_types.map((t: any) => ({
+    name: t.name,
+    deprecated: !!t.deprecated,
+    locations: (t.prices ?? []).map((p: any) => p.location),
+  }))
+}
+
 export async function createSSHKey(name: string, publicKey: string): Promise<{ id: number }> {
   const data = await hzFetch('/ssh_keys', {
     method: 'POST',
@@ -53,6 +67,11 @@ export async function createSSHKey(name: string, publicKey: string): Promise<{ i
 // worth a lookup-first path if the same key is ever reused across orders.
 export async function findSSHKeyByFingerprint(fingerprint: string): Promise<{ id: number } | null> {
   const data = await hzFetch(`/ssh_keys?fingerprint=${encodeURIComponent(fingerprint)}`)
+  return data.ssh_keys?.[0] ?? null
+}
+
+export async function findSSHKeyByName(name: string): Promise<{ id: number } | null> {
+  const data = await hzFetch(`/ssh_keys?name=${encodeURIComponent(name)}`)
   return data.ssh_keys?.[0] ?? null
 }
 

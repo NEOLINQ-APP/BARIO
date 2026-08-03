@@ -14,7 +14,7 @@ type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pric
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type Page = { id: string; name: string; slug: string; sections: Section[] }
-type ChatMsg = { role: 'zeus' | 'user'; text: string }
+type ChatMsg = { role: 'assistant' | 'user'; text: string }
 type Theme = { primary: string; accent: string; style?: string; backgroundStyle?: 'solid' | 'gradient' }
 
 const SECTION_LABELS: Record<SectionType, string> = {
@@ -42,8 +42,8 @@ const DEFAULTS: Record<SectionType, SectionData> = {
 }
 
 // Local quick-start templates are multi-page now too — a Home landing page
-// plus a Contact page, rather than one long page. Zeus (or the user) can
-// still add more pages from here via chat or the page tabs.
+// plus a Contact page, rather than one long page. The AI builder (or the
+// user) can still add more pages from here via chat or the page tabs.
 const TEMPLATES: Record<string, { name: string; slug: string; sections: { type: SectionType; data: SectionData }[] }[]> = {
   business: [
     {
@@ -156,7 +156,7 @@ function pagesFromModel(pages: { name: string; slug: string; sections: { type: S
 
 // Turns a mid-generation partial object (still missing fields, possibly a
 // trailing incomplete array element) into safely renderable pages — used
-// only for the live "Zeus is building…" preview while a new site streams
+// only for the live "Sky is building…" preview while a new site streams
 // in, never for the authoritative save. `idsRef` assigns each page/section a
 // stable id keyed by its position, reused across successive partial calls
 // within the same generation, so React sees the same key on every update
@@ -358,7 +358,7 @@ export default function Builder({
   }, [activeStyle])
 
   // Autosave: previously the only way work landed in the database was the
-  // manual Save button, so a refresh mid-session (or Zeus generating a site
+  // manual Save button, so a refresh mid-session (or the AI builder generating a site
   // the user never explicitly clicked Save on) silently threw everything
   // away. Debounce a save shortly after any real change to pages/theme/
   // name instead — short enough that a refresh can't land in the gap for
@@ -391,7 +391,7 @@ export default function Builder({
   }, [dirty])
 
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: 'zeus', text: "Hi! I'm Zeus, your AI website builder. Tell me what kind of website you need and I'll build it — a real multi-page site, not just one long page. Try: \"Build a site for a Calgary plumbing company.\"" },
+    { role: 'assistant', text: "Hi! I'm Sky, your website builder. Tell me what kind of website you need and I'll build it — a real multi-page site, not just one long page. Try: \"Build a site for a Calgary plumbing company.\"" },
   ])
   const [input, setInput] = useState('')
   const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'video' | 'audio'; name: string } | null>(null)
@@ -450,7 +450,7 @@ export default function Builder({
     const newPages = pagesFromModel(tmpl)
     setPages(newPages)
     setActivePageId(newPages[0].id)
-    addMsg('zeus', `${name.charAt(0).toUpperCase() + name.slice(1)} template loaded (${newPages.length} pages). Click any text to edit it directly, use the page tabs above the canvas to switch pages, or ask me to change anything.`)
+    addMsg('assistant', `${name.charAt(0).toUpperCase() + name.slice(1)} template loaded (${newPages.length} pages). Click any text to edit it directly, use the page tabs above the canvas to switch pages, or ask me to change anything.`)
   }
 
   function addPage() {
@@ -564,7 +564,7 @@ export default function Builder({
 
   // Brings in a user's own already-built HTML file. This switches the site
   // to raw-HTML/template mode (same as picking a Premium Template), which is
-  // a different editing experience than Zeus's section canvas — confirm
+  // a different editing experience than the AI builder's section canvas — confirm
   // first if there's real work on the canvas that would no longer be shown.
   async function handleImportHtml(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -572,7 +572,7 @@ export default function Builder({
     if (!file) return
     if (pages.some((p) => p.sections.length > 0)) {
       const ok = window.confirm(
-        "This replaces the current site with your uploaded HTML file and switches to raw-HTML editing mode (Zeus's chat builder won't apply anymore). Continue?"
+        "This replaces the current site with your uploaded HTML file and switches to raw-HTML editing mode (the AI chat builder won't apply anymore). Continue?"
       )
       if (!ok) return
     }
@@ -607,7 +607,7 @@ export default function Builder({
         return
       }
       addMsg(
-        'zeus',
+        'assistant',
         "I can't pull in a premium template through chat yet. Click \"Premium Templates\" at the top of the screen to browse full custom designs, or \"Upload your own HTML\" below to bring in a site file you already have. I do have business, restaurant, and agency quick-start templates ready right now though — click one below, or tell me what to build and I'll design it from scratch."
       )
       return
@@ -703,10 +703,10 @@ export default function Builder({
       setActivePageId(stillViewing ? stillViewing.id : newPages[0].id)
       if (doneEvent.theme) setTheme(doneEvent.theme)
       if (typeof doneEvent.creditsRemaining === 'number') setCredits(doneEvent.creditsRemaining)
-      addMsg('zeus', doneEvent.explanation ?? 'Done.')
+      addMsg('assistant', doneEvent.explanation ?? 'Done.')
     } catch (err: any) {
       clearTimeout(idleTimer)
-      addMsg('zeus', err.name === 'AbortError' ? '⚠️ That took too long with no response. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
+      addMsg('assistant', err.name === 'AbortError' ? '⚠️ That took too long with no response. Try a smaller, more specific request.' : `⚠️ ${err.message}`)
     }
     setStreamingPages(null)
     setBusy(false)
@@ -863,7 +863,7 @@ export default function Builder({
                 </div>
               </div>
             ))}
-            {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">Zeus is building…</div>}
+            {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">Sky is building…</div>}
           </div>
 
           <div className="p-3 border-t border-slate-200 dark:border-zinc-800">
@@ -1026,7 +1026,7 @@ export default function Builder({
             {streamingPages !== null && (
               <div className="max-w-5xl mx-auto mb-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-zinc-400">
                 <span className="b-building-dot" />
-                Zeus is building your site…
+                Sky is building your site…
               </div>
             )}
             <div
@@ -1062,7 +1062,7 @@ export default function Builder({
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-10">
                   <div className="text-4xl opacity-40">🏗️</div>
                   <h3 className="text-slate-500 font-semibold">This page will appear here</h3>
-                  <p className="text-slate-400 text-sm max-w-xs">Chat with Zeus on the left, or load a template to get started.</p>
+                  <p className="text-slate-400 text-sm max-w-xs">Chat with Sky on the left, or load a template to get started.</p>
                 </div>
               ) : (
                 sections.map((s) => (

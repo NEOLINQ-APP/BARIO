@@ -34,7 +34,7 @@ export default function BusinessProfilePanel({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300">✕</button>
         </div>
         <p className="text-xs text-slate-400 dark:text-zinc-500 mb-4">
-          Tell Zeus about your business once — it'll use this automatically every time you ask for something, so you
+          Tell Sky about your business once — it'll use this automatically every time you ask for something, so you
           don't have to repeat it.
         </p>
 

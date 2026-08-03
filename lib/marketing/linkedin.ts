@@ -1,12 +1,20 @@
+import { getConnection } from '@/lib/marketing/connections'
+import type { db as dbFn } from '@/lib/db'
+
+type Sql = Awaited<ReturnType<typeof dbFn>>
+
 // LinkedIn's current Posts API (replaces the older ugcPosts endpoint).
-export async function postToLinkedIn(content: string): Promise<string> {
-  const token = process.env.LINKEDIN_ACCESS_TOKEN!
-  const orgUrn = process.env.LINKEDIN_ORG_URN! // e.g. "urn:li:organization:12345678"
+export async function postToLinkedIn(sql: Sql, content: string): Promise<string> {
+  const conn = await getConnection(sql, 'linkedin')
+  if (!conn) throw new Error('LinkedIn is not connected')
+  const meta = JSON.parse(conn.metadata_json || '{}')
+  const orgUrn = meta.orgUrn // e.g. "urn:li:organization:12345678"
+  if (!orgUrn) throw new Error('LinkedIn is connected but no organization page was found on it')
 
   const res = await fetch('https://api.linkedin.com/rest/posts', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${conn.access_token}`,
       'Content-Type': 'application/json',
       'X-Restli-Protocol-Version': '2.0.0',
       'LinkedIn-Version': '202405',

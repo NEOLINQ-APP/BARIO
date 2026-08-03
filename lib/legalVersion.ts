@@ -4,3 +4,4 @@
 // be bundled into browser JS.
 export const CURRENT_VPS_POLICY_VERSION = '2026-07-28'
 export const CURRENT_STUDIO_POLICY_VERSION = '2026-07-31'
+export const CURRENT_SANDBOX_POLICY_VERSION = '2026-08-01'

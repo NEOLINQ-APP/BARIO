@@ -26,3 +26,13 @@ export function hasPaidPlan(user: Pick<User, 'subscription_status' | 'is_admin'>
 export function hasStudioAccess(user: Pick<User, 'is_admin' | 'email_verified'>): boolean {
   return hasBuilderAccess(user)
 }
+
+// Same "verified email or admin" gate as the builder/Studio. Bario Build
+// additionally requires its own AUP acceptance (a new sandbox_aup policy
+// slug, separate from studio_aup — the risk profile of running arbitrary
+// code is genuinely different from GPU media generation) checked separately
+// at the route level, since that's a per-request legal_acceptances lookup
+// rather than a static property of the user row.
+export function hasBuildAccess(user: Pick<User, 'is_admin' | 'email_verified'>): boolean {
+  return hasBuilderAccess(user)
+}

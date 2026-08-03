@@ -3,27 +3,10 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
 import { addDomainToVercel, removeDomainFromVercel, wwwSibling } from '@/lib/vercel'
-import { createZone, getZoneByDomain, deleteZone, createDnsRecord } from '@/lib/cloudflare'
+import { deleteZone } from '@/lib/cloudflare'
+import { provisionCloudflareZone } from '@/lib/domainConnect'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
-
-// Provisions a Cloudflare zone for the domain (or reuses one already sitting in
-// our account) and seeds the A/CNAME records that point it at Vercel, so once
-// the customer updates their nameservers the site just works with no manual
-// DNS entry required. Non-fatal on failure — callers fall back to the older
-// manual A/CNAME-at-current-registrar flow if Cloudflare isn't available.
-async function provisionCloudflareZone(domain: string): Promise<{ zoneId: string; nameservers: string[] } | null> {
-  try {
-    const zone = (await getZoneByDomain(domain)) ?? (await createZone(domain))
-    await Promise.all([
-      createDnsRecord(zone.id, { type: 'A', name: '@', content: '76.76.21.21', proxied: false }).catch(() => {}),
-      createDnsRecord(zone.id, { type: 'CNAME', name: 'www', content: 'cname.vercel-dns.com', proxied: false }).catch(() => {}),
-    ])
-    return { zoneId: zone.id, nameservers: zone.name_servers ?? [] }
-  } catch {
-    return null
-  }
-}
 
 export async function POST(req: Request) {
   try {

@@ -5,8 +5,8 @@ import { hasStudioAccess } from '@/lib/access'
 import { getOpenAI } from '@/lib/openai'
 import { errorResponse } from '@/lib/errors'
 
-// The Studio AI copilot — "just like our website builder" (Zeus). Unlike
-// Zeus or the admin assistant, tools here are NOT executed server-side:
+// The Studio AI copilot — "just like our website builder" (Sky). Unlike
+// the website builder or the admin assistant, tools here are NOT executed server-side:
 // the editor's actual state (@openvideo/core) lives entirely in the
 // browser, so this route only decides WHICH tool(s) to call and with what
 // arguments, and hands that back to the client to actually execute against

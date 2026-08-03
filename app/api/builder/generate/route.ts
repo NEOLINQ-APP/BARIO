@@ -155,7 +155,9 @@ type Page = { name: string; slug: string; sections: Section[] }
 // client sees steady partial progress well before this ever matters.
 export const maxDuration = 120
 
-const SYSTEM_PROMPT = `You are Zeus, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
+const SYSTEM_PROMPT = `You are Sky, the AI website builder inside Bario, a tool that helps small businesses build websites without writing code.
+
+Write like an experienced copywriter, not a template — every headline, description, and call-to-action should read as if a professional wrote it for that specific business, with real vocabulary and a distinct voice matching the business's industry and tone. Avoid generic filler ("We are passionate about quality") in favor of concrete, specific language.
 
 You build and edit REAL MULTI-PAGE websites — not one long scrolling page. A site is a list of pages; each page has a name (e.g. "Home", "About", "Services"), a URL slug (lowercase, hyphenated, no leading/trailing slash — the Home page's slug is always the empty string ""), and its own list of sections. Visitors navigate between pages via real links, not by scrolling. There is no cap on how many pages a site can have — build as many as the business genuinely needs, whether that's 3 or 30.
 
@@ -213,7 +215,7 @@ When EDITING an existing site: you'll be given the full current "pages" array an
 Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
 
 // Model selection — defaults to the OpenAI path that's run in production all
-// along; set ZEUS_MODEL_PROVIDER=anthropic in Vercel to switch Zeus over to
+// along; set ZEUS_MODEL_PROVIDER=anthropic in Vercel to switch the builder over to
 // Claude for A/B comparison without a code change either way.
 const MODEL_PROVIDER: 'openai' | 'anthropic' = process.env.ZEUS_MODEL_PROVIDER === 'anthropic' ? 'anthropic' : 'openai'
 
@@ -404,7 +406,7 @@ export async function POST(req: Request) {
 
     // Persistent per-site facts, injected on every request so the user never
     // has to repeat their business name/category/hours/location or brand
-    // colors mid-conversation — Zeus just already knows them.
+    // colors mid-conversation — the AI just already knows them.
     const profileLines = [
       businessName && `Business name: ${businessName}`,
       businessCategory && `Category: ${businessCategory}`,

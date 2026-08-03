@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       const noteIds = draftedRows.map((r) => r.note_id)
       const [notesData, peopleData] = await Promise.all([
         crmGraphQL(crm, `query($ids: [UUID!]) { notes(filter: {id: {in: $ids}}) { edges { node { id title bodyV2 { markdown } } } } }`, { ids: noteIds }),
-        crmGraphQL(crm, `query { people(first: 500) { edges { node { id name { firstName lastName } emails { primaryEmail } company { name } } } } }`, {}),
+        crmGraphQL(crm, `query { people(first: 500) { edges { node { id name { firstName lastName } emails { primaryEmail } phones { primaryPhoneNumber primaryPhoneCallingCode } company { name } } } } }`, {}),
       ])
       const notesById = new Map((notesData?.notes?.edges ?? []).map((e: any) => [e.node.id, e.node]))
       const peopleById = new Map((peopleData?.people?.edges ?? []).map((e: any) => [e.node.id, e.node]))
@@ -40,11 +40,15 @@ export async function GET(req: Request) {
         const note = notesById.get(row.note_id) as any
         const email = person?.emails?.primaryEmail
         if (!email || !note) continue
+        const phone = person?.phones?.primaryPhoneNumber
+          ? `${person.phones.primaryPhoneCallingCode ?? ''}${person.phones.primaryPhoneNumber}`
+          : null
         ready.push({
           personId: row.person_id,
           noteId: row.note_id,
           companyName: person.company?.name ?? person.name?.lastName ?? 'Unknown',
           email,
+          phone,
           subject: note.title?.replace(/^BARIO Draft: /, '') ?? 'Outreach',
           body: note.bodyV2?.markdown ?? '',
           scheduledAt: row.scheduled_at,

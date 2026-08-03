@@ -1,7 +1,7 @@
 // app/hosting/page.tsx
 // Dedicated page for the AI website builder + hosting + site-plan pricing —
 // split out of the homepage so bario.ca is a real multi-page site instead
-// of one long scroll, matching the same philosophy Zeus-built customer
+// of one long scroll, matching the same philosophy Sky-built customer
 // sites now follow.
 
 import PricingSection from '@/components/PricingSection'
@@ -11,7 +11,7 @@ import SiteFooter from '@/components/SiteFooter'
 
 export const metadata = {
   title: 'AI Website Builder & Hosting — Bario',
-  description: 'Describe your business and Zeus (Bario\'s AI) builds you a live, editable website. Free hosting, managed DNS, premium templates, and simple CAD pricing.',
+  description: 'Describe your business and Sky builds you a live, editable website. Free hosting, managed DNS, premium templates, and simple CAD pricing.',
 }
 
 export default function HostingPage() {
@@ -28,7 +28,7 @@ export default function HostingPage() {
             AI website builder, hosting, and managed DNS — one account
           </div>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight">
-            Describe your business. <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Zeus builds the site.</span>
+            Describe your business. <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Sky builds the site.</span>
           </h1>
           <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
             No code, no templates to fight with — just describe what you want, in plain language, and edit anything by
@@ -58,7 +58,7 @@ export default function HostingPage() {
               <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
               <div className="w-3 h-3 rounded-full bg-green-500/80" />
             </div>
-            <span className="text-xs text-slate-500 font-mono">Zeus — Bario AI builder</span>
+            <span className="text-xs text-slate-500 font-mono">Sky — website builder</span>
           </div>
           <div className="space-y-3 pt-2 text-sm">
             <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-700 dark:text-slate-300">
@@ -75,7 +75,7 @@ export default function HostingPage() {
             <div className="text-2xl">🤖</div>
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">AI builder</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Describe what you want in plain language — Zeus writes the copy, picks a theme, and edits any section on request.
+              Describe what you want in plain language — Sky writes the copy, picks a theme, and edits any section on request.
             </p>
           </div>
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
@@ -133,7 +133,7 @@ export default function HostingPage() {
         <div className="space-y-6">
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Do I need to code?</h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">No. Bario is fully visual — describe what you want and Zeus builds it.</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">No. Bario is fully visual — describe what you want and Sky builds it.</p>
           </div>
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Is building and hosting actually free?</h3>
@@ -153,7 +153,7 @@ export default function HostingPage() {
           </div>
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Do you offer business email?</h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">Not yet — custom email addresses on your domain (like you@yourbusiness.com) are coming soon.</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">Yes, on paid plans — once your domain is connected and verified, create real mailboxes like you@yourbusiness.com from the Email tab in your dashboard, with webmail, IMAP, and SMTP access.</p>
           </div>
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-xl space-y-2">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Can I get a website AND a VPS server?</h3>

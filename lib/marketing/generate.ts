@@ -3,7 +3,7 @@ import type { MarketingPlatform } from '@/lib/db'
 import { PLATFORM_CHAR_LIMITS, PLATFORM_LABELS } from '@/lib/marketing/platforms'
 
 const BUSINESS_BRIEF = `Bario (bario.ca) is an AI website builder and hosting service for Canadian small
-businesses. Describe your business in plain language and the AI (Zeus) builds a live, editable website —
+businesses. Describe your business in plain language and Sky builds a live, editable website —
 no code required. Every site gets a free bario.ca subdomain with SSL; Business and Agency plans can connect
 a custom domain. Plans: Starter $19/mo (75 AI credits, 1 site), Business $49/mo (200 AI credits, 5 sites,
 custom domain), Agency $149/mo (750 AI credits, up to 25 sites, white-label export). Canada-first hosting,

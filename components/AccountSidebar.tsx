@@ -7,8 +7,12 @@ import ThemeToggle from '@/components/ThemeToggle'
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', icon: '🏠' },
   { href: '/dashboard/websites', label: 'Websites', icon: '🌐' },
+  { href: '/dashboard/domains', label: 'Domains', icon: '🔎' },
+  { href: '/dashboard/crm', label: 'CRM', icon: '🧑‍💼' },
+  { href: '/dashboard/email', label: 'Email', icon: '📧' },
   { href: '/media', label: 'X-Drive', icon: '📁' },
   { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },
+  { href: '/build/apps', label: 'Build (beta)', icon: '⚡' },
   { href: '/dashboard/servers', label: 'Servers', icon: '🖥️' },
   { href: '/dashboard/billing', label: 'Billing', icon: '💳' },
   { href: '/dashboard/account', label: 'Account', icon: '⚙️' },

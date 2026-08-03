@@ -8,6 +8,9 @@ import { isStorageTierKey } from '@/lib/storageTiers'
 import { provisionVpsInstance } from '@/lib/vpsProvision'
 import { shouldHoldForReview, getRiskLevelForSubscriptionCheckout } from '@/lib/vpsRisk'
 import { powerOffServer, deleteServer } from '@/lib/hetzner'
+import { registerDomain, setDomainNameservers, type RegistrantContact } from '@/lib/registrar'
+import { provisionCloudflareZone } from '@/lib/domainConnect'
+import { addDomainToVercel } from '@/lib/vercel'
 import type Stripe from 'stripe'
 
 export async function POST(req: Request) {
@@ -37,6 +40,78 @@ export async function POST(req: Request) {
           INSERT INTO template_licenses (id, user_id, template_id, license_key, status, stripe_payment_intent)
           VALUES (${randomUUID()}, ${userId}, ${templateId}, ${randomUUID()}, 'active', ${String(session.payment_intent)})
         `
+        break
+      }
+
+      const invoiceId = session.metadata?.invoiceId
+      if (session.mode === 'payment' && invoiceId) {
+        await sql`
+          UPDATE invoices
+          SET status = 'paid', paid_at = now(), stripe_checkout_session_id = ${session.id}, stripe_payment_intent = ${String(session.payment_intent)}, updated_at = now()
+          WHERE id = ${invoiceId} AND status != 'paid'
+        `
+        break
+      }
+
+      const domainOrderId = session.metadata?.domainOrderId
+      if (session.mode === 'payment' && userId && domainOrderId) {
+        // Payment confirmed FIRST, only now do we actually call Namecheap —
+        // this is deliberately the one and only place a domain purchase
+        // registers for real, so a customer can never end up charged-but-
+        // not-registered or registered-for-free. Isolated in its own
+        // try/catch and always falls through to the unconditional 200
+        // below (same reasoning as the VPS branch) — a failure here leaves
+        // the order in 'pending_payment'/'failed' for manual follow-up
+        // rather than making Stripe retry this delivery forever.
+        try {
+          const orderRows = (await sql`
+            SELECT * FROM domain_orders WHERE id = ${domainOrderId} AND status = 'pending_payment'
+          `) as unknown as {
+            id: string; domain: string; years: number; site_id: string | null; contact_json: string | null
+          }[]
+          const order = orderRows[0]
+          if (!order) break // already processed (duplicate delivery) or unknown order id
+
+          const contact = JSON.parse(order.contact_json ?? '{}') as RegistrantContact
+          const result = await registerDomain(order.domain, order.years, contact)
+
+          await sql`
+            UPDATE domain_orders
+            SET status = ${result.registered ? 'registered' : 'failed'},
+                registrar_order_id = ${result.orderId},
+                charged_amount = ${result.chargedAmount},
+                stripe_checkout_session_id = ${session.id},
+                stripe_payment_intent = ${String(session.payment_intent)}
+            WHERE id = ${order.id}
+          `
+
+          if (result.registered && order.site_id) {
+            // Fully automate "connect this domain" — unlike a domain the
+            // customer already owned elsewhere, we control this domain's
+            // registrar account, so we can point its nameservers at
+            // Cloudflare ourselves instead of asking the customer to.
+            const zone = await provisionCloudflareZone(order.domain)
+            if (zone) {
+              await setDomainNameservers(order.domain, zone.nameservers).catch((err) => {
+                console.error('domain nameserver update error', err)
+                Sentry.captureException(err)
+              })
+              await addDomainToVercel(order.domain).catch((err) => {
+                console.error('domain vercel add error', err)
+                Sentry.captureException(err)
+              })
+              await sql`
+                UPDATE sites
+                SET custom_domain = ${order.domain}, domain_status = 'pending', cloudflare_zone_id = ${zone.zoneId}, nameservers = ${zone.nameservers.join(',')}
+                WHERE id = ${order.site_id}
+              `
+              await sql`UPDATE domain_orders SET connected_to_site = true WHERE id = ${order.id}`
+            }
+          }
+        } catch (err) {
+          console.error('domain registration error', err)
+          Sentry.captureException(err)
+        }
         break
       }
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ThemeToggle from '@/components/ThemeToggle'
 
-type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; subject: string; body: string; scheduledAt: string | null }
+type ReadyItem = { personId: string; noteId: string; companyName: string; email: string; phone: string | null; subject: string; body: string; scheduledAt: string | null }
 type CrmGroup = { crm: string; businessName: string; ready: ReadyItem[] }
 type Stat = { crm: string; businessName: string; drafted: number; sent: number; replied: number; unanswered: number }
 type ReplyItem = { id: string; person_id: string | null; from_email: string; subject: string; body: string; received_at: string; sentiment: string | null }
@@ -203,9 +203,21 @@ function OutreachCard({ crmKey, item, onSent, onScheduled }: { crmKey: string; i
         <div>
           <p className="font-medium">{item.companyName}</p>
           <p className="text-xs text-slate-500 dark:text-zinc-400">{item.email}</p>
+          {item.phone && <p className="text-xs text-slate-500 dark:text-zinc-400">{item.phone}</p>}
           {item.scheduledAt && <p className="text-xs text-amber-600 dark:text-[#f59e0b] mt-1">Scheduled for {new Date(item.scheduledAt).toLocaleString()}</p>}
         </div>
         <div className="flex gap-2 items-center flex-wrap">
+          {item.phone && (
+            <a
+              href={`/admin/dialer/${crmKey}?number=${encodeURIComponent(item.phone)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Opens Bario Dialer to call this lead directly from your browser/device, showing the business's number as caller ID"
+              className="text-xs rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-3 py-1.5"
+            >
+              📞 Call
+            </a>
+          )}
           <button onClick={() => setExpanded(!expanded)} className="text-xs rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5">
             {expanded ? 'Hide' : 'Review & edit'}
           </button>

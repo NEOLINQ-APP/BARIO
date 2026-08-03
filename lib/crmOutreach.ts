@@ -10,6 +10,18 @@ export type CrmConfig = {
   fromAddress: string
   smtpUserEnvVar: string
   smtpPassEnvVar: string
+  // Click-to-call (lib/twilio.ts): twilioNumber is the business's own real
+  // Twilio number (used as the lead-facing caller ID), forwardToNumber is
+  // the real staff phone dialed FIRST for the phone-bridge path — once they
+  // pick up, Twilio bridges them to the lead. twimlAppSid is for the
+  // browser-based Bario Dialer PWA (Twilio Voice SDK) — Twilio calls
+  // app/api/twilio/browser-call for any outbound call placed through that
+  // Application, regardless of which staff member's browser initiated it.
+  // All already provisioned/verified live on the Unique Group Twilio
+  // (sub)account, one number + one Application per business.
+  twilioNumber: string
+  forwardToNumber: string
+  twimlAppSid: string
 }
 
 export const OUTREACH_CRMS: CrmConfig[] = [
@@ -21,6 +33,9 @@ export const OUTREACH_CRMS: CrmConfig[] = [
     fromAddress: '"AFC Logistics" <outreach@send.afclogistics.ca>',
     smtpUserEnvVar: 'AFC_OUTREACH_SMTP_USER',
     smtpPassEnvVar: 'AFC_OUTREACH_SMTP_PASS',
+    twilioNumber: '+18253607175',
+    forwardToNumber: '+17809778865',
+    twimlAppSid: 'APee46b91de81c9f57efad2e042fbc3f19',
   },
   {
     key: 'sunbuilt',
@@ -30,6 +45,9 @@ export const OUTREACH_CRMS: CrmConfig[] = [
     fromAddress: '"Sunbuilt Group" <outreach@send.sunbuiltgroup.com>',
     smtpUserEnvVar: 'SUNBUILT_OUTREACH_SMTP_USER',
     smtpPassEnvVar: 'SUNBUILT_OUTREACH_SMTP_PASS',
+    twilioNumber: '+18254352121',
+    forwardToNumber: '+14164572224',
+    twimlAppSid: 'APe0558e2920449e49a09ded2f992dac81',
   },
 ]
 

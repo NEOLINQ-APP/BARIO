@@ -1,13 +1,18 @@
+import { getConnection } from '@/lib/marketing/connections'
+import type { db as dbFn } from '@/lib/db'
+
+type Sql = Awaited<ReturnType<typeof dbFn>>
+
 // Google's OAuth2 access tokens expire hourly, so we exchange the stored
 // (long-lived) refresh token for a fresh access token on every publish call.
-async function getAccessToken(): Promise<string> {
+async function getFreshAccessToken(refreshToken: string): Promise<string> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: process.env.GOOGLE_BUSINESS_CLIENT_ID!,
       client_secret: process.env.GOOGLE_BUSINESS_CLIENT_SECRET!,
-      refresh_token: process.env.GOOGLE_BUSINESS_REFRESH_TOKEN!,
+      refresh_token: refreshToken,
       grant_type: 'refresh_token',
     }),
   })
@@ -16,10 +21,14 @@ async function getAccessToken(): Promise<string> {
   return data.access_token
 }
 
-export async function postToGoogleBusiness(content: string): Promise<string> {
-  const accessToken = await getAccessToken()
-  const accountId = process.env.GOOGLE_BUSINESS_ACCOUNT_ID!
-  const locationId = process.env.GOOGLE_BUSINESS_LOCATION_ID!
+export async function postToGoogleBusiness(sql: Sql, content: string): Promise<string> {
+  const conn = await getConnection(sql, 'google_business')
+  if (!conn?.refresh_token) throw new Error('Google Business Profile is not connected')
+  const meta = JSON.parse(conn.metadata_json || '{}')
+  const { accountId, locationId } = meta
+  if (!accountId || !locationId) throw new Error('Google Business Profile is connected but no location was found on it')
+
+  const accessToken = await getFreshAccessToken(conn.refresh_token)
 
   const res = await fetch(
     `https://mybusiness.googleapis.com/v4/accounts/${accountId}/locations/${locationId}/localPosts`,

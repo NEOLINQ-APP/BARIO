@@ -6,7 +6,7 @@ import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
 // Lets a user switch a site back to the AI-built sections model after having
-// used a raw-HTML template — the template flow has no way back to Zeus
+// used a raw-HTML template — the template flow has no way back to the AI builder
 // otherwise, since TemplateBuilder never exposes a return path.
 export async function POST(req: Request) {
   try {

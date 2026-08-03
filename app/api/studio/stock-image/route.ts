@@ -6,7 +6,7 @@ import { searchImage } from '@/lib/unsplash'
 import { errorResponse } from '@/lib/errors'
 
 // Real stock-photo search for the Design mode copilot's "swap imagery" tool
-// — reuses the same Unsplash integration Zeus already uses, rather than
+// — reuses the same Unsplash integration the website builder already uses, rather than
 // building a second image-search path.
 export async function POST(req: Request) {
   try {

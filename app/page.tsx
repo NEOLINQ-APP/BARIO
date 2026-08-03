@@ -1,7 +1,7 @@
 // app/page.tsx
 // Bario.ca homepage — a real overview page linking to dedicated product
 // pages (Hosting, X-Drive, VPS), not one long scroll with every feature,
-// price, and FAQ crammed in. Matches the same multi-page philosophy Zeus
+// price, and FAQ crammed in. Matches the same multi-page philosophy Sky
 // now builds into every customer site.
 
 import DomainChecker from '@/components/DomainChecker'
@@ -35,7 +35,7 @@ export default function Home() {
           </h1>
 
           <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            Search a domain below, then build your site with our AI builder (Zeus) and publish it free to a bario.ca
+            Search a domain below, then build your site with our AI builder (Sky) and publish it free to a bario.ca
             subdomain — or connect a domain you already own and we'll manage its DNS and nameservers for you.
           </p>
 
@@ -62,7 +62,7 @@ export default function Home() {
             <div className="text-3xl">🤖</div>
             <h3 className="font-bold text-xl text-slate-900 dark:text-white">AI Website Builder &amp; Hosting</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Describe your business, Zeus builds the site. Free hosting, managed DNS, premium templates. Plans from $19/mo.
+              Describe your business, Sky builds the site. Free hosting, managed DNS, premium templates. Plans from $19/mo.
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-cyan-400 group-hover:gap-2.5 transition-all">
               See hosting &amp; pricing →
