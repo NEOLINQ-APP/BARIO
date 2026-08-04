@@ -46,6 +46,25 @@ export async function placeClickToCall(opts: {
   return { sid: data.sid, status: data.status }
 }
 
+// Sends a real SMS from Victoria's own number — used by the miko-sms text
+// route's take_message tool to alert Mr. Mendoza when someone not in her
+// known contacts texts in, mirroring the voice line's own take_message tool.
+export async function sendVictoriaSms(toNumber: string, body: string): Promise<{ sid: string }> {
+  const VICTORIA_NUMBER = '+18254650880'
+  const data = await twilioFetch('/Messages.json', { To: toNumber, From: VICTORIA_NUMBER, Body: body })
+  return { sid: data.sid }
+}
+
+// Generic SMS sender for features that don't have their own dedicated
+// Twilio number (e.g. the Social Dispatcher's Lead Ads notifications —
+// regular Bario customers don't get a business Twilio number the way
+// AFC/Sunbuilt/Unique do). Defaults From to Victoria's number since it's
+// already the general "Bario notifies you" line.
+export async function sendSms(toNumber: string, body: string, fromNumber = '+18254650880'): Promise<{ sid: string }> {
+  const data = await twilioFetch('/Messages.json', { To: toNumber, From: fromNumber, Body: body })
+  return { sid: data.sid }
+}
+
 // Places a real outbound call FROM Miko's dedicated AI voice line — unlike
 // placeClickToCall (which bridges two humans), this one connects the
 // answering party directly to Miko itself, live, via ConversationRelay.

@@ -152,6 +152,24 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS victoria_messages_phone_idx ON victoria_messages (phone_number, created_at)`
+
+  // Conversation memory for the new installable Victoria assistant app
+  // (session/login-based, not phone-number-based like SMS/WhatsApp above) —
+  // separate table since this channel is keyed by user_id, not a phone
+  // number, and carries tool-call/attachment metadata the text line doesn't.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_app_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      direction TEXT NOT NULL,
+      body TEXT NOT NULL,
+      attachments_json TEXT,
+      tool_log_json TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS victoria_app_messages_user_idx ON victoria_app_messages (user_id, created_at)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -732,6 +750,74 @@ async function ensureSchema() {
     )
   `
 
+  // Social Dispatcher ("blast one post to every connected platform") — the
+  // customer-facing counterpart to marketing_connections/marketing_posts
+  // above, which is Bario's own house account only. Keyed by user_id
+  // directly (one BARIO account, many platform connections) rather than
+  // crm_stacks.id, since a user can connect socials before/without ever
+  // provisioning a Twenty CRM workspace.
+  await sql`
+    CREATE TABLE IF NOT EXISTS social_connections (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      platform TEXT NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      expires_at TIMESTAMPTZ,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      notify_phone TEXT,
+      connected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (user_id, platform)
+    )
+  `
+  // notify_phone predates being per-connection in spirit (it's really a
+  // per-user setting for where lead-ad SMS alerts go) but lives here so the
+  // webhook handler's single lookup-by-page-id also yields the phone to
+  // notify without a second join.
+  await sql`ALTER TABLE social_connections ADD COLUMN IF NOT EXISTS notify_phone TEXT`
+
+  // One row per blast — status_json is a per-platform result map
+  // ({ facebook: { status: 'posted', externalId }, tiktok: { status: 'failed', error } })
+  // populated as each Promise.allSettled leg resolves, so a partial failure
+  // (e.g. LinkedIn token expired) never blocks the platforms that succeeded.
+  await sql`
+    CREATE TABLE IF NOT EXISTS social_posts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      caption TEXT NOT NULL,
+      media_url TEXT,
+      media_type TEXT NOT NULL DEFAULT 'video',
+      platforms_json TEXT NOT NULL DEFAULT '[]',
+      is_ad_campaign BOOLEAN NOT NULL DEFAULT false,
+      target_budget_cents INTEGER,
+      status_json TEXT NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      dispatched_at TIMESTAMPTZ
+    )
+  `
+
+  // Leads captured from a platform's Lead Ads webhook (currently: Meta only
+  // — TikTok/LinkedIn lead-gen products need their own separate partner
+  // approval, not just an OAuth scope, so their webhooks aren't wired yet).
+  // raw_json keeps the full field_data payload for anything the fixed
+  // columns below don't capture (custom form questions, consent answers).
+  await sql`
+    CREATE TABLE IF NOT EXISTS social_leads (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      platform TEXT NOT NULL,
+      external_lead_id TEXT NOT NULL,
+      full_name TEXT,
+      email TEXT,
+      phone TEXT,
+      raw_json TEXT NOT NULL DEFAULT '{}',
+      notified BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (platform, external_lead_id)
+    )
+  `
+
   // Manual quotes/invoices tool for Bario's own business (admin-only, not
   // exposed to regular customer accounts) — public_token is the unguessable
   // id used for the no-login shareable link (app/invoice/[token]), same
@@ -951,6 +1037,13 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // caller_name (resolved from Victoria's known-contacts list when the
+  // number matches, else left null for an unrecognized caller) and summary
+  // (a one/two-sentence recap of what the call was about) — let Victoria
+  // answer "who called today" / "any messages for me" with real recall
+  // instead of just raw numbers and durations.
+  await sql`ALTER TABLE victoria_calls ADD COLUMN IF NOT EXISTS caller_name TEXT`
+  await sql`ALTER TABLE victoria_calls ADD COLUMN IF NOT EXISTS summary TEXT`
 
   // A real, code-derived registry of every place Bario calls an AI model —
   // not aspirational, built by grepping the actual codebase for every
@@ -1069,6 +1162,8 @@ export type VictoriaCall = {
   started_at: string
   ended_at: string
   created_at: string
+  caller_name: string | null
+  summary: string | null
 }
 
 export type Staff = {
@@ -1228,6 +1323,16 @@ export type VictoriaMessage = {
   created_at: string
 }
 
+export type VictoriaAppMessage = {
+  id: string
+  user_id: string
+  direction: 'inbound' | 'outbound'
+  body: string
+  attachments_json: string | null
+  tool_log_json: string | null
+  created_at: string
+}
+
 export type FamilyGroup = {
   id: string
   owner_user_id: string
@@ -1328,6 +1433,50 @@ export type MarketingConnection = {
   metadata_json: string
   connected_by: string | null
   connected_at: string
+}
+
+export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin'
+
+export type SocialConnection = {
+  id: string
+  user_id: string
+  platform: SocialPlatform
+  access_token: string
+  refresh_token: string | null
+  expires_at: string | null
+  metadata_json: string
+  notify_phone: string | null
+  connected_at: string
+  updated_at: string
+}
+
+export type SocialPlatformResult = { status: 'posted' | 'failed'; externalId?: string; error?: string }
+
+export type SocialPost = {
+  id: string
+  user_id: string
+  caption: string
+  media_url: string | null
+  media_type: 'video' | 'image'
+  platforms_json: string
+  is_ad_campaign: boolean
+  target_budget_cents: number | null
+  status_json: string
+  created_at: string
+  dispatched_at: string | null
+}
+
+export type SocialLead = {
+  id: string
+  user_id: string
+  platform: SocialPlatform
+  external_lead_id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  raw_json: string
+  notified: boolean
+  created_at: string
 }
 
 export type GiftCode = {

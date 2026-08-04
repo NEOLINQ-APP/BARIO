@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/websites', label: 'Websites', icon: '🌐' },
   { href: '/dashboard/domains', label: 'Domains', icon: '🔎' },
   { href: '/dashboard/crm', label: 'CRM', icon: '🧑‍💼' },
+  { href: '/dashboard/social', label: 'Social', icon: '📣' },
   { href: '/dashboard/email', label: 'Email', icon: '📧' },
   { href: '/media', label: 'X-Drive', icon: '📁' },
   { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },
