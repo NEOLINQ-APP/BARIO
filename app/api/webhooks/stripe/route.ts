@@ -164,6 +164,56 @@ export async function POST(req: Request) {
         break
       }
 
+      const convertVpsId = session.metadata?.convertVpsId
+      if (session.mode === 'payment' && userId && convertVpsId) {
+        // The customer already ran /api/sites/migrate against their live
+        // WordPress site and reviewed the result BEFORE paying this fee
+        // (see app/api/vps/[id]/convert-to-static/route.ts) — this branch's
+        // only job is to cancel the underlying VPS subscription, which the
+        // existing 'customer.subscription.deleted' handler below already
+        // knows how to tear down (delete the Hetzner server, mark
+        // deprovisioned) — reused as-is, not duplicated here.
+        try {
+          const rows = (await sql`SELECT stripe_subscription_id FROM vps_instances WHERE id = ${convertVpsId} AND user_id = ${userId} AND status = 'active'`) as unknown as { stripe_subscription_id: string | null }[]
+          const order = rows[0]
+          if (order?.stripe_subscription_id) {
+            await getStripe().subscriptions.cancel(order.stripe_subscription_id)
+          }
+        } catch (err) {
+          console.error('convert-to-static cancellation error', err)
+          Sentry.captureException(err)
+        }
+        break
+      }
+
+      const voiceAgentOrderId = session.metadata?.voiceAgentOrderId
+      if (session.mode === 'subscription' && userId && voiceAgentOrderId) {
+        // Payment confirmed -> pending_build, for an admin to assign a real
+        // Twilio number and activate in the build panel. Deliberately NOT
+        // auto-provisioned like VPS — this product needs a human to pick a
+        // real phone number (Twilio number search/purchase automation
+        // doesn't exist yet, see the plan this was built from), so the
+        // webhook's job here is just the payment-confirmed state
+        // transition, same "swallow and fall through to 200" reasoning as
+        // the other branches — a failure here shouldn't make Stripe retry
+        // forever, it just leaves the order visible as still pending_payment
+        // for manual follow-up.
+        try {
+          const rows = (await sql`SELECT id FROM voice_agent_orders WHERE id = ${voiceAgentOrderId} AND status = 'pending_payment'`) as unknown as { id: string }[]
+          if (rows[0]) {
+            await sql`
+              UPDATE voice_agent_orders
+              SET stripe_subscription_id = ${String(session.subscription)}, status = 'pending_build', updated_at = now()
+              WHERE id = ${voiceAgentOrderId}
+            `
+          }
+        } catch (err) {
+          console.error('voice agent order payment error', err)
+          Sentry.captureException(err)
+        }
+        break
+      }
+
       if (session.mode === 'subscription' && userId && storageTier && isStorageTierKey(storageTier)) {
         // A separate subscription from the site plan — a user can be on any
         // (or no) site plan and independently pay for more storage.

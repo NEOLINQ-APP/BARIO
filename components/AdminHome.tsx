@@ -77,6 +77,10 @@ export default function AdminHome() {
             <div className="font-semibold">Victoria Call Log</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Real per-call cost across all three business lines — actual token usage + Twilio rates on real call duration.</p>
           </a>
+          <a href="/admin/voice-agent" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Voice Agent Orders 📞</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Customer-ordered AI phone answering — review paid orders, assign a real Twilio number, hit Build to activate.</p>
+          </a>
           <a href="/admin/ai-integrations" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">AI Integrations & Domains</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every place Bario calls an AI model, which provider/model, and which domain(s) it serves.</p>

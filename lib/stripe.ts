@@ -43,3 +43,8 @@ function buildVpsPriceMap(addon: boolean): Record<VpsTierKey, Record<BillingCycl
 // every price in a single subscription to share the same billing interval.
 export const VPS_PRICE_IDS = buildVpsPriceMap(false)
 export const VPS_BACKUP_ADDON_PRICE_IDS = buildVpsPriceMap(true)
+
+// Voice Agent reseller — single flat monthly subscription, no tiers (unlike
+// VPS). Per-call Twilio/ElevenLabs/Claude usage is a real cost this price
+// needs to cover with margin, not billed separately to the customer.
+export const VOICE_AGENT_PRICE_ID = process.env.STRIPE_PRICE_VOICE_AGENT

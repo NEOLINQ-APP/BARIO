@@ -27,14 +27,19 @@ export async function POST(req: Request) {
     // Malformed/missing ctx — fall through to the default check-in framing.
   }
 
+  // Switched to ElevenLabs (2026-08-04). The voice ID first used here
+  // (UgBBYS2sOqTuMpoF3BR0) turned out to be male despite being claimed as
+  // "Twilio's documented default" — see app/api/twilio/miko-voice/route.ts
+  // for the full story. Using EXAVITQu4vr4xnSDxMaL instead, the same
+  // independently-confirmed-female ID used everywhere else Victoria speaks.
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect action="https://www.bario.ca/api/twilio/victoria-handoff">
     <ConversationRelay
       url="wss://miko-voice.bario.ca/"
       welcomeGreeting="Hi, this is Victoria calling for Mr. Mendoza."
-      ttsProvider="Amazon"
-      voice="Emma-Neural"
+      ttsProvider="ElevenLabs"
+      voice="EXAVITQu4vr4xnSDxMaL"
     >
       <Parameter name="jobContext" value="${escapeXmlAttr(jobContext)}" />
       <Parameter name="isOutbound" value="true" />
