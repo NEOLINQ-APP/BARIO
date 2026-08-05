@@ -44,6 +44,27 @@ export default function BarioDialer({
   const [seconds, setSeconds] = useState(0)
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null)
   const [installed, setInstalled] = useState(false)
+  // Real bug fix (2026-08-04): a real user reported "they can hear me, I
+  // can't hear them" on outbound calls — the classic signature of Chrome/
+  // Safari/Firefox's autoplay policy silently blocking the remote-audio
+  // element Twilio's SDK creates. Root cause: the Device below was being
+  // constructed+registered in a useEffect on mount, with zero prior user
+  // interaction (needed so the app can receive Internal calls at any time,
+  // not just while actively dialing) — but per Twilio's own documented
+  // autoplay workaround, the fix is that the Device must not be set up
+  // until the user has interacted with the page at least once. Gating
+  // construction behind this one-tap screen satisfies that requirement
+  // while still registering immediately after, preserving the
+  // always-ready-for-Internal-calls behavior for the rest of the session.
+  const [readyToInit, setReadyToInit] = useState(false)
+  // Real-time call quality signal (Twilio's Call 'warning' event — jitter,
+  // packet loss, RTT, etc.) surfaced directly in the in-call screen. Added
+  // after a real report of one-way audio that a first fix (the
+  // readyToInit gate above) didn't resolve — this exists so the NEXT
+  // occurrence produces actual evidence (which warning fired, when)
+  // instead of another guess, especially useful on mobile where there's no
+  // devtools console to check.
+  const [callWarning, setCallWarning] = useState<string | null>(null)
 
   const [contacts, setContacts] = useState<Contact[] | null>(null)
   const [contactsLoading, setContactsLoading] = useState(false)
@@ -102,8 +123,11 @@ export default function BarioDialer({
   // Keep one Device registered for the current business identity so this
   // app can receive Internal calls from the other two Bario Dialer apps
   // even when nobody is actively dialing out. Recreated whenever the
-  // business changes (only relevant in the unlocked/dropdown mode).
+  // business changes (only relevant in the unlocked/dropdown mode). Gated
+  // on readyToInit (see its declaration above) so this never runs before
+  // the user's first tap on this page load.
   useEffect(() => {
+    if (!readyToInit) return
     ensureDevice().catch(() => {})
     return () => {
       deviceRef.current?.destroy()
@@ -111,7 +135,7 @@ export default function BarioDialer({
       deviceBusinessKeyRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessKey])
+  }, [businessKey, readyToInit])
 
   async function promptInstall() {
     if (!installPromptEvent) return
@@ -273,6 +297,8 @@ export default function BarioDialer({
         setError(err?.message ?? 'Call error')
         endCall('failed')
       })
+      call.on('warning', (name: string) => setCallWarning(name))
+      call.on('warning-cleared', () => setCallWarning(null))
     })
 
     await device.register()
@@ -283,6 +309,7 @@ export default function BarioDialer({
 
   async function startOutgoingCall(to: string, contactName: string | null) {
     setError(null)
+    setCallWarning(null)
     setCallState('requesting')
 
     try {
@@ -308,6 +335,8 @@ export default function BarioDialer({
         setError(err?.message ?? 'Call error')
         endCall('failed')
       })
+      call.on('warning', (name: string) => setCallWarning(name))
+      call.on('warning-cleared', () => setCallWarning(null))
     } catch (err: any) {
       setError(err.message ?? 'Could not place the call — check microphone permission and try again.')
       setCallState('idle')
@@ -355,6 +384,7 @@ export default function BarioDialer({
     setCallState('ended')
     setMuted(false)
     setSpeakerOn(false)
+    setCallWarning(null)
     setTimeout(() => { setCallState('idle'); setActiveContactName(null) }, 1500)
   }
 
@@ -395,6 +425,24 @@ export default function BarioDialer({
   const mm = String(Math.floor(seconds / 60)).padStart(2, '0')
   const ss = String(seconds % 60).padStart(2, '0')
   const inCallView = callState !== 'idle'
+
+  if (!readyToInit) {
+    return (
+      <div className="h-[100dvh] overflow-hidden overscroll-none bg-[#0b111c] text-white flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-3xl mb-4">📞</div>
+        <h2 className="text-lg font-semibold mb-2">Bario Dialer</h2>
+        <p className="text-sm text-slate-400 mb-6 max-w-xs">
+          Tap below to enable calling. This one tap is required by your browser so call audio is allowed to play.
+        </p>
+        <button
+          onClick={() => setReadyToInit(true)}
+          className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-[#04101f] font-semibold text-base"
+        >
+          Enable Calling
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="h-[100dvh] overflow-hidden overscroll-none bg-[#0b111c] text-white flex flex-col items-center px-6 pt-8 pb-6">
@@ -660,6 +708,14 @@ export default function BarioDialer({
               <p className="text-base font-medium text-slate-400 mb-2">In call with</p>
               <p className="text-3xl font-bold text-white mb-1 tabular-nums">{activeContactName ?? number}</p>
               <p className="text-4xl font-bold font-mono mb-8 tabular-nums">{mm}:{ss}</p>
+              {!speakerOn && (
+                <p className="text-xs text-amber-400 mb-3 max-w-xs mx-auto">
+                  🔈 Speaker is off — on a phone, audio plays through the earpiece only. Tap Speaker below if you can&apos;t hear the other party.
+                </p>
+              )}
+              {callWarning && (
+                <p className="text-xs text-red-400 mb-3">⚠ Call quality warning: {callWarning}</p>
+              )}
               <div className="flex gap-3 justify-center mb-6">
                 <button onClick={toggleSpeaker} className={`px-5 py-4 rounded-xl text-lg font-semibold ${speakerOn ? 'bg-blue-500 text-white' : 'bg-[#111a2c] border border-[#22304a] text-white'}`}>
                   {speakerOn ? '🔊 Speaker' : '🔈 Speaker'}
