@@ -20,13 +20,39 @@ Google Business Profile posts are short, local-focused, and action-oriented.
 Never invent stats, testimonials, or customer names that weren't provided to you. Don't use emoji excessively
 (0-2 max, only if it fits the platform).
 
-Respond with a single JSON object: { "posts": [ { "platform": "...", "content": "..." }, ... ] }`
+Respond with a single JSON object: { "posts": [ { "platform": "...", "content": "..." }, ... ] }
+CRITICAL: the "platform" value in your response must be EXACTLY the internal key given to you (e.g. "twitter"), never a display name or abbreviation (never "X", "Twitter", "LinkedIn", etc). Only include the exact platforms you were asked for below — nothing else.`
+
+// The model doesn't always reliably echo back the exact internal key we
+// gave it (real, observed failure: it returned "X" for twitter and
+// "LinkedIn" for linkedin, and included platforms that weren't even
+// requested) — this normalizes common display-name variants back to the
+// canonical key as a defensive fallback, so a prompt-following slip doesn't
+// silently drop every single draft.
+const PLATFORM_ALIASES: Record<string, MarketingPlatform> = {
+  x: 'twitter',
+  twitter: 'twitter',
+  'x (twitter)': 'twitter',
+  facebook: 'facebook',
+  instagram: 'instagram',
+  linkedin: 'linkedin',
+  google_business: 'google_business',
+  'google business profile': 'google_business',
+  'google business': 'google_business',
+}
+
+function normalizePlatform(raw: unknown): MarketingPlatform | null {
+  if (typeof raw !== 'string') return null
+  return PLATFORM_ALIASES[raw.trim().toLowerCase()] ?? null
+}
 
 export async function generateDrafts(platforms: MarketingPlatform[], topic: string): Promise<{ platform: MarketingPlatform; content: string }[]> {
   const userPrompt = `Write one marketing post for each of these platforms, about: "${topic}".
 
-Platforms and their character limits:
-${platforms.map((p) => `- ${p} (${PLATFORM_LABELS[p]}): max ${PLATFORM_CHAR_LIMITS[p]} characters`).join('\n')}`
+Platforms and their character limits (use these EXACT keys as the "platform" value — e.g. "${platforms[0]}", not "${PLATFORM_LABELS[platforms[0]]}"):
+${platforms.map((p) => `- "${p}" (${PLATFORM_LABELS[p]}): max ${PLATFORM_CHAR_LIMITS[p]} characters`).join('\n')}
+
+Only include these ${platforms.length} platform(s) — do not add any others.`
 
   const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
@@ -43,7 +69,14 @@ ${platforms.map((p) => `- ${p} (${PLATFORM_LABELS[p]}): max ${PLATFORM_CHAR_LIMI
   const parsed = JSON.parse(raw)
   if (!Array.isArray(parsed.posts)) throw new Error('Model did not return a posts array')
 
-  return parsed.posts
-    .filter((p: any) => platforms.includes(p?.platform) && typeof p?.content === 'string' && p.content.trim())
-    .map((p: any) => ({ platform: p.platform as MarketingPlatform, content: p.content.trim() }))
+  const seen = new Set<MarketingPlatform>()
+  const results: { platform: MarketingPlatform; content: string }[] = []
+  for (const p of parsed.posts) {
+    const platform = normalizePlatform(p?.platform)
+    if (!platform || !platforms.includes(platform) || seen.has(platform)) continue
+    if (typeof p?.content !== 'string' || !p.content.trim()) continue
+    seen.add(platform)
+    results.push({ platform, content: p.content.trim() })
+  }
+  return results
 }
