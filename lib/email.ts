@@ -66,6 +66,13 @@ export async function sendInvoiceEmail(to: string, opts: { type: 'quote' | 'invo
   })
 }
 
+// Generic sender — used by Victoria's assistant app (lib/victoriaAppTools.ts)
+// to send an actual email on Sherwin's behalf, as opposed to every other
+// export in this file being a single fixed template.
+export async function sendEmail(to: string, subject: string, html: string) {
+  await getResend().emails.send({ from: FROM, to, subject, html })
+}
+
 export async function sendFamilyInviteEmail(to: string, inviterEmail: string, acceptUrl: string) {
   await getResend().emails.send({
     from: FROM,

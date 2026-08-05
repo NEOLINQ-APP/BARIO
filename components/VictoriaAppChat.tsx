@@ -1,0 +1,434 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import type { Device as DeviceType, Call as CallType } from '@twilio/voice-sdk'
+import ThemeToggle from '@/components/ThemeToggle'
+
+type Attachment = { url: string; contentType: string; filename: string }
+type Msg = { role: 'user' | 'assistant'; content: string; attachments?: Attachment[] }
+type ToolLogEntry = { tool: string; args: unknown; result: unknown }
+type CallState = 'idle' | 'requesting' | 'ringing' | 'in-call' | 'ended'
+
+const GREETING: Msg = {
+  role: 'assistant',
+  content: "Hi — I'm Victoria. Ask me to create an invoice, generate an image, draft a social post, send an email, or read over a document/image you attach. What do you need?",
+}
+
+// Real, tested/reasonable ElevenLabs voices — mirrors
+// app/api/twilio/victoria-app-call/route.ts's PERSONA_VOICES exactly (that
+// route is the actual source of truth for the voice itself; this is just
+// the picker UI's label list). Priyanka/Koko intentionally left out until
+// real accent-matched voice ids are confirmed.
+const PERSONAS: { key: string; name: string; note: string }[] = [
+  { key: 'victoria', name: 'Victoria', note: 'American accent' },
+  { key: 'charlotte', name: 'Charlotte', note: 'British accent' },
+  { key: 'layla', name: 'Layla', note: 'American accent' },
+  { key: 'lindsay', name: 'Lindsay', note: 'American accent' },
+  { key: 'jade', name: 'Jade', note: 'American accent' },
+  { key: 'miko', name: 'Miko', note: 'CRM & customers' },
+  { key: 'amber', name: 'Amber', note: 'Invoices & billing' },
+]
+
+// Web Speech API — real but genuinely inconsistent support (unsupported in
+// Firefox entirely, historically flaky in Safari/iOS). Feature-detected;
+// the mic button simply doesn't render if unavailable, no broken promise.
+function getSpeechRecognition(): (new () => any) | null {
+  if (typeof window === 'undefined') return null
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
+}
+
+export default function VictoriaAppChat() {
+  const [messages, setMessages] = useState<Msg[]>([GREETING])
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
+  const [lastToolLog, setLastToolLog] = useState<ToolLogEntry[]>([])
+  const [listening, setListening] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<any>(null)
+
+  const [personaKey, setPersonaKey] = useState('victoria')
+  const [callState, setCallState] = useState<CallState>('idle')
+  const [callMuted, setCallMuted] = useState(false)
+  const [callError, setCallError] = useState<string | null>(null)
+  const [callSeconds, setCallSeconds] = useState(0)
+  const [speakerOn, setSpeakerOn] = useState(false)
+  const [speakerSupported, setSpeakerSupported] = useState(true)
+  const deviceRef = useRef<DeviceType | null>(null)
+  const callRef = useRef<CallType | null>(null)
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/victoria-app-sw.js').catch(() => {})
+    }
+    setSpeechSupported(!!getSpeechRecognition())
+
+    // Load persisted history — without this, past conversation (and
+    // anything narrated in from a Claude Code session via the admin
+    // narrate route) never showed up; the page always started blank.
+    fetch('/api/victoria/app/chat')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.messages) && data.messages.length > 0) setMessages(data.messages)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (callState !== 'in-call') return
+    setCallSeconds(0)
+    const interval = setInterval(() => setCallSeconds((s) => s + 1), 1000)
+    return () => clearInterval(interval)
+  }, [callState])
+
+  // Real live voice — reuses the exact same Twilio Voice SDK mechanism the
+  // Bario Dialer already uses (device.connect()), just pointed at a
+  // dedicated TwiML Application that connects straight into the same
+  // ConversationRelay backend powering the real phone line, instead of
+  // building a separate browser-native speech pipeline from scratch.
+  async function ensureDevice(): Promise<DeviceType> {
+    if (deviceRef.current) return deviceRef.current
+    const { Device } = await import('@twilio/voice-sdk')
+    const res = await fetch('/api/victoria/app/voice-token', { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? 'Could not get a calling token')
+    const device = new Device(data.token, { logLevel: 'error' })
+    deviceRef.current = device
+    return device
+  }
+
+  function endCall() {
+    callRef.current?.disconnect()
+    callRef.current = null
+    setCallState('ended')
+    setCallMuted(false)
+    setTimeout(() => setCallState('idle'), 1200)
+  }
+
+  async function startCall() {
+    setCallError(null)
+    setCallState('requesting')
+    try {
+      const device = await ensureDevice()
+      const call = await device.connect({ params: { persona: personaKey } })
+      callRef.current = call
+      call.on('ringing', () => setCallState('ringing'))
+      call.on('accept', () => setCallState('in-call'))
+      call.on('disconnect', () => endCall())
+      call.on('cancel', () => endCall())
+      call.on('reject', () => endCall())
+      call.on('error', (err: any) => {
+        setCallError(err?.message ?? 'Call error')
+        endCall()
+      })
+    } catch (err: any) {
+      setCallError(err.message ?? 'Could not place the call — check microphone permission and try again.')
+      setCallState('idle')
+    }
+  }
+
+  function toggleCallMute() {
+    if (!callRef.current) return
+    const next = !callMuted
+    callRef.current.mute(next)
+    setCallMuted(next)
+  }
+
+  // Real, but a genuine platform gap: depends on
+  // HTMLAudioElement.setSinkId(), which iOS Safari does not implement at
+  // all (Apple's own limitation, not fixable here) — works on Android
+  // Chrome/Edge. On iPhone, use the call's native audio-route control
+  // (the speaker icon that appears in iOS's own in-call UI / Control
+  // Center) instead — that works regardless of this button.
+  async function toggleSpeaker() {
+    const device = deviceRef.current
+    if (!device?.audio?.isOutputSelectionSupported) {
+      setSpeakerSupported(false)
+      setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
+      return
+    }
+    try {
+      const next = !speakerOn
+      if (next) {
+        const devices = Array.from(device.audio.availableOutputDevices.values())
+        const speaker = devices.find((d: any) => /speaker/i.test(d.label))
+        await device.audio.speakerDevices.set(speaker ? speaker.deviceId : 'default')
+      } else {
+        await device.audio.speakerDevices.set('default')
+      }
+      setSpeakerOn(next)
+    } catch {
+      setSpeakerSupported(false)
+      setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
+    }
+  }
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function send() {
+    const text = input.trim()
+    if ((!text && pendingAttachments.length === 0) || busy) return
+    const attachments = pendingAttachments
+    const next = [...messages, { role: 'user', content: text, attachments } as Msg]
+    setMessages(next)
+    setInput('')
+    setPendingAttachments([])
+    setBusy(true)
+    try {
+      const res = await fetch('/api/victoria/app/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, attachments }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
+      setMessages((m) => [...m, { role: 'assistant', content: data.reply }])
+      setLastToolLog(data.toolLog ?? [])
+    } catch (err: any) {
+      setMessages((m) => [...m, { role: 'assistant', content: `Error: ${err.message ?? 'something went wrong'}` }])
+    }
+    setBusy(false)
+  }
+
+  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('folder', 'victoria-app-uploads')
+      const res = await fetch('/api/media', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setPendingAttachments((prev) => [...prev, { url: data.url, contentType: file.type, filename: file.name }])
+    } catch (err: any) {
+      setMessages((m) => [...m, { role: 'assistant', content: `Couldn't upload that file — ${err.message ?? 'please try again'}.` }])
+    }
+    setUploading(false)
+  }
+
+  function toggleListening() {
+    const SpeechRecognition = getSpeechRecognition()
+    if (!SpeechRecognition) return
+
+    if (listening) {
+      recognitionRef.current?.stop()
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript
+      if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+    }
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => setListening(false)
+    recognitionRef.current = recognition
+    recognition.start()
+    setListening(true)
+  }
+
+  return (
+    <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased">
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/victoria-avatar-192.png" alt="Victoria" className="h-10 w-10 rounded-full" />
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Victoria</h1>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">Your assistant, always on</p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4">
+          {callState === 'idle' ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <select
+                value={personaKey}
+                onChange={(e) => setPersonaKey(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm"
+              >
+                {PERSONAS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.name} — {p.note}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={startCall}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-semibold flex items-center gap-2"
+              >
+                📞 Call {PERSONAS.find((p) => p.key === personaKey)?.name}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">
+                  {callState === 'requesting' && 'Calling…'}
+                  {callState === 'ringing' && 'Ringing…'}
+                  {callState === 'in-call' && `On the line with ${PERSONAS.find((p) => p.key === personaKey)?.name}`}
+                  {callState === 'ended' && 'Call ended'}
+                </div>
+                {callState === 'in-call' && (
+                  <div className="text-xs text-slate-500 dark:text-zinc-400 tabular-nums">
+                    {String(Math.floor(callSeconds / 60)).padStart(2, '0')}:{String(callSeconds % 60).padStart(2, '0')}
+                  </div>
+                )}
+              </div>
+              {(callState === 'in-call' || callState === 'ringing' || callState === 'requesting') && (
+                <div className="flex items-center gap-2">
+                  {callState === 'in-call' && (
+                    <>
+                      <button
+                        onClick={toggleCallMute}
+                        className={`h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
+                          callMuted ? 'border-amber-400 bg-amber-500/10 text-amber-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {callMuted ? '🔇' : '🎤'}
+                      </button>
+                      {speakerSupported && (
+                        <button
+                          onClick={toggleSpeaker}
+                          title="Speaker"
+                          className={`h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
+                            speakerOn ? 'border-cyan-400 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          {speakerOn ? '🔊' : '🔈'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button onClick={endCall} className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-semibold">
+                    Hang up
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {callError && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{callError}</p>}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] flex flex-col h-[34rem]">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            {messages.map((m, i) => (
+              <div key={i} className={`max-w-[85%] ${m.role === 'user' ? 'ml-auto' : ''}`}>
+                <div
+                  className={`text-sm px-3 py-2 rounded-xl whitespace-pre-wrap ${
+                    m.role === 'user'
+                      ? 'bg-cyan-500 text-slate-950'
+                      : 'bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800'
+                  }`}
+                >
+                  {m.content}
+                </div>
+                {m.attachments && m.attachments.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1 justify-end">
+                    {m.attachments.map((a, j) => (
+                      <span key={j} className="text-xs px-2 py-1 rounded-lg bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
+                        📎 {a.filename}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {busy && (
+              <div className="text-sm bg-white dark:bg-[#0b111c] border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 px-3 py-2 rounded-xl max-w-[85%]">
+                Working…
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {pendingAttachments.length > 0 && (
+            <div className="px-3 pt-2 flex flex-wrap gap-1.5 border-t border-slate-200 dark:border-zinc-800">
+              {pendingAttachments.map((a, i) => (
+                <span key={i} className="text-xs px-2 py-1 rounded-lg bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 flex items-center gap-1">
+                  📎 {a.filename}
+                  <button onClick={() => setPendingAttachments((prev) => prev.filter((_, j) => j !== i))} className="text-cyan-700/60 dark:text-cyan-300/60 hover:text-cyan-700 dark:hover:text-cyan-300">
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              send()
+            }}
+            className="p-3 border-t border-slate-200 dark:border-zinc-800 flex items-center gap-2"
+          >
+            <input ref={fileRef} type="file" onChange={handleFilePick} className="hidden" accept="image/*,application/pdf" />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading || busy}
+              title="Attach a file"
+              className="shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 disabled:opacity-50"
+            >
+              {uploading ? '…' : '📎'}
+            </button>
+            {speechSupported && (
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={busy}
+                title={listening ? 'Stop listening' : 'Speak instead of typing'}
+                className={`shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border text-sm disabled:opacity-50 ${
+                  listening ? 'border-red-400 bg-red-500/10 text-red-500' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                }`}
+              >
+                🎙️
+              </button>
+            )}
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask Victoria anything…"
+              disabled={busy}
+              className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500"
+            />
+            <button
+              type="submit"
+              disabled={busy || (!input.trim() && pendingAttachments.length === 0)}
+              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-semibold disabled:opacity-50"
+            >
+              Send
+            </button>
+          </form>
+        </div>
+
+        {lastToolLog.length > 0 && (
+          <div className="mt-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4">
+            <div className="text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-2">Actions this turn</div>
+            <div className="space-y-1">
+              {lastToolLog.map((t, i) => (
+                <div key={i} className="text-xs font-mono text-slate-500 dark:text-zinc-400">
+                  {t.tool}({JSON.stringify(t.args)}) → {JSON.stringify(t.result).slice(0, 140)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  )
+}
