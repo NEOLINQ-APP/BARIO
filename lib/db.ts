@@ -170,6 +170,24 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS victoria_app_messages_user_idx ON victoria_app_messages (user_id, created_at)`
 
+  // Queue for coding tasks Victoria hands off to Claude rather than doing
+  // herself — picked up by an hourly "Victoria Coding Dispatcher" routine
+  // (a real Claude Code cloud session, created outside this repo via the
+  // remote-trigger API) which does the work, commits it, and narrates
+  // progress back into victoria_app_messages via /api/admin/victoria/narrate.
+  await sql`
+    CREATE TABLE IF NOT EXISTS coding_task_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      task TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      result TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS coding_task_requests_status_idx ON coding_task_requests (status, created_at)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
@@ -1331,6 +1349,16 @@ export type VictoriaAppMessage = {
   attachments_json: string | null
   tool_log_json: string | null
   created_at: string
+}
+
+export type CodingTaskRequest = {
+  id: string
+  user_id: string
+  task: string
+  status: 'pending' | 'in_progress' | 'done' | 'failed'
+  result: string | null
+  created_at: string
+  completed_at: string | null
 }
 
 export type FamilyGroup = {
