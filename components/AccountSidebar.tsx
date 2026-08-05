@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { href: '/dashboard/domains', label: 'Domains', icon: '🔎' },
   { href: '/dashboard/crm', label: 'CRM', icon: '🧑‍💼' },
   { href: '/dashboard/social', label: 'Social', icon: '📣' },
+  { href: '/dashboard/flo-api', label: 'Flo API', icon: '🔌' },
+  { href: '/dashboard/voice-agent', label: 'Voice Agent', icon: '📞' },
   { href: '/dashboard/email', label: 'Email', icon: '📧' },
   { href: '/media', label: 'X-Drive', icon: '📁' },
   { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },

@@ -456,6 +456,22 @@ async function ensureSchema() {
   // actually reach production, same as every other post-launch column
   // addition in this file.
   await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'`
+  // 'blank' (default, existing behavior) or 'wordpress' — buildUserData()
+  // branches on this to install a WordPress+MariaDB+Nginx+Certbot stack
+  // instead of just the security-patch baseline. See lib/cloudInit.ts.
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS app_type TEXT NOT NULL DEFAULT 'blank'`
+  // WordPress-app_type-only fields. wp_admin_password mirrors the existing
+  // root_password one-time-reveal pattern (see reveal-password route) rather
+  // than a new mechanism. wp_domain/wp_cert_issued_at track the single
+  // customer-supplied domain this box's nginx+certbot are configured for —
+  // a dedicated box only ever serves one WordPress site, so one domain is
+  // all this needs (unlike the shared-hosting tier's own domain handling).
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_admin_user TEXT`
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_admin_password_ciphertext TEXT`
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_admin_password_iv TEXT`
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_admin_password_revealed_at TIMESTAMPTZ`
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_domain TEXT`
+  await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_cert_issued_at TIMESTAMPTZ`
 
   // Tracks which CRM contacts already have an AI-drafted outreach note, so
   // the lead-gen cron doesn't redraft the same person every run. Keyed by
@@ -765,6 +781,81 @@ async function ensureSchema() {
       last_error TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // Lets Bario's own backend (the Flo public API below, and eventually the
+  // Social Dispatcher's lead sync) call this workspace's own Twenty GraphQL
+  // API on the customer's behalf. Encrypted at rest (lib/flo/crypto.ts) —
+  // set today via the admin-only route (app/api/admin/crm-stacks/[id]/api-key)
+  // since crm-provision-agent (the VPS-side service that actually creates
+  // the Twenty workspace) doesn't yet generate and hand back an API key
+  // itself; that's real follow-up work on a separate, already-live service.
+  await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS twenty_api_key_encrypted TEXT`
+  await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS twenty_api_key_iv TEXT`
+
+  // Flo's own public API keys (app/api/flo/v1/*) — deliberately separate
+  // from personal_access_tokens (that's for Bario's own X-Drive sync client)
+  // and from a workspace's Twenty API key above (that's Bario calling
+  // Twenty; this is a third party calling Bario). key_prefix is what's shown
+  // in the dashboard after creation ("flo_live_ab12cd34...") so a customer
+  // can tell keys apart without Bario ever storing or re-displaying the
+  // full secret — same never-store-the-secret-itself shape as
+  // personal_access_tokens.token_hash.
+  await sql`
+    CREATE TABLE IF NOT EXISTS flo_api_keys (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      crm_stack_id TEXT NOT NULL REFERENCES crm_stacks(id),
+      name TEXT NOT NULL,
+      key_prefix TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ
+    )
+  `
+
+  // Voice Agent reseller — customer's submitted order + payment state,
+  // mirrors vps_instances's pending_payment -> active shape. Deliberately
+  // separate from crm_stacks (that's a Twenty CRM workspace; this is the
+  // AI phone-answering product) — a customer can have either, both, or
+  // neither. flo_api_key_id is optional: if the customer links an existing
+  // Flo API key, leads the agent captures write into their real CRM via
+  // /api/flo/v1/contacts instead of just sitting in this app.
+  await sql`
+    CREATE TABLE IF NOT EXISTS voice_agent_orders (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      business_name TEXT NOT NULL,
+      business_description TEXT NOT NULL,
+      forward_to_number TEXT NOT NULL,
+      greeting TEXT,
+      flo_api_key_id TEXT REFERENCES flo_api_keys(id),
+      status TEXT NOT NULL DEFAULT 'pending_payment',
+      stripe_checkout_session_id TEXT,
+      stripe_subscription_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // The finalized, live config the voice agent actually reads at call time
+  // — written once by an admin in the build panel, after which the flow is
+  // active with zero further manual touch. Kept separate from the order
+  // row so "what the agent is currently doing" is never ambiguous with
+  // "what the customer originally asked for" if an admin tweaks it later.
+  await sql`
+    CREATE TABLE IF NOT EXISTS voice_agent_configs (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL REFERENCES voice_agent_orders(id),
+      twilio_number TEXT NOT NULL UNIQUE,
+      business_name TEXT NOT NULL,
+      business_description TEXT NOT NULL,
+      forward_to_number TEXT NOT NULL,
+      greeting TEXT NOT NULL,
+      flo_api_key_id TEXT REFERENCES flo_api_keys(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
 
@@ -1282,6 +1373,13 @@ export type VpsInstance = {
   user_id: string
   tier: string
   billing_cycle: string
+  app_type: string
+  wp_admin_user: string | null
+  wp_admin_password_ciphertext: string | null
+  wp_admin_password_iv: string | null
+  wp_admin_password_revealed_at: string | null
+  wp_domain: string | null
+  wp_cert_issued_at: string | null
   region: string
   hetzner_server_type: string | null
   hostname: string | null
@@ -1461,6 +1559,63 @@ export type MarketingConnection = {
   metadata_json: string
   connected_by: string | null
   connected_at: string
+}
+
+export type CrmStack = {
+  id: string
+  user_id: string
+  slug: string
+  subdomain: string
+  workspace_display_name: string
+  login_email: string
+  status: 'provisioning' | 'active' | 'failed'
+  step: string | null
+  last_error: string | null
+  twenty_api_key_encrypted: string | null
+  twenty_api_key_iv: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type FloApiKey = {
+  id: string
+  user_id: string
+  crm_stack_id: string
+  name: string
+  key_prefix: string
+  key_hash: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+}
+
+export type VoiceAgentOrderStatus = 'pending_payment' | 'pending_build' | 'active'
+
+export type VoiceAgentOrder = {
+  id: string
+  user_id: string
+  business_name: string
+  business_description: string
+  forward_to_number: string
+  greeting: string | null
+  flo_api_key_id: string | null
+  status: VoiceAgentOrderStatus
+  stripe_checkout_session_id: string | null
+  stripe_subscription_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type VoiceAgentConfig = {
+  id: string
+  order_id: string
+  twilio_number: string
+  business_name: string
+  business_description: string
+  forward_to_number: string
+  greeting: string
+  flo_api_key_id: string | null
+  created_at: string
 }
 
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin'

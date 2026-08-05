@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server'
+
 // Fixed-window counter backed by Postgres so limits hold across serverless
 // instances. Returns true if the request is allowed, false if it should be blocked.
 export async function rateLimit(sql: any, key: string, limit: number, windowSeconds: number): Promise<boolean> {
@@ -27,5 +29,5 @@ export function clientIp(req: Request): string {
 }
 
 export function rateLimitResponse() {
-  return Response.json({ error: 'Too many requests — please wait a bit and try again.' }, { status: 429 })
+  return NextResponse.json({ error: 'Too many requests — please wait a bit and try again.' }, { status: 429 })
 }
