@@ -1,8 +1,25 @@
+import { randomBytes } from 'node:crypto'
 import type { VpsInstance } from '@/lib/db'
 import { VPS_TIERS, VPS_REGION, type VpsTierKey } from '@/lib/vpsTiers'
-import { createSSHKey, createServer, setReverseDns } from '@/lib/hetzner'
-import { buildUserData } from '@/lib/cloudInit'
+import { createSSHKey, createServer, setReverseDns, findSSHKeyByName } from '@/lib/hetzner'
+import { buildUserData, buildWordPressUserData } from '@/lib/cloudInit'
 import { encryptPassword } from '@/lib/vpsPassword'
+
+// Bario's own management key, added (in addition to whatever the customer
+// supplied, or as the only key when they chose the password fallback) to
+// every 'wordpress' app_type server — this is what lets the "Issue HTTPS
+// certificate" customer action (app/api/vps/wordpress/issue-cert) actually
+// SSH in and run issue-cert.sh, regardless of the customer's own key setup.
+const WP_MGMT_KEY_NAME = 'bario-vps-wordpress-management'
+
+async function ensureManagementSshKeyId(): Promise<number> {
+  const publicKey = process.env.BARIO_VPS_MGMT_SSH_PUBLIC_KEY
+  if (!publicKey) throw new Error('BARIO_VPS_MGMT_SSH_PUBLIC_KEY is not set')
+  const existing = await findSSHKeyByName(WP_MGMT_KEY_NAME)
+  if (existing) return existing.id
+  const created = await createSSHKey(WP_MGMT_KEY_NAME, publicKey)
+  return created.id
+}
 
 // The single function both the Stripe webhook and the admin
 // approve/retry-provision routes call — this is what makes a failed
@@ -29,13 +46,41 @@ export async function provisionVpsInstance(sql: any, instanceId: string): Promis
     // lib/cloudflare.ts.
     const hostname = `srv-${shortId}.vps.bario.ca`
 
+    const isWordPress = order.app_type === 'wordpress'
+
     let sshKeyIds: number[] = []
     if (order.ssh_public_key) {
       const key = await createSSHKey(`bario-vps-${shortId}`, order.ssh_public_key)
       sshKeyIds = [key.id]
     }
+    if (isWordPress) {
+      sshKeyIds.push(await ensureManagementSshKeyId())
+    }
 
-    const userData = buildUserData({ hostname })
+    // Hetzner only returns a root password when zero ssh_keys are attached
+    // — for 'wordpress' orders that chose the password-fallback option
+    // (no ssh_public_key), Bario's management key is still attached, so we
+    // generate and set the password ourselves via cloud-init instead of
+    // relying on Hetzner's response (see buildWordPressUserData's
+    // rootPassword param).
+    const generatedRootPassword = isWordPress && !order.ssh_public_key ? randomBytes(12).toString('base64url') : null
+
+    let wpAdminUser: string | null = null
+    let wpAdminPasswordPlaintext: string | null = null
+    const userData = isWordPress
+      ? (() => {
+          wpAdminUser = 'bario_admin'
+          wpAdminPasswordPlaintext = randomBytes(12).toString('base64url')
+          return buildWordPressUserData({
+            hostname,
+            wpDbPassword: randomBytes(16).toString('base64url'),
+            wpAdminUser,
+            wpAdminPassword: wpAdminPasswordPlaintext,
+            wpAdminEmail: 'admin@bario.ca',
+            rootPassword: generatedRootPassword ?? undefined,
+          })
+        })()
+      : buildUserData({ hostname })
 
     const server = await createServer({
       name: hostname,
@@ -51,12 +96,21 @@ export async function provisionVpsInstance(sql: any, instanceId: string): Promis
       await setReverseDns(String(server.id), server.ipv4, hostname)
     }
 
+    const rootPasswordToStore = server.rootPassword ?? generatedRootPassword
     let passwordCiphertext: string | null = null
     let passwordIv: string | null = null
-    if (server.rootPassword) {
-      const enc = encryptPassword(server.rootPassword)
+    if (rootPasswordToStore) {
+      const enc = encryptPassword(rootPasswordToStore)
       passwordCiphertext = enc.ciphertext
       passwordIv = enc.iv
+    }
+
+    let wpAdminPasswordCiphertext: string | null = null
+    let wpAdminPasswordIv: string | null = null
+    if (wpAdminPasswordPlaintext) {
+      const enc = encryptPassword(wpAdminPasswordPlaintext)
+      wpAdminPasswordCiphertext = enc.ciphertext
+      wpAdminPasswordIv = enc.iv
     }
 
     await sql`
@@ -68,6 +122,9 @@ export async function provisionVpsInstance(sql: any, instanceId: string): Promis
           primary_ipv6 = ${server.ipv6},
           root_password_ciphertext = ${passwordCiphertext},
           root_password_iv = ${passwordIv},
+          wp_admin_user = ${wpAdminUser},
+          wp_admin_password_ciphertext = ${wpAdminPasswordCiphertext},
+          wp_admin_password_iv = ${wpAdminPasswordIv},
           updated_at = now()
       WHERE id = ${instanceId}
     `

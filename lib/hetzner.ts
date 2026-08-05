@@ -75,6 +75,10 @@ export async function findSSHKeyByName(name: string): Promise<{ id: number } | n
   return data.ssh_keys?.[0] ?? null
 }
 
+export async function deleteSSHKey(id: number): Promise<void> {
+  await hzFetch(`/ssh_keys/${id}`, { method: 'DELETE' })
+}
+
 export async function createServer(opts: {
   name: string
   serverType: string

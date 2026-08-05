@@ -10,8 +10,10 @@ export async function GET() {
 
     const sql = await db()
     const rows = await sql`
-      SELECT id, tier, billing_cycle, region, hostname, primary_ipv4, primary_ipv6, status, backup_addon,
-             root_password_ciphertext IS NOT NULL AS has_password_pending, created_at
+      SELECT id, tier, billing_cycle, app_type, region, hostname, primary_ipv4, primary_ipv6, status, backup_addon,
+             root_password_ciphertext IS NOT NULL AS has_password_pending,
+             wp_admin_user, wp_admin_password_ciphertext IS NOT NULL AS has_wp_password_pending,
+             wp_domain, wp_cert_issued_at, created_at
       FROM vps_instances WHERE user_id = ${session.userId} ORDER BY created_at DESC
     `
     return NextResponse.json({ ok: true, instances: rows })

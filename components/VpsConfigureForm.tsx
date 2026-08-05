@@ -12,6 +12,7 @@ export default function VpsConfigureForm() {
   const [tier, setTier] = useState<VpsTierKey>('small')
   const [cycle, setCycle] = useState<BillingCycle>('monthly')
   const [backupAddon, setBackupAddon] = useState(false)
+  const [appType, setAppType] = useState<'blank' | 'wordpress'>('blank')
   const [sshPublicKey, setSshPublicKey] = useState('')
   const [noKey, setNoKey] = useState(false)
   const [legalAccepted, setLegalAccepted] = useState(false)
@@ -36,6 +37,7 @@ export default function VpsConfigureForm() {
         body: JSON.stringify({
           tier,
           billingCycle: cycle,
+          appType,
           backupAddon,
           sshPublicKey: noKey ? undefined : sshPublicKey.trim(),
           wantsPasswordFallback: noKey,
@@ -113,6 +115,21 @@ export default function VpsConfigureForm() {
         <div>
           <div className="text-sm font-semibold">Automatic backups</div>
           <div className="text-xs text-slate-500 dark:text-zinc-400">+{formatCad(pricing.backupAddonPriceCentsCad)} for this billing cycle</div>
+        </div>
+      </label>
+
+      <label className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 dark:border-zinc-800 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={appType === 'wordpress'}
+          onChange={(e) => setAppType(e.target.checked ? 'wordpress' : 'blank')}
+          className="w-4 h-4"
+        />
+        <div>
+          <div className="text-sm font-semibold">Install WordPress for me</div>
+          <div className="text-xs text-slate-500 dark:text-zinc-400">
+            Sets up WordPress, its database, and HTTPS automatically — ready to log in and start building. Leave unchecked for a blank server.
+          </div>
         </div>
       </label>
 

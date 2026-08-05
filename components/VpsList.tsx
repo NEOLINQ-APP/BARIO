@@ -7,6 +7,7 @@ type VpsRow = {
   id: string
   tier: string
   billing_cycle: string
+  app_type: string
   region: string
   hostname: string | null
   primary_ipv4: string | null
@@ -14,6 +15,10 @@ type VpsRow = {
   status: string
   backup_addon: boolean
   has_password_pending: boolean
+  wp_admin_user: string | null
+  has_wp_password_pending: boolean
+  wp_domain: string | null
+  wp_cert_issued_at: string | null
   created_at: string
 }
 
@@ -49,6 +54,13 @@ export default function VpsList() {
   const [error, setError] = useState<string | null>(null)
   const [revealingId, setRevealingId] = useState<string | null>(null)
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({})
+  const [revealingWpId, setRevealingWpId] = useState<string | null>(null)
+  const [revealedWpPasswords, setRevealedWpPasswords] = useState<Record<string, { username: string; password: string }>>({})
+  const [domainInputs, setDomainInputs] = useState<Record<string, string>>({})
+  const [issuingCertId, setIssuingCertId] = useState<string | null>(null)
+  const [convertingId, setConvertingId] = useState<string | null>(null)
+  const [convertResults, setConvertResults] = useState<Record<string, { pagesImported: number; url: string }>>({})
+  const [payingId, setPayingId] = useState<string | null>(null)
 
   async function load() {
     setError(null)
@@ -80,6 +92,74 @@ export default function VpsList() {
       setError(err.message)
     }
     setRevealingId(null)
+  }
+
+  async function handleRevealWp(id: string) {
+    if (!confirm('This shows your WordPress admin password once — make sure to save it somewhere safe. Continue?')) return
+    setRevealingWpId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/vps/${id}/reveal-wp-password`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to reveal password')
+      setRevealedWpPasswords((prev) => ({ ...prev, [id]: { username: data.username, password: data.password } }))
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setRevealingWpId(null)
+  }
+
+  async function handleIssueCert(id: string) {
+    const domain = (domainInputs[id] ?? '').trim()
+    if (!domain) return
+    setIssuingCertId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/vps/${id}/issue-cert`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to issue certificate')
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setIssuingCertId(null)
+  }
+
+  async function handleConvertPreview(id: string, liveUrl: string) {
+    setConvertingId(id)
+    setError(null)
+    try {
+      const res = await fetch('/api/sites/migrate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: liveUrl }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to preview static conversion')
+      setConvertResults((prev) => ({ ...prev, [id]: { pagesImported: data.pagesImported, url: data.url } }))
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setConvertingId(null)
+  }
+
+  async function handleConvertConfirm(id: string) {
+    setPayingId(id)
+    setError(null)
+    try {
+      const res = await fetch(`/api/vps/${id}/convert-to-static`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.url) throw new Error(data.error ?? 'Failed to start checkout')
+      window.location.href = data.url
+    } catch (err: any) {
+      setError(err.message)
+      setPayingId(null)
+    }
   }
 
   if (!instances) return <p className="text-sm text-slate-500 dark:text-zinc-500">Loading your servers…</p>
@@ -147,6 +227,83 @@ export default function VpsList() {
                     {revealingId === vps.id ? 'Revealing…' : 'Reveal root password (one-time)'}
                   </button>
                 )}
+              </div>
+            )}
+
+            {vps.status === 'active' && vps.app_type === 'wordpress' && (
+              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800 space-y-3">
+                <div className="text-xs font-semibold text-slate-600 dark:text-zinc-300">WordPress</div>
+
+                {vps.has_wp_password_pending ? (
+                  <button
+                    onClick={() => handleRevealWp(vps.id)}
+                    disabled={revealingWpId === vps.id}
+                    className="text-xs text-amber-600 dark:text-[#f59e0b] underline disabled:opacity-50"
+                  >
+                    {revealingWpId === vps.id ? 'Revealing…' : 'Reveal WordPress admin login (one-time)'}
+                  </button>
+                ) : revealedWpPasswords[vps.id] ? (
+                  <div className="text-xs">
+                    <span className="text-slate-500 dark:text-zinc-400">Admin login: </span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 select-all">
+                      {revealedWpPasswords[vps.id].username} / {revealedWpPasswords[vps.id].password}
+                    </span>
+                    <p className="text-slate-500 dark:text-zinc-500 mt-1">Save this now — it won't be shown again.</p>
+                  </div>
+                ) : null}
+
+                {vps.wp_domain && vps.wp_cert_issued_at ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Live at <a href={`https://${vps.wp_domain}`} target="_blank" rel="noopener noreferrer" className="underline">{vps.wp_domain}</a>
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={domainInputs[vps.id] ?? ''}
+                      onChange={(e) => setDomainInputs((prev) => ({ ...prev, [vps.id]: e.target.value }))}
+                      placeholder="yourdomain.com"
+                      className="px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-xs font-mono"
+                    />
+                    <button
+                      onClick={() => handleIssueCert(vps.id)}
+                      disabled={issuingCertId === vps.id || !(domainInputs[vps.id] ?? '').trim()}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 font-semibold disabled:opacity-50"
+                    >
+                      {issuingCertId === vps.id ? 'Issuing…' : 'Issue HTTPS certificate'}
+                    </button>
+                    <p className="w-full text-[11px] text-slate-500 dark:text-zinc-500">
+                      Point your domain's A record at {vps.primary_ipv4} first, then enter it here.
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-200 dark:border-zinc-800">
+                  {convertResults[vps.id] ? (
+                    <div className="text-xs space-y-1.5">
+                      <p className="text-emerald-600 dark:text-emerald-400">
+                        Preview ready — {convertResults[vps.id].pagesImported} page{convertResults[vps.id].pagesImported === 1 ? '' : 's'} imported to{' '}
+                        <a href={convertResults[vps.id].url} target="_blank" rel="noopener noreferrer" className="underline">{convertResults[vps.id].url}</a>.
+                        Review it, then confirm below.
+                      </p>
+                      <button
+                        onClick={() => handleConvertConfirm(vps.id)}
+                        disabled={payingId === vps.id}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] font-semibold disabled:opacity-50"
+                      >
+                        {payingId === vps.id ? 'Redirecting…' : 'Looks good — pay $10 CAD & cancel WordPress hosting'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleConvertPreview(vps.id, vps.wp_domain ? `https://${vps.wp_domain}` : `http://${vps.primary_ipv4}`)}
+                      disabled={convertingId === vps.id}
+                      className="text-xs text-slate-500 dark:text-zinc-400 underline disabled:opacity-50"
+                    >
+                      {convertingId === vps.id ? 'Converting…' : 'Done building? Convert to static hosting & cancel this server'}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

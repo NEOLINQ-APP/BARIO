@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email first' }, { status: 403 })
     }
 
-    const { tier, billingCycle, sshPublicKey, wantsPasswordFallback, backupAddon, legalAccepted } = await req.json()
+    const { tier, billingCycle, sshPublicKey, wantsPasswordFallback, backupAddon, legalAccepted, appType } = await req.json()
 
     if (!isVpsTierKey(tier)) {
       return NextResponse.json({ error: 'tier must be one of: small, medium, large' }, { status: 400 })
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     if (!isBillingCycle(billingCycle)) {
       return NextResponse.json({ error: 'Invalid billing cycle' }, { status: 400 })
     }
+    const resolvedAppType = appType === 'wordpress' ? 'wordpress' : 'blank'
 
     const hasKey = typeof sshPublicKey === 'string' && sshPublicKey.trim().length > 0
     if (hasKey && wantsPasswordFallback === true) {
@@ -62,8 +63,8 @@ export async function POST(req: Request) {
 
     const orderId = randomUUID()
     await sql`
-      INSERT INTO vps_instances (id, user_id, tier, billing_cycle, region, ssh_public_key, backup_addon, legal_acceptance_id, status)
-      VALUES (${orderId}, ${user.id}, ${tier}, ${billingCycle}, ${VPS_REGION}, ${hasKey ? sshPublicKey.trim() : null}, ${!!backupAddon}, ${legalAcceptanceId}, 'pending_payment')
+      INSERT INTO vps_instances (id, user_id, tier, billing_cycle, app_type, region, ssh_public_key, backup_addon, legal_acceptance_id, status)
+      VALUES (${orderId}, ${user.id}, ${tier}, ${billingCycle}, ${resolvedAppType}, ${VPS_REGION}, ${hasKey ? sshPublicKey.trim() : null}, ${!!backupAddon}, ${legalAcceptanceId}, 'pending_payment')
     `
 
     return NextResponse.json({ ok: true, orderId })
