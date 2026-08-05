@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { computeClaudeCostCents, computeTwilioCostCents } from '@/lib/victoriaCallCost'
 import { errorResponse } from '@/lib/errors'
+import { findCrm, findOrCreatePersonByPhone, logCallNote } from '@/lib/crmOutreach'
 
 // Called by the VPS-side miko-voice server.js at the end of every call
 // (ws.on('close')) — not a customer-facing route, Bearer-gated the same
@@ -24,6 +25,8 @@ export async function POST(req: Request) {
     const claudeOutputTokens = Math.max(Math.round(Number(body?.claudeOutputTokens) || 0), 0)
     const startedAt = body?.startedAt ? new Date(body.startedAt) : new Date()
     const endedAt = body?.endedAt ? new Date(body.endedAt) : new Date()
+    const callerName = typeof body?.callerName === 'string' && body.callerName.trim() ? body.callerName.trim().slice(0, 100) : null
+    const summary = typeof body?.summary === 'string' && body.summary.trim() ? body.summary.trim().slice(0, 1000) : null
 
     if (!callSid) return NextResponse.json({ error: 'callSid is required' }, { status: 400 })
 
@@ -35,14 +38,33 @@ export async function POST(req: Request) {
       INSERT INTO victoria_calls (
         id, call_sid, business_key, direction, from_number, to_number, duration_seconds,
         claude_input_tokens, claude_output_tokens, claude_cost_cents, twilio_cost_cents, total_cost_cents,
-        started_at, ended_at
+        started_at, ended_at, caller_name, summary
       ) VALUES (
         ${randomUUID()}, ${callSid}, ${businessKey}, ${direction}, ${fromNumber}, ${toNumber}, ${durationSeconds},
         ${claudeInputTokens}, ${claudeOutputTokens}, ${claudeCostCents}, ${twilioCostCents}, ${totalCostCents},
-        ${startedAt.toISOString()}, ${endedAt.toISOString()}
+        ${startedAt.toISOString()}, ${endedAt.toISOString()}, ${callerName}, ${summary}
       )
       ON CONFLICT (call_sid) DO NOTHING
     `
+
+    // Best-effort: sync the call into the business's Twenty CRM as a
+    // contact + note. AFC and Sunbuilt are the only two with a CRM (Unique
+    // Group is Bario's own agency, no CRM behind it). Never let a CRM hiccup
+    // fail the call-log write above — that's the authoritative record.
+    if (businessKey === 'afc' || businessKey === 'sunbuilt') {
+      const otherPartyNumber = direction === 'inbound' ? fromNumber : toNumber
+      if (otherPartyNumber) {
+        try {
+          const crm = findCrm(businessKey)
+          if (crm) {
+            const personId = await findOrCreatePersonByPhone(crm, otherPartyNumber, callerName)
+            if (personId) await logCallNote(crm, personId, direction, summary, durationSeconds)
+          }
+        } catch (err) {
+          console.error(`CRM call sync failed for ${businessKey}/${callSid}:`, err)
+        }
+      }
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

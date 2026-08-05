@@ -181,6 +181,64 @@ export function findPlaceholder(text: string): string | null {
   return match ? match[0] : null
 }
 
+// NA-only heuristic (last 10 digits) so a contact hand-entered as
+// "780-909-2424" still matches Twilio's E.164 "+17809092424" — this app's
+// existing contacts (see create-contact/route.ts) were saved with whatever
+// format a human typed, not a normalized one.
+function last10Digits(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
+// Used by the Victoria call-log route to attach every real inbound/outbound
+// call to the right business's Twenty CRM contact — finds an existing
+// Person by phone, or creates one, so a call never gets silently dropped
+// just because the caller isn't in the CRM yet.
+export async function findOrCreatePersonByPhone(crm: CrmConfig, phoneE164: string, displayName: string | null): Promise<string | null> {
+  const target = last10Digits(phoneE164)
+  if (!target) return null
+
+  const peopleData = await crmGraphQL(
+    crm,
+    `query { people(first: 1000) { edges { node { id phones { primaryPhoneNumber } } } } }`,
+    {}
+  )
+  const edges: any[] = peopleData?.people?.edges ?? []
+  const match = edges.find((e) => last10Digits(e?.node?.phones?.primaryPhoneNumber ?? '') === target)
+  if (match) return match.node.id as string
+
+  const firstName = displayName?.trim() || 'Unknown Caller'
+  const created = await crmGraphQL(
+    crm,
+    `mutation($data: PersonCreateInput!) { createPerson(data: $data) { id } }`,
+    { data: { name: { firstName, lastName: '' }, phones: { primaryPhoneNumber: phoneE164, primaryPhoneCallingCode: '' } } }
+  )
+  return (created?.createPerson?.id as string) ?? null
+}
+
+// Logs one completed Victoria call as a Note on the matched Person —
+// mirrors the exact createNote/createNoteTarget shape already proven out
+// in app/api/cron/crm-leadgen/route.ts.
+export async function logCallNote(crm: CrmConfig, personId: string, direction: string, summary: string | null, durationSeconds: number) {
+  const when = new Date().toLocaleString('en-CA', { timeZone: 'America/Edmonton', dateStyle: 'medium', timeStyle: 'short' })
+  const title = `Victoria call (${direction}) — ${when}`
+  const body = summary?.trim() || `${direction === 'inbound' ? 'Inbound' : 'Outbound'} call, ${durationSeconds}s. No summary captured.`
+
+  const noteData = await crmGraphQL(
+    crm,
+    `mutation($data: NoteCreateInput!){ createNote(data: $data) { id } }`,
+    { data: { title, bodyV2: { markdown: body } } }
+  )
+  const noteId = noteData?.createNote?.id
+  if (!noteId) return
+
+  await crmGraphQL(
+    crm,
+    `mutation($data: NoteTargetCreateInput!){ createNoteTarget(data: $data) { id } }`,
+    { data: { noteId, targetPersonId: personId } }
+  )
+}
+
 export async function crmGraphQL(crm: CrmConfig, query: string, variables: Record<string, unknown>) {
   const apiKey = process.env[crm.apiKeyEnvVar]
   if (!apiKey) throw new Error(`${crm.apiKeyEnvVar} is not set`)
