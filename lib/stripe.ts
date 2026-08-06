@@ -48,3 +48,7 @@ export const VPS_BACKUP_ADDON_PRICE_IDS = buildVpsPriceMap(true)
 // VPS). Per-call Twilio/ElevenLabs/Claude usage is a real cost this price
 // needs to cover with margin, not billed separately to the customer.
 export const VOICE_AGENT_PRICE_ID = process.env.STRIPE_PRICE_VOICE_AGENT
+
+// Shared WordPress Hosting (Product B) — one flat tier for v1, same
+// single-subscription shape as Voice Agent above.
+export const WP_SHARED_PRICE_ID = process.env.STRIPE_PRICE_WP_SHARED

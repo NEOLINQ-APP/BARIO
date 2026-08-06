@@ -473,6 +473,57 @@ async function ensureSchema() {
   await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_domain TEXT`
   await sql`ALTER TABLE vps_instances ADD COLUMN IF NOT EXISTS wp_cert_issued_at TIMESTAMPTZ`
 
+  // Shared WordPress hosting (Product B) — Bario-owned Docker hosts, each
+  // running the node-agent service (lives outside this repo, see
+  // lib/wpSharedProvision.ts's comment) + Caddy for on-demand TLS. Capacity
+  // is denominated in MB of the per-site RAM budget (not an arbitrary slot
+  // count) so the counter can never drift from what's actually allocated —
+  // see the validation-spike writeup in the plan file for why Caddy
+  // specifically, and confirmed live 2026-08-05 that a cert survives a
+  // service restart without re-issuing.
+  await sql`
+    CREATE TABLE IF NOT EXISTS wp_hosting_nodes (
+      id TEXT PRIMARY KEY,
+      ipv4 TEXT NOT NULL,
+      agent_api_token_ciphertext TEXT NOT NULL,
+      agent_api_token_iv TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      capacity_max_mb INTEGER NOT NULL,
+      capacity_used_mb INTEGER NOT NULL DEFAULT 0,
+      last_health_check_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // ram_mb is this site's slice of its node's capacity — set once at
+  // provision time from the tier the customer bought, used both as the
+  // container's real mem_limit and as the capacity accounting unit, so the
+  // two can never disagree with each other.
+  await sql`
+    CREATE TABLE IF NOT EXISTS wp_sites (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      node_id TEXT REFERENCES wp_hosting_nodes(id),
+      container_name TEXT,
+      ram_mb INTEGER NOT NULL DEFAULT 512,
+      subdomain TEXT UNIQUE,
+      custom_domain TEXT UNIQUE,
+      domain_status TEXT NOT NULL DEFAULT 'none',
+      status TEXT NOT NULL DEFAULT 'pending_payment',
+      wp_admin_user TEXT,
+      wp_admin_password_ciphertext TEXT,
+      wp_admin_password_iv TEXT,
+      wp_admin_password_revealed_at TIMESTAMPTZ,
+      stripe_checkout_session_id TEXT,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      last_error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
   // Tracks which CRM contacts already have an AI-drafted outreach note, so
   // the lead-gen cron doesn't redraft the same person every run. Keyed by
   // (crm_key, person_id) rather than a foreign key — the actual Person
@@ -1401,6 +1452,41 @@ export type VpsInstance = {
   paid_at: string | null
   suspended_at: string | null
   deprovisioned_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type WpHostingNode = {
+  id: string
+  ipv4: string
+  agent_api_token_ciphertext: string
+  agent_api_token_iv: string
+  status: 'active' | 'degraded' | 'unreachable' | 'draining'
+  capacity_max_mb: number
+  capacity_used_mb: number
+  last_health_check_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type WpSite = {
+  id: string
+  user_id: string
+  node_id: string | null
+  container_name: string | null
+  ram_mb: number
+  subdomain: string | null
+  custom_domain: string | null
+  domain_status: 'none' | 'pending' | 'verified'
+  status: string
+  wp_admin_user: string | null
+  wp_admin_password_ciphertext: string | null
+  wp_admin_password_iv: string | null
+  wp_admin_password_revealed_at: string | null
+  stripe_checkout_session_id: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  last_error: string | null
   created_at: string
   updated_at: string
 }

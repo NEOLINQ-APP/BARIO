@@ -6,6 +6,7 @@ import { db, type VpsInstance } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import { isStorageTierKey } from '@/lib/storageTiers'
 import { provisionVpsInstance } from '@/lib/vpsProvision'
+import { provisionWpSharedSite, deprovisionWpSharedSite } from '@/lib/wpSharedProvision'
 import { shouldHoldForReview, getRiskLevelForSubscriptionCheckout } from '@/lib/vpsRisk'
 import { powerOffServer, deleteServer } from '@/lib/hetzner'
 import { registerDomain, setDomainNameservers, type RegistrantContact } from '@/lib/registrar'
@@ -186,6 +187,31 @@ export async function POST(req: Request) {
         break
       }
 
+      const wpSiteId = session.metadata?.wpSiteId
+      if (session.mode === 'subscription' && userId && wpSiteId) {
+        // Mirrors the vpsOrderId branch above exactly — isolated try/catch,
+        // swallowed rather than rethrown, since provisionWpSharedSite's own
+        // status guard makes a duplicate delivery a safe no-op and a real
+        // failure surfaces as provision_failed for an admin to retry via
+        // /api/admin/wp-hosting/sites/[id]/retry-provision.
+        try {
+          const rows = (await sql`SELECT id FROM wp_sites WHERE id = ${wpSiteId} AND status = 'pending_payment'`) as unknown as { id: string }[]
+          if (rows[0]) {
+            await sql`
+              UPDATE wp_sites
+              SET stripe_customer_id = ${String(session.customer)}, stripe_subscription_id = ${String(session.subscription)},
+                  status = 'awaiting_provision', updated_at = now()
+              WHERE id = ${wpSiteId}
+            `
+            await provisionWpSharedSite(sql, wpSiteId)
+          }
+        } catch (err) {
+          console.error('wp shared hosting provisioning error', err)
+          Sentry.captureException(err)
+        }
+        break
+      }
+
       const voiceAgentOrderId = session.metadata?.voiceAgentOrderId
       if (session.mode === 'subscription' && userId && voiceAgentOrderId) {
         // Payment confirmed -> pending_build, for an admin to assign a real
@@ -314,6 +340,17 @@ export async function POST(req: Request) {
           await sql`UPDATE vps_instances SET status = 'deprovisioned', deprovisioned_at = now(), updated_at = now() WHERE id = ${order.id}`
         } catch (err) {
           console.error('vps deprovision error', err)
+          Sentry.captureException(err)
+        }
+        break
+      }
+
+      const wpSharedMatch = (await sql`SELECT id FROM wp_sites WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (wpSharedMatch.length > 0) {
+        try {
+          await deprovisionWpSharedSite(sql, wpSharedMatch[0].id)
+        } catch (err) {
+          console.error('wp shared deprovision error (webhook)', err)
           Sentry.captureException(err)
         }
         break

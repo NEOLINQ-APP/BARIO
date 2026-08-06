@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },
   { href: '/build/apps', label: 'Build (beta)', icon: '⚡' },
   { href: '/dashboard/servers', label: 'Servers', icon: '🖥️' },
+  { href: '/dashboard/wp-hosting', label: 'WordPress Hosting', icon: '📝' },
   { href: '/dashboard/billing', label: 'Billing', icon: '💳' },
   { href: '/dashboard/account', label: 'Account', icon: '⚙️' },
 ]
