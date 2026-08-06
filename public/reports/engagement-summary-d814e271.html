@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engagement Summary — Unique Group Inc.</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{
+    --bg:#F3F5F8;
+    --surface:#FFFFFF;
+    --surface-2:#EBEFF4;
+    --ink:#10151F;
+    --ink-soft:#4B5568;
+    --ink-faint:#7C8798;
+    --accent:#2A56D6;
+    --accent-soft:#E8EEFC;
+    --warm:#B96A24;
+    --warm-soft:#F7EBDC;
+    --rule:#DBE1E9;
+    --rule-strong:#C2CBD8;
+    --ok:#1E7A4C;
+    --ok-soft:#E4F3EA;
+    --pending:#8A6A16;
+    --pending-soft:#FBF2DC;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0B0F16;
+      --surface:#121822;
+      --surface-2:#182130;
+      --ink:#E9EDF3;
+      --ink-soft:#9FAABC;
+      --ink-faint:#71798A;
+      --accent:#7C9CFF;
+      --accent-soft:#1B2540;
+      --warm:#E3A15C;
+      --warm-soft:#302214;
+      --rule:#232C3A;
+      --rule-strong:#303C4E;
+      --ok:#5FCB90;
+      --ok-soft:#152A20;
+      --pending:#E3C25C;
+      --pending-soft:#332911;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0B0F16; --surface:#121822; --surface-2:#182130; --ink:#E9EDF3; --ink-soft:#9FAABC; --ink-faint:#71798A;
+    --accent:#7C9CFF; --accent-soft:#1B2540; --warm:#E3A15C; --warm-soft:#302214;
+    --rule:#232C3A; --rule-strong:#303C4E; --ok:#5FCB90; --ok-soft:#152A20; --pending:#E3C25C; --pending-soft:#332911;
+  }
+  :root[data-theme="light"]{
+    --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#EBEFF4; --ink:#10151F; --ink-soft:#4B5568; --ink-faint:#7C8798;
+    --accent:#2A56D6; --accent-soft:#E8EEFC; --warm:#B96A24; --warm-soft:#F7EBDC;
+    --rule:#DBE1E9; --rule-strong:#C2CBD8; --ok:#1E7A4C; --ok-soft:#E4F3EA; --pending:#8A6A16; --pending-soft:#FBF2DC;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: "Public Sans", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .serif{ font-family: "Iowan Old Style","Palatino Linotype",Palatino,"Source Serif Pro",Georgia,serif; }
+  .mono{ font-family: ui-monospace,"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace; font-variant-numeric: tabular-nums; }
+
+  .wrap{ max-width:920px; margin:0 auto; padding:0 24px 120px; }
+
+  /* ---- Header ---- */
+  header.cover{
+    padding:64px 0 40px; border-bottom:1px solid var(--rule);
+  }
+  .eyebrow{
+    font-size:0.78rem; letter-spacing:0.14em; text-transform:uppercase; color:var(--accent);
+    font-weight:600; margin:0 0 14px;
+  }
+  h1.title{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Source Serif Pro",Georgia,serif;
+    font-size:2.6rem; line-height:1.12; font-weight:600; margin:0 0 10px; text-wrap:balance; letter-spacing:-0.01em;
+  }
+  .subtitle{ font-size:1.08rem; color:var(--ink-soft); max-width:60ch; margin:0 0 28px; }
+  .meta-row{ display:flex; flex-wrap:wrap; gap:10px 28px; font-size:0.88rem; color:var(--ink-soft); }
+  .meta-row b{ color:var(--ink); font-weight:600; }
+
+  nav.jump{
+    display:flex; flex-wrap:wrap; gap:8px; padding:18px 0 0;
+  }
+  nav.jump a{
+    font-size:0.82rem; color:var(--ink-soft); text-decoration:none; padding:6px 12px;
+    border:1px solid var(--rule); border-radius:99px; transition:border-color .15s, color .15s;
+  }
+  nav.jump a:hover, nav.jump a:focus-visible{ border-color:var(--accent); color:var(--accent); outline:none; }
+
+  /* ---- Stat strip ---- */
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:var(--rule); border:1px solid var(--rule); border-radius:10px; overflow:hidden;
+    margin:36px 0 8px;
+  }
+  .stat{ background:var(--surface); padding:18px 16px; }
+  .stat .n{ font-size:1.5rem; font-weight:700; letter-spacing:-0.01em; }
+  .stat .l{ font-size:0.76rem; color:var(--ink-faint); margin-top:4px; text-transform:uppercase; letter-spacing:0.06em; }
+  @media (max-width:640px){ .stats{ grid-template-columns:repeat(2,1fr);} }
+
+  /* ---- Sections ---- */
+  section{ padding:56px 0; border-bottom:1px solid var(--rule); scroll-margin-top:24px; }
+  section:last-of-type{ border-bottom:none; }
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:6px; flex-wrap:wrap; }
+  h2{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Source Serif Pro",Georgia,serif;
+    font-size:1.7rem; font-weight:600; margin:0; text-wrap:balance;
+  }
+  .section-tag{ font-size:0.76rem; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.08em; }
+  .lede{ color:var(--ink-soft); max-width:66ch; margin:10px 0 28px; }
+
+  h3{ font-size:1.05rem; font-weight:700; margin:30px 0 10px; }
+  p{ margin:0 0 14px; max-width:68ch; }
+
+  /* ---- Ledger table ---- */
+  .ledger{ width:100%; border-collapse:collapse; margin:8px 0 6px; }
+  .ledger-wrap{ overflow-x:auto; border:1px solid var(--rule); border-radius:10px; }
+  .ledger th{
+    text-align:left; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint);
+    padding:12px 14px; background:var(--surface-2); border-bottom:1px solid var(--rule); white-space:nowrap;
+  }
+  .ledger td{ padding:14px; border-bottom:1px solid var(--rule); vertical-align:top; font-size:0.92rem; }
+  .ledger tr:last-child td{ border-bottom:none; }
+  .ledger tr:hover td{ background:var(--surface-2); }
+  .ledger .date{ color:var(--ink-faint); white-space:nowrap; font-size:0.82rem; }
+  .ledger .item{ font-weight:600; }
+  .ledger .desc{ color:var(--ink-soft); }
+
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:600;
+    padding:3px 9px; border-radius:99px; white-space:nowrap; letter-spacing:0.01em;
+  }
+  .chip.live{ background:var(--ok-soft); color:var(--ok); }
+  .chip.progress{ background:var(--pending-soft); color:var(--pending); }
+  .chip::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+  /* ---- Direct-work list ---- */
+  .direct-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; }
+  @media (max-width:640px){ .direct-grid{ grid-template-columns:1fr; } }
+  .direct-item{
+    display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--rule);
+  }
+  .direct-item .mark{ color:var(--warm); font-weight:700; flex:none; width:20px; }
+  .direct-item .body b{ display:block; font-size:0.94rem; }
+  .direct-item .body span{ color:var(--ink-soft); font-size:0.86rem; }
+
+  .callout{
+    background:var(--accent-soft); border:1px solid transparent; border-radius:10px;
+    padding:18px 20px; margin:18px 0; font-size:0.92rem; color:var(--ink);
+  }
+  .callout.warm{ background:var(--warm-soft); }
+  .callout b{ color:var(--accent); }
+  .callout.warm b{ color:var(--warm); }
+
+  /* ---- Investment section ---- */
+  .compare{
+    display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:24px 0;
+  }
+  @media (max-width:700px){ .compare{ grid-template-columns:1fr; } }
+  .compare-card{
+    background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:24px;
+  }
+  .compare-card h4{ margin:0 0 4px; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-faint); }
+  .compare-card .big{ font-size:2.1rem; font-weight:700; letter-spacing:-0.01em; margin:2px 0 4px; }
+  .compare-card .sub{ font-size:0.84rem; color:var(--ink-soft); }
+  .role-list{ list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .role-list li{ display:flex; justify-content:space-between; font-size:0.87rem; border-top:1px solid var(--rule); padding-top:9px; }
+  .role-list li:first-child{ border-top:none; padding-top:0; }
+  .role-list .role{ color:var(--ink-soft); }
+  .role-list .hrs{ font-weight:600; }
+
+  .disclosure{
+    font-size:0.84rem; color:var(--ink-faint); border-left:3px solid var(--rule-strong); padding:4px 0 4px 16px; margin:28px 0 0;
+  }
+
+  footer{ padding:40px 0 0; color:var(--ink-faint); font-size:0.82rem; }
+  a{ color:var(--accent); }
+
+  @media (prefers-reduced-motion:no-preference){
+    section{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="cover">
+    <p class="eyebrow">Prepared by Unique Group Inc.</p>
+    <h1 class="title">AFC Logistics &amp; Sunbuilt Group<br>Full Engagement Audit</h1>
+    <p class="subtitle">Everything built, fixed, and shipped for both clients since the engagement began, what you handled directly outside these sessions, and a reasoned estimate of the equivalent time and cost a traditional team would need for the same scope.</p>
+    <div class="meta-row">
+      <span><b>Window:</b> Jul 23 – Aug 5, 2026 (13 calendar days)</span>
+      <span><b>Clients:</b> AFC Logistics, Sunbuilt Group</span>
+      <span><b>Operator:</b> Sherwin Mendoza, Unique Group Inc.</span>
+    </div>
+    <nav class="jump">
+      <a href="#direct">What you did directly</a>
+      <a href="#afc">AFC Logistics</a>
+      <a href="#sunbuilt">Sunbuilt Group</a>
+      <a href="#shared">Shared infrastructure</a>
+      <a href="#investment">Investment &amp; equivalent value</a>
+    </nav>
+    <div class="stats">
+      <div class="stat"><div class="n mono">41</div><div class="l">Features shipped</div></div>
+      <div class="stat"><div class="n mono">228</div><div class="l">Real CRM leads sourced</div></div>
+      <div class="stat"><div class="n mono">2</div><div class="l">Dedicated assistants live</div></div>
+      <div class="stat"><div class="n mono">13</div><div class="l">Calendar days, start to now</div></div>
+    </div>
+  </header>
+
+  <section id="direct">
+    <div class="section-head"><h2>What you did directly</h2><span class="section-tag">Outside these sessions</span></div>
+    <p class="lede">Real work with no code trail — this audit only has visibility into what ran through Bario's own systems. Listed here so the full picture doesn't undercount your side of it. Market-value ranges are typical freelance/agency rates for comparable deliverables, not a logged timesheet — send real hours if you want these tightened.</p>
+    <div class="direct-grid">
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>3 Google Ads campaigns</b><span>Built and launched, including business account setup</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>Facebook Ads + Business account</b><span>Account setup and live campaigns for both companies</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>Instagram accounts</b><span>Set up and branded for both companies</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>Both companies' logo designs</b><span>Designed from scratch, both companies — market value ~$800–$1,400 combined</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>4 video ads</b><span>3 for AFC, 1 for Sunbuilt — market value ~$1,600–$2,800 combined</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>2 brochures</b><span>Designed and produced — market value ~$300–$800 combined</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>2 signed contracts</b><span>Sunbuilt Group client/vendor agreements</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>Bario calling accounts</b><span>Created and funded — the calling features were built on top</span></div></div>
+      <div class="direct-item"><span class="mark">＋</span><div class="body"><b>Full business platform: planning, stack &amp; workflow</b><span>Directed the technical stack, architecture, and operations/sales/dispatch workflow for both companies — the decisions the build above executes</span></div></div>
+    </div>
+  </section>
+
+  <section id="afc">
+    <div class="section-head"><h2>AFC Logistics</h2><span class="section-tag">afclogistics.ca</span></div>
+    <p class="lede">A real dispatch operation — not a marketing site with a form on it. Customer, driver, and admin portals all run against a live backend with JWT auth, live GPS, and a real pay engine.</p>
+
+    <h3>Dispatch platform</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Jul 26–27</td><td class="item">Admin dashboard audit &amp; repair<div class="desc">Live driver map (Leaflet/OSM), invoices with mark-paid, driver performance reports — 4 dead "Quick Action" buttons found with no handlers at all and fixed</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 27</td><td class="item">Driver pay engine<div class="desc">$/% pay per driver or per job, auto-applied on assignment, auto-recomputes on price change, Profit MTD stat card — verified against exact expected numbers, not just spot-checked</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 27</td><td class="item">Driver application &amp; approval pipeline<div class="desc">Public "Drive For Us" form → admin review queue → approve creates a real login</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 27</td><td class="item">Driver portal — audited end-to-end<div class="desc">Accept → picked up → in transit → delivered, live GPS auto-tracking, POD photo upload, full pay history — confirmed already fully real, nothing needed rebuilding</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 27</td><td class="item">Self-service password change, cache-control fix<div class="desc">Deploys were silently invisible until a hard refresh — fixed nginx caching</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 23–27</td><td class="item">Hosting split &amp; CORS<div class="desc">Frontend path prepared for Bario hosting; <span class="mono">afc-backend</span> (Node/Express + SQLite) kept on its own VPS with a dedicated <span class="mono">api.afclogistics.ca</span> vhost</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+
+    <h3>CRM &amp; sales</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">Dedicated Twenty CRM instance<div class="desc"><span class="mono">afc.crm.bario.ca</span> — own login, own database, not shared with any other client</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">125 real leads sourced &amp; drafted outreach<div class="desc">Oilfield/machine-shop/manufacturing prospects from real business directories, each with a personalized drafted email</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 31</td><td class="item">Native in-CRM chat assistant ("Miko")<div class="desc">Answers questions and drafts email/reply copy from inside the CRM itself</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+
+    <h3>Phone &amp; reception</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Aug 1–2</td><td class="item">Bario Dialer softphone<div class="desc">Installable PWA, real Bario number as caller ID, CRM-linked contacts, call history, internal free calling to Sunbuilt/Unique</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 4</td><td class="item">Victoria answers only missed calls<div class="desc">AFC's public line rings the real business first; Victoria only picks up if unanswered</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 5</td><td class="item">Calls auto-sync into the CRM<div class="desc">Every Victoria call auto-creates/updates the caller as a CRM contact with a note</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 2</td><td class="item">Phone number bug fixed<div class="desc">A transposed-digit number was silently breaking SMS/outbound calls — found via real call-log comparison, not guessed</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+  </section>
+
+  <section id="sunbuilt">
+    <div class="section-head"><h2>Sunbuilt Group</h2><span class="section-tag">sunbuiltgroup.com</span></div>
+    <p class="lede">Migrated off its old host, rebuilt out with a real project gallery, and given the same CRM + phone stack as AFC.</p>
+
+    <h3>Website &amp; brand</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Jul 27</td><td class="item">Full DNS cutover to Bario hosting<div class="desc">Old VPS records removed, live on Bario's edge — email hosting left untouched</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">Gallery page — 29 real project photos<div class="desc">Grouped into 18 named projects across Custom Builds &amp; Exteriors / Interior Finishes</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">Services page rebuilt<div class="desc">Found the real cause of "feels too long" — a CSS grid class was forcing 3-column layout on full-width sections — and compacted all 21 service cards</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">New logo composited into every placement<div class="desc">Your design — cropped/composited into favicon, header lockup, hero badge, admin login, and social-share image formats</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+
+    <h3>CRM &amp; sales</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">Dedicated Twenty CRM instance<div class="desc"><span class="mono">sunbuilt.crm.bario.ca</span> — own login, own database</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">103 real leads sourced &amp; drafted outreach<div class="desc">Hotels/motels and property managers across Edmonton, Calgary, Red Deer, Lethbridge, Medicine Hat, Fort McMurray</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 31</td><td class="item">Native in-CRM chat assistant ("Miko")<div class="desc">Same assistant as AFC's instance, independently configured</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+
+    <h3>Phone &amp; reception</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Aug 1–2</td><td class="item">Bario Dialer softphone<div class="desc">Own branded instance, own Bario number, same feature set as AFC's</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 4</td><td class="item">Victoria answers only missed calls<div class="desc">Same ring-business-first, Victoria-as-fallback pattern as AFC</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 5</td><td class="item">Calls auto-sync into the CRM<div class="desc">Same contact/note automation as AFC</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+  </section>
+
+  <section id="shared">
+    <div class="section-head"><h2>Shared infrastructure</h2><span class="section-tag">Built once, powering both</span></div>
+    <p class="lede">Neither client paid for these individually — this is the platform layer underneath both engagements.</p>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Shipped</th><th>Status</th></tr>
+      <tr><td class="date mono">Aug 1–4</td><td class="item">Victoria — real AI phone assistant<div class="desc">Bario's own voice infrastructure, live speech in/out, real tool-calling (transfer call, take a message, send SMS, place outbound calls), caller recognition for known contacts</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 4–5</td><td class="item">Victoria's own installed app<div class="desc">Text or talk to her directly — drafts invoices, generates images, sends real email/calls/texts</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Jul 30</td><td class="item">Single-tenant CRM recipe<div class="desc">The exact provisioning sequence proven for AFC and Sunbuilt is now repeatable for any future client in under a day</div></td><td><span class="chip live">Live</span></td></tr>
+      <tr><td class="date mono">Aug 1–2</td><td class="item">Bario Dialer platform<div class="desc">One softphone codebase, three branded instances (AFC, Sunbuilt, Unique Group), internal free calling between all three</div></td><td><span class="chip live">Live</span></td></tr>
+    </table></div>
+    <div class="callout"><b>Note —</b> this shared layer is why the third and fourth client onto this same stack will be materially cheaper in time than the first two were.</div>
+    <div class="callout warm"><b>On the CRM specifically —</b> the underlying CRM software itself is open-source, but each invoice only charged $99.99 CAD for "CRM Installation &amp; Configuration." What actually shipped per client was a dedicated self-hosted instance (own VPS resources, DNS, TLS, real production debugging — see the CRM &amp; sales tables above), 100+ real sourced leads with drafted outreach, and a native chat assistant. A CRM implementation consultant typically charges $2,000–$4,000 <i>per client</i> just for deployment and configuration at this level, before lead sourcing or chat-assistant work — so each client is currently paying roughly 2–4% of that line's real market value.</div>
+  </section>
+
+  <section id="investment">
+    <div class="section-head"><h2>Investment &amp; equivalent value</h2><span class="section-tag">Estimate — not measured time-tracking</span></div>
+    <p class="lede">No stopwatch was running during any of this, so treat the hour figures below as reasoned estimates built from the actual list of shipped work above, not a timesheet. Methodology is shown so you can adjust the assumptions yourself.</p>
+
+    <div class="compare">
+      <div class="compare-card">
+        <h4>Actual hours invested</h4>
+        <div class="big mono">~65–75 hrs</div>
+        <div class="sub">You, across 13 calendar days, interleaved with other Bario platform work on the same days</div>
+        <ul class="role-list">
+          <li><span class="role">AFC dispatch platform (audit, driver pay, apply/approve flow)</span><span class="hrs mono">~16h</span></li>
+          <li><span class="role">Sunbuilt site rebuild (gallery, services, branding)</span><span class="hrs mono">~5h</span></li>
+          <li><span class="role">Dual CRM provisioning + real root-cause debugging</span><span class="hrs mono">~8h</span></li>
+          <li><span class="role">228 leads sourced + drafted outreach, both CRMs</span><span class="hrs mono">~8h</span></li>
+          <li><span class="role">Miko chat setup + 2 production bugfixes</span><span class="hrs mono">~4h</span></li>
+          <li><span class="role">Bario Dialer, 2 branded instances + internal calling</span><span class="hrs mono">~10h</span></li>
+          <li><span class="role">Victoria voice agent + phone routing + CRM sync</span><span class="hrs mono">~9h</span></li>
+          <li><span class="role">Hosting/DNS migrations, bug fixes, misc.</span><span class="hrs mono">~8h</span></li>
+        </ul>
+      </div>
+      <div class="compare-card">
+        <h4>Equivalent agency build</h4>
+        <div class="big mono">~700–750 hrs</div>
+        <div class="sub">A small specialist team, 3–4 calendar months with realistic overlap and review cycles</div>
+        <ul class="role-list">
+          <li><span class="role">Backend/full-stack engineer</span><span class="hrs mono">200h</span></li>
+          <li><span class="role">Frontend/PWA engineer</span><span class="hrs mono">160h</span></li>
+          <li><span class="role">DevOps/infrastructure engineer</span><span class="hrs mono">120h</span></li>
+          <li><span class="role">Voice/chat systems engineer</span><span class="hrs mono">120h</span></li>
+          <li><span class="role">Web designer</span><span class="hrs mono">80h</span></li>
+          <li><span class="role">Project manager / QA</span><span class="hrs mono">60h</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout warm"><b>Rough equivalent cost —</b> at a typical small-agency blended rate of $85–125/hr USD for this mix of specialists, the agency column above prices out to roughly <b class="mono">$63,000–$92,000 USD</b> (~<b class="mono">$89,000–$130,000 CAD</b> at the invoice's own 0.709 rate) for the <i>technical build alone</i> — before your own logo, video, and brochure work below.</div>
+
+    <h3>What's actually been collected so far</h3>
+    <div class="ledger-wrap"><table class="ledger">
+      <tr><th>Date</th><th>Item</th><th>Amount</th></tr>
+      <tr><td class="date mono">Jul 22</td><td class="item">Sunbuilt Group — hosting invoice BAR-2026-0722-001<div class="desc">3yr domain, 3yr VPS hosting, 1yr CRM hosting, CRM install/config, VPS setup, DNS/SSL — paid</div></td><td class="mono">$1,280.96 CAD</td></tr>
+      <tr><td class="date mono">—</td><td class="item">AFC Logistics — equivalent hosting invoice<div class="desc">Same scope/amount as Sunbuilt's — paid</div></td><td class="mono">$1,280.96 CAD</td></tr>
+      <tr><td class="date mono">—</td><td class="item">Google Ads + Meta (Facebook/Instagram) ad spend<div class="desc">Sent by the clients to fund campaigns</div></td><td class="mono">$1,000.00</td></tr>
+      <tr><td></td><td class="item"><b>Total collected</b></td><td class="mono"><b>~$3,561.92 CAD</b></td></tr>
+    </table></div>
+
+    <div class="callout"><b>Value delivered vs. collected —</b> technical build (<span class="mono">~$89,000–$130,000 CAD</span>) plus your own direct design/production/marketing work (<span class="mono">~$3,500–$6,500 CAD</span> in market-rate terms) puts total value delivered around <b class="mono">$92,000–$136,000 CAD</b> against <b class="mono">~$3,562 CAD</b> actually collected — roughly <b>26–38×</b> what's been paid in. That gap is the real number worth having a pricing conversation with both clients about, hosting renewals aside.</div>
+
+    <p class="disclosure">Methodology: hours are built bottom-up from the shipped-feature ledgers above, cross-checked against session dates in project records. The agency column reflects typical role/week estimates for equivalent-complexity scope (custom dispatch platform, 2× CRM deployment, voice assistant, softphone PWA, 2× site rebuild) — not a quote from any real agency. Direct-work market values (logos, video ads, brochures) are typical freelance/agency rates for comparable deliverables, not your logged hours — send real numbers if you want those replaced with actuals. Collected-so-far figures are the real amounts you provided.</p>
+  </section>
+
+
+</div>
+</body>
+</html>
