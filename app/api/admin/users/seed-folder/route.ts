@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
-import { put } from '@vercel/blob'
 import { requireAdmin } from '@/lib/admin'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
+import { seedOneXDriveFolder } from '@/lib/xdriveFolders'
 
 function cleanFolder(raw: string): string {
   return raw.trim().replace(/^\/+|\/+$/g, '')
@@ -36,21 +35,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `No account found for ${email} — they need to sign up first` }, { status: 404 })
     }
 
-    const text = typeof note === 'string' && note.trim() ? note.trim() : 'This folder is ready — upload your first file and feel free to delete this note.'
-    const filename = 'Start here.txt'
-    const blob = await put(`media/${targetUser.id}/${clean}/${filename}`, new Blob([text], { type: 'text/plain' }), {
-      access: 'public',
-      addRandomSuffix: true,
-    })
-
-    const id = randomUUID()
-    await sql`
-      INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes)
-      VALUES (${id}, ${targetUser.id}, ${clean}, ${filename}, ${blob.url}, 'text/plain', ${text.length})
-    `
+    await seedOneXDriveFolder(sql, targetUser.id, clean, typeof note === 'string' ? note : undefined)
 
     await logAdminAction(sql, { action: 'seed-folder', targetEmail: email, params: { folder: clean }, result: 'ok', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
-    return NextResponse.json({ ok: true, id, folder: clean })
+    return NextResponse.json({ ok: true, folder: clean })
   } catch (err: any) {
     return errorResponse(err)
   }

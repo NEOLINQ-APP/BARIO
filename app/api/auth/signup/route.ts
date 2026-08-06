@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { createSession } from '@/lib/session'
 import { rateLimit, rateLimitResponse, clientIp } from '@/lib/rateLimit'
 import { sendVerificationEmail } from '@/lib/email'
+import { seedDefaultXDriveFolders } from '@/lib/xdriveFolders'
 import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
@@ -48,6 +49,14 @@ export async function POST(req: Request) {
     } catch (err) {
       // Non-fatal: the account still works, and they can resend from the dashboard.
       console.error('Failed to send verification email', err)
+    }
+
+    // Every account — free tier included — starts with an organized X-Drive
+    // instead of an empty one. Non-fatal, same posture as the email above.
+    try {
+      await seedDefaultXDriveFolders(sql, id)
+    } catch (err) {
+      console.error('Failed to seed default X-Drive folders', err)
     }
 
     await createSession(id, 0)
