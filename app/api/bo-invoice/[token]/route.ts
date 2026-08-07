@@ -41,6 +41,7 @@ export async function GET(_req: Request, { params }: { params: { token: string }
       totals,
       customer: customerRows[0] ? { name: customerRows[0].company_name || customerRows[0].contact_name, email: customerRows[0].email, address: customerRows[0].address } : null,
       org: orgRows[0] ? { name: orgRows[0].name, logoUrl: orgRows[0].branding_logo_url } : null,
+      canPayOnline: invoice.type === 'invoice' && orgRows[0]?.stripe_connect_status === 'active',
     })
   } catch (err: any) {
     return errorResponse(err)

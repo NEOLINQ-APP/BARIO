@@ -17,6 +17,7 @@ type Data = {
   totals: { subtotalCents: number; discountCents: number; taxCents: number; totalCents: number }
   customer: { name: string; email: string | null; address: string | null } | null
   org: { name: string; logoUrl: string | null } | null
+  canPayOnline: boolean
 } | null
 
 function money(cents: number, currency: string) {
@@ -26,22 +27,62 @@ function money(cents: number, currency: string) {
 export default function BarioOnePublicInvoice({ token }: { token: string }) {
   const [data, setData] = useState<Data>(undefined as any)
   const [error, setError] = useState<string | null>(null)
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+
+  async function load() {
+    const res = await fetch(`/api/bo-invoice/${token}`)
+    const json = await res.json()
+    if (json.error) throw new Error(json.error)
+    setData(json)
+  }
 
   useEffect(() => {
-    fetch(`/api/bo-invoice/${token}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.error) throw new Error(json.error)
-        setData(json)
-      })
-      .catch((err) => setError(err.message))
+    const params = new URLSearchParams(window.location.search)
+    const sessionId = params.get('session_id')
+
+    async function run() {
+      try {
+        if (sessionId) {
+          setConfirming(true)
+          await fetch(`/api/bo-invoice/${token}/confirm`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+          })
+          window.history.replaceState({}, '', window.location.pathname)
+        }
+        await load()
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setConfirming(false)
+      }
+    }
+    run()
   }, [token])
 
+  async function handlePay() {
+    setPaying(true)
+    setPayError(null)
+    try {
+      const res = await fetch(`/api/bo-invoice/${token}/pay`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Could not start payment')
+      window.location.href = json.url
+    } catch (err: any) {
+      setPayError(err.message)
+      setPaying(false)
+    }
+  }
+
   if (error) return <main className="min-h-screen flex items-center justify-center text-sm text-red-500">{error}</main>
-  if (data === undefined) return <main className="min-h-screen flex items-center justify-center text-sm text-slate-500">Loading…</main>
+  if (data === undefined || confirming) return <main className="min-h-screen flex items-center justify-center text-sm text-slate-500">Loading…</main>
   if (!data) return null
 
-  const { invoice, items, totals, customer, org } = data
+  const { invoice, items, totals, customer, org, canPayOnline } = data
+  const canPay = canPayOnline && invoice.status !== 'paid' && invoice.status !== 'void'
 
   return (
     <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased px-6 py-16">
@@ -130,9 +171,21 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
             </div>
           )}
 
-          <a href={`/api/bo-invoice/${token}/pdf`} target="_blank" rel="noreferrer" className="inline-block px-5 py-2.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-sm">
-            Download PDF
-          </a>
+          <div className="flex flex-wrap gap-3 pt-2">
+            {canPay && (
+              <button
+                onClick={handlePay}
+                disabled={paying}
+                className="px-5 py-2.5 rounded-lg bg-[#635bff] hover:opacity-90 disabled:opacity-50 text-white font-semibold text-sm"
+              >
+                {paying ? 'Redirecting…' : `Pay now — ${money(totals.totalCents, invoice.currency)}`}
+              </button>
+            )}
+            <a href={`/api/bo-invoice/${token}/pdf`} target="_blank" rel="noreferrer" className="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-sm">
+              Download PDF
+            </a>
+          </div>
+          {payError && <p className="text-sm text-red-500 dark:text-red-400">{payError}</p>}
         </div>
         <p className="text-center text-xs text-slate-400 mt-6">Powered by Bario One™</p>
       </div>

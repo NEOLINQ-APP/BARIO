@@ -46,7 +46,11 @@ export async function POST(req: Request) {
     // caller is bridged in — announces which line this is and who's
     // calling, without affecting the caller's ringing or the no-answer
     // fallback-to-Victoria path above (scoped to this <Number> leg only).
-    const whisperUrl = `https://www.bario.ca/api/twilio/miko-voice/whisper?business=${business.key}&from=${encodeURIComponent(from)}`
+    // & must be XML-escaped as &amp; inside the TwiML attribute below — a
+    // raw & here (e.g. "...business=afc&from=...") is a real XML parse
+    // error (Twilio error 12100), not just a cosmetic issue: it broke every
+    // real forwarded call until caught via Twilio's own error log.
+    const whisperUrl = `https://www.bario.ca/api/twilio/miko-voice/whisper?business=${business.key}&amp;from=${encodeURIComponent(from)}`
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${business.twilioNumber}" timeout="${FORWARD_RING_SECONDS}" action="${fallbackUrl}">

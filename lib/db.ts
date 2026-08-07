@@ -1281,6 +1281,7 @@ async function ensureSchema() {
     { id: 'ai-build-agent', name: 'Bario Build agent (beta)', provider: 'multi (openai/xai/anthropic)', model: 'gpt-5.6-luna / grok-code-fast-1 / claude-opus-5, provider-switched', domains: 'bario.ca — /build/apps (beta)', description: 'AI app/site sandbox builder, still in beta rollout.', hasCostTracking: false, sourceFile: 'lib/buildAgentModel.ts' },
     { id: 'ai-marketing', name: 'Marketing post generator', provider: 'openai', model: 'gpt-4o-mini', domains: 'bario.ca admin — used for all client businesses\' marketing posts', description: 'Drafts AI social/marketing posts for admin review and approval.', hasCostTracking: false, sourceFile: 'lib/marketing/generate.ts' },
     { id: 'ai-crm-copilot', name: 'Miko (Twenty CRM built-in copilot)', provider: 'anthropic (Twenty\'s own key, separate from this app)', model: 'configured inside Twenty\'s own Docker stack', domains: 'crm.bario.ca, afc.crm.bario.ca, sunbuilt.crm.bario.ca', description: "Twenty CRM's own native AI chat feature — runs entirely inside that Docker stack, not this codebase, so its usage/cost isn't visible from here at all.", hasCostTracking: false, sourceFile: null },
+    { id: 'ai-request-estimator', name: 'Client Request Estimator', provider: 'openai', model: 'gpt-5.6-luna', domains: 'bario.ca — /dashboard/requests, /admin/requests (AFC Logistics + Sunbuilt Group only)', description: 'Estimates effort hours for a submitted client request and computes a business-hours-aware ETA against the shared open queue.', hasCostTracking: false, sourceFile: 'lib/requestEstimator.ts' },
   ]
   for (const i of seedIntegrations) {
     await sql`
@@ -1458,6 +1459,63 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_invoice_items_invoice_idx ON bo_invoice_items (invoice_id)`
+
+  // Bario One Phase 4 — Bario Payments. Each org gets its own Stripe
+  // Connect Express account so customer payments land directly in THAT
+  // business's own bank account (a "direct charge" — created with
+  // {stripeAccount: id} — rather than Bario's platform account holding
+  // funds and having to redistribute them, which would be its own real
+  // money-transmission/compliance problem).
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS stripe_connect_account_id TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS stripe_connect_status TEXT NOT NULL DEFAULT 'none'`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_payment_intent TEXT`
+
+  // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
+  // work requests directly and see an AI-estimated ETA computed against the
+  // shared open-request queue for both companies. Deliberately separate
+  // from the bo_* (Bario One) tables above: Bario One is the white-label CRM
+  // product sold to arbitrary Bario customers to manage their OWN
+  // customers; this is Sherwin's own internal client-ops tool for exactly
+  // these two businesses, and needs estimate/priority fields bo_tasks
+  // doesn't have.
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_companies (
+      user_id TEXT PRIMARY KEY REFERENCES users(id),
+      company_key TEXT NOT NULL,
+      company_label TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_requests (
+      id TEXT PRIMARY KEY,
+      company_key TEXT NOT NULL,
+      user_id TEXT REFERENCES users(id),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'new',
+      priority INTEGER NOT NULL DEFAULT 0,
+      estimated_hours NUMERIC,
+      estimated_completion_at TIMESTAMPTZ,
+      estimate_reasoning TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS client_requests_company_idx ON client_requests (company_key, status)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_request_events (
+      id TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL REFERENCES client_requests(id),
+      actor TEXT NOT NULL,
+      actor_label TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS client_request_events_request_idx ON client_request_events (request_id, created_at)`
 }
 
 export async function db() {
@@ -2030,6 +2088,8 @@ export type BoOrganization = {
   business_phone: string | null
   business_email: string | null
   tax_number: string | null
+  stripe_connect_account_id: string | null
+  stripe_connect_status: 'none' | 'onboarding' | 'active' | 'restricted'
   created_at: string
   updated_at: string
 }
@@ -2122,6 +2182,8 @@ export type BoInvoice = {
   next_recurrence_date: string | null
   sent_at: string | null
   paid_at: string | null
+  stripe_checkout_session_id: string | null
+  stripe_payment_intent: string | null
   created_by_user_id: string | null
   created_at: string
   updated_at: string
