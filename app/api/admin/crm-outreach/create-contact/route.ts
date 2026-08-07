@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { findCrm, crmGraphQL } from '@/lib/crmOutreach'
+import { verifyDialerPasscode } from '@/lib/dialerAccess'
 import { errorResponse } from '@/lib/errors'
 
 // Adds a new contact straight into the right business's Twenty CRM — used
@@ -9,12 +10,15 @@ import { errorResponse } from '@/lib/errors'
 // object mutations take `data:` (not `input:`), confirmed against this
 // same CRM elsewhere in the codebase.
 export async function POST(req: Request) {
-  const adminOrRes = await requireAdmin(req)
-  if (adminOrRes instanceof NextResponse) return adminOrRes
+  const body = await req.json().catch(() => null)
+  const crmKey = typeof body?.crmKey === 'string' ? body.crmKey : null
+
+  if (!verifyDialerPasscode(req, crmKey)) {
+    const adminOrRes = await requireAdmin(req)
+    if (adminOrRes instanceof NextResponse) return adminOrRes
+  }
 
   try {
-    const body = await req.json().catch(() => null)
-    const crmKey = typeof body?.crmKey === 'string' ? body.crmKey : null
     const firstName = typeof body?.firstName === 'string' ? body.firstName.trim() : ''
     const lastName = typeof body?.lastName === 'string' ? body.lastName.trim() : ''
     const phone = typeof body?.phone === 'string' ? body.phone.trim() : ''

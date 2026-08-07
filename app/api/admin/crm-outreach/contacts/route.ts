@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { OUTREACH_CRMS, crmGraphQL } from '@/lib/crmOutreach'
+import { verifyDialerPasscode } from '@/lib/dialerAccess'
 import { errorResponse } from '@/lib/errors'
 
 // Every contact with a phone number, for both CRMs — separate from
@@ -10,12 +11,22 @@ import { errorResponse } from '@/lib/errors'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const adminCheck = await requireAdmin(req)
-  if (adminCheck instanceof NextResponse) return adminCheck
+  const url = new URL(req.url)
+  const onlyCrmKey = url.searchParams.get('crmKey')
+
+  const viaPasscode = verifyDialerPasscode(req, onlyCrmKey)
+  if (!viaPasscode) {
+    const adminCheck = await requireAdmin(req)
+    if (adminCheck instanceof NextResponse) return adminCheck
+  }
 
   try {
-    const url = new URL(req.url)
-    const onlyCrmKey = url.searchParams.get('crmKey')
+    // Client Dialer callers (passcode-verified) must pass their own crmKey
+    // and can never see another business's contacts — an admin session can
+    // still omit crmKey to see everyone, same as before.
+    if (viaPasscode && !onlyCrmKey) {
+      return NextResponse.json({ error: 'crmKey is required' }, { status: 400 })
+    }
     // Unique Group Inc. has no Twenty CRM behind it (it's Bario's own
     // agency, not a client) — nothing to fetch, not an error.
     const crms = onlyCrmKey ? OUTREACH_CRMS.filter((c) => c.key === onlyCrmKey) : OUTREACH_CRMS

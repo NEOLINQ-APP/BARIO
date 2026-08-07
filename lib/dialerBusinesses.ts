@@ -11,6 +11,13 @@ export type DialerBusiness = {
   twilioNumber: string
   forwardToNumber: string
   twimlAppSid: string
+  // Set only for businesses that get their own self-serve client-facing
+  // Dialer at /dialer/<key> (app/dialer/<key>/page.tsx), gated by this
+  // passcode rather than a Bario admin login — see
+  // app/api/dialer-access/check/route.ts. Unique Group has none: it's
+  // Sherwin's own company, already reachable via the admin-only
+  // /admin/dialer/unique he uses himself.
+  clientPasscodeEnvVar?: string
 }
 
 export const DIALER_BUSINESSES: DialerBusiness[] = [
@@ -20,6 +27,7 @@ export const DIALER_BUSINESSES: DialerBusiness[] = [
     twilioNumber: '+18253607175',
     forwardToNumber: '+17809778865',
     twimlAppSid: 'APee46b91de81c9f57efad2e042fbc3f19',
+    clientPasscodeEnvVar: 'AFC_DIALER_PASSCODE',
   },
   {
     key: 'sunbuilt',
@@ -27,6 +35,7 @@ export const DIALER_BUSINESSES: DialerBusiness[] = [
     twilioNumber: '+18254352121',
     forwardToNumber: '+14164572224',
     twimlAppSid: 'APe0558e2920449e49a09ded2f992dac81',
+    clientPasscodeEnvVar: 'SUNBUILT_DIALER_PASSCODE',
   },
   {
     key: 'unique',

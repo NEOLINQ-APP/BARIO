@@ -28,11 +28,20 @@ export default function BarioDialer({
   initialNumber,
   lockedBusinessKey,
   swScope,
+  dialerPasscode,
 }: {
   initialNumber?: string
   lockedBusinessKey?: string
   swScope?: string
+  // Set only when rendered from the client Dialer (ClientDialerGate) for
+  // AFC/Sunbuilt's own staff, who have no Bario account — sent as
+  // X-Dialer-Passcode on every API call this component makes so those
+  // routes' passcode auth path (lib/dialerAccess.ts) can authorize them.
+  // Sherwin's own admin-session usage (bario.ca/admin/dialer/*) never sets
+  // this and is unaffected.
+  dialerPasscode?: string
 }) {
+  const authHeaders: Record<string, string> = dialerPasscode ? { 'X-Dialer-Passcode': dialerPasscode } : {}
   const [businessKey, setBusinessKey] = useState(lockedBusinessKey ?? 'afc')
   const [tab, setTab] = useState<Tab>('dial')
   const [number, setNumber] = useState(initialNumber ?? '')
@@ -162,7 +171,7 @@ export default function BarioDialer({
     if (businessKey === 'unique') { setContacts([]); return } // no CRM behind Unique Group's own number
     setContactsLoading(true)
     try {
-      const res = await fetch(`/api/admin/crm-outreach/contacts?crmKey=${businessKey}`)
+      const res = await fetch(`/api/admin/crm-outreach/contacts?crmKey=${businessKey}`, { headers: authHeaders })
       const data = await res.json()
       const group = data.results?.find((r: any) => r.crm === businessKey)
       setContacts(group?.contacts ?? [])
@@ -189,7 +198,7 @@ export default function BarioDialer({
   async function loadRecents() {
     setRecentsLoading(true)
     try {
-      const res = await fetch(`/api/admin/dialer/call-log?businessKey=${businessKey}`)
+      const res = await fetch(`/api/admin/dialer/call-log?businessKey=${businessKey}`, { headers: authHeaders })
       const data = await res.json()
       setRecents(data.calls ?? [])
     } catch {
@@ -226,7 +235,7 @@ export default function BarioDialer({
     try {
       const res = await fetch('/api/admin/crm-outreach/create-contact', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           crmKey: businessKey,
           firstName: newFirstName.trim(),
@@ -263,7 +272,7 @@ export default function BarioDialer({
     const { Device } = await import('@twilio/voice-sdk')
     const res = await fetch('/api/twilio/voice-token', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...authHeaders },
       body: JSON.stringify({ businessKey }),
     })
     const data = await res.json()
@@ -282,7 +291,7 @@ export default function BarioDialer({
 
       fetch('/api/admin/dialer/call-log', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...authHeaders },
         body: JSON.stringify({ businessKey, toNumber: from || 'incoming', contactName: displayName }),
       })
         .then((r) => r.json())
@@ -317,7 +326,7 @@ export default function BarioDialer({
 
       const logRes = await fetch('/api/admin/dialer/call-log', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...authHeaders },
         body: JSON.stringify({ businessKey, toNumber: to, contactName }),
       })
       const logData = await logRes.json().catch(() => ({}))
@@ -375,8 +384,8 @@ export default function BarioDialer({
     if (callLogIdRef.current) {
       fetch('/api/admin/dialer/call-log', {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: callLogIdRef.current, status, durationSeconds: seconds }),
+        headers: { 'content-type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ id: callLogIdRef.current, businessKey, status, durationSeconds: seconds }),
       }).catch(() => {})
       callLogIdRef.current = null
     }
