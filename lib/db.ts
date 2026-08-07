@@ -1331,6 +1331,77 @@ async function ensureSchema() {
     ON bo_memberships (organization_id, user_id) WHERE user_id IS NOT NULL
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_memberships_user_idx ON bo_memberships (user_id)`
+
+  // Bario One Phase 2 — Bario CRM. bo_notes deliberately serves double duty
+  // as both internal notes AND a log of sent emails/SMS (kind column) —
+  // one table ordered by created_at IS the "customer history" feature,
+  // rather than a separate activity-log abstraction duplicating the same
+  // rows a note/email/sms already produces.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_customers (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      company_name TEXT,
+      contact_name TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_customers_org_idx ON bo_customers (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_deals (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id),
+      title TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT 'lead',
+      value_cents INTEGER NOT NULL DEFAULT 0,
+      expected_close_date DATE,
+      notes TEXT,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_deals_org_idx ON bo_deals (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_deals_customer_idx ON bo_deals (customer_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_tasks (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      deal_id TEXT REFERENCES bo_deals(id),
+      assigned_to_user_id TEXT REFERENCES users(id),
+      title TEXT NOT NULL,
+      due_at TIMESTAMPTZ,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_tasks_org_idx ON bo_tasks (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_tasks_customer_idx ON bo_tasks (customer_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_notes (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id),
+      author_user_id TEXT REFERENCES users(id),
+      kind TEXT NOT NULL DEFAULT 'note',
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_notes_customer_idx ON bo_notes (customer_id, created_at)`
 }
 
 export async function db() {
@@ -1913,4 +1984,58 @@ export type BoMembership = {
   status: 'active' | 'invited' | 'suspended'
   created_at: string
   updated_at: string
+}
+
+export type BoCustomer = {
+  id: string
+  organization_id: string
+  company_name: string | null
+  contact_name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+  tags_json: string
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoDealStage = 'lead' | 'opportunity' | 'quote' | 'won' | 'lost'
+
+export type BoDeal = {
+  id: string
+  organization_id: string
+  customer_id: string
+  title: string
+  stage: BoDealStage
+  value_cents: number
+  expected_close_date: string | null
+  notes: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoTask = {
+  id: string
+  organization_id: string
+  customer_id: string | null
+  deal_id: string | null
+  assigned_to_user_id: string | null
+  title: string
+  due_at: string | null
+  status: 'open' | 'done'
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoNote = {
+  id: string
+  organization_id: string
+  customer_id: string
+  author_user_id: string | null
+  kind: 'note' | 'email' | 'sms'
+  body: string
+  created_at: string
 }

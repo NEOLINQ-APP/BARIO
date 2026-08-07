@@ -1,5 +1,7 @@
+import { NextResponse } from 'next/server'
 import { randomUUID, randomBytes } from 'node:crypto'
-import type { BoOrganization, BoMembership, BoPlan } from '@/lib/db'
+import { getSession } from '@/lib/session'
+import { db, type User, type BoOrganization, type BoMembership, type BoPlan } from '@/lib/db'
 import { BO_PLANS } from '@/lib/barioOneTiers'
 import { sendEmail } from '@/lib/email'
 
@@ -175,4 +177,26 @@ export async function acceptInvite(sql: any, token: string, userId: string): Pro
     WHERE id = ${membership.id}
   `
   return { ok: true }
+}
+
+// Shared guard for every Bario One module API route (CRM, and every module
+// after it) — same "return NextResponse or value" shape as requireAdmin(),
+// so a route just does `const auth = await requireBoMembership(); if (auth
+// instanceof NextResponse) return auth`.
+export async function requireBoMembership(): Promise<
+  | { sql: any; user: User; org: BoOrganization; membership: BoMembership }
+  | NextResponse
+> {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+
+  const sql = await db()
+  const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
+  const user = userRows[0]
+  if (!user) return NextResponse.json({ error: 'Account not found' }, { status: 401 })
+
+  const found = await getActiveOrgForUser(sql, user.id)
+  if (!found) return NextResponse.json({ error: 'Set up Bario One for your business first' }, { status: 404 })
+
+  return { sql, user, org: found.org, membership: found.membership }
 }

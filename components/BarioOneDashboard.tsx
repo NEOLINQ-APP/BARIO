@@ -14,7 +14,7 @@ type OrgInfo = {
 } | null
 
 const MODULES = [
-  { icon: '🧑‍💼', name: 'CRM', href: null },
+  { icon: '🧑‍💼', name: 'CRM', href: '/dashboard/bario-one/crm' },
   { icon: '🧾', name: 'Invoicing', href: null },
   { icon: '💳', name: 'Payments', href: null },
   { icon: '👥', name: 'Employees', href: null },
@@ -157,20 +157,29 @@ export default function BarioOneDashboard() {
           </a>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MODULES.map((m) => (
-            <div
-              key={m.name}
-              className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 flex flex-col gap-2 opacity-60"
-            >
-              <div className="flex items-start justify-between">
-                <span className="text-2xl">{m.icon}</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400">
-                  Coming soon
-                </span>
-              </div>
-              <p className="font-semibold text-sm">{m.name}</p>
-            </div>
-          ))}
+          {MODULES.map((m) => {
+            const content = (
+              <>
+                <div className="flex items-start justify-between">
+                  <span className="text-2xl">{m.icon}</span>
+                  {!m.href && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400">
+                      Coming soon
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-sm">{m.name}</p>
+              </>
+            )
+            const className = `rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 flex flex-col gap-2 ${
+              m.href ? 'hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors' : 'opacity-60'
+            }`
+            return m.href ? (
+              <a key={m.name} href={m.href} className={className}>{content}</a>
+            ) : (
+              <div key={m.name} className={className}>{content}</div>
+            )
+          })}
         </div>
       </div>
     </div>
