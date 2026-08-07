@@ -480,7 +480,7 @@ export default function BarioDialer({
               </div>
               {activeContactName && <p className="text-center text-lg font-semibold text-slate-300 mb-2">{activeContactName}</p>}
 
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-3 gap-3 mb-4 justify-items-center">
                 {[
                   ['1', ''], ['2', 'ABC'], ['3', 'DEF'],
                   ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
@@ -490,17 +490,21 @@ export default function BarioDialer({
                   <button
                     key={digit}
                     onClick={() => { setNumber((n) => n + digit); setActiveContactName(null) }}
-                    className="aspect-square max-h-[4.5rem] rounded-full bg-[#111a2c] border border-[#22304a] flex flex-col items-center justify-center active:bg-[#1a2740] transition-colors"
+                    className="w-[4.5rem] h-[4.5rem] rounded-full bg-[#111a2c] border border-[#22304a] flex flex-col items-center justify-center active:bg-[#1a2740] transition-colors"
                   >
-                    <span className="text-4xl font-bold text-white">{digit}</span>
-                    {sub && <span className="text-xs font-semibold tracking-widest text-slate-400 mt-1">{sub}</span>}
+                    <span className="text-4xl font-bold text-white leading-none">{digit}</span>
+                    {sub ? (
+                      <span className="text-[0.65rem] font-semibold tracking-widest text-slate-400 mt-1 leading-none">{sub}</span>
+                    ) : (
+                      <span className="h-[0.65rem] mt-1" aria-hidden="true" />
+                    )}
                   </button>
                 ))}
               </div>
 
               {error && <p className="text-sm font-medium text-red-400 mb-2 text-center">{error}</p>}
 
-              <div className="relative flex items-center justify-center mb-1">
+              <div className="relative flex items-center justify-center mb-1 h-20">
                 <button
                   onClick={placeCall}
                   disabled={!number.trim()}
@@ -513,7 +517,7 @@ export default function BarioDialer({
                   <button
                     onClick={() => setNumber((n) => n.slice(0, -1))}
                     aria-label="Delete last digit"
-                    className="absolute right-2 w-14 h-14 flex items-center justify-center text-4xl text-slate-300"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-14 h-14 flex items-center justify-center text-4xl text-slate-300"
                   >
                     ⌫
                   </button>
