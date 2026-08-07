@@ -254,6 +254,19 @@ export async function POST(req: Request) {
         break
       }
 
+      const boOrgId = session.metadata?.boOrgId
+      if (session.mode === 'subscription' && userId && boOrgId) {
+        await sql`
+          UPDATE bo_organizations
+          SET stripe_customer_id = ${String(session.customer)},
+              stripe_subscription_id = ${String(session.subscription)},
+              subscription_status = 'active',
+              updated_at = now()
+          WHERE id = ${boOrgId}
+        `
+        break
+      }
+
       const plan = session.metadata?.plan
       if (userId) {
         await sql`
@@ -300,6 +313,12 @@ export async function POST(req: Request) {
             WHERE stripe_subscription_id = ${subId} AND status NOT IN ('suspended', 'canceled_pending_deprovision', 'deprovisioned')
           `
         }
+        break
+      }
+
+      const boMatch = (await sql`SELECT id FROM bo_organizations WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (boMatch.length > 0) {
+        await sql`UPDATE bo_organizations SET subscription_status = ${sub.status}, updated_at = now() WHERE stripe_subscription_id = ${subId}`
         break
       }
 
@@ -353,6 +372,15 @@ export async function POST(req: Request) {
           console.error('wp shared deprovision error (webhook)', err)
           Sentry.captureException(err)
         }
+        break
+      }
+
+      // Cancellation never deletes the organization or its data (customers,
+      // invoices, employees) — only flips billing status. Reactivating is
+      // just a new checkout, same posture as every other product here.
+      const boCancelMatch = (await sql`SELECT id FROM bo_organizations WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (boCancelMatch.length > 0) {
+        await sql`UPDATE bo_organizations SET subscription_status = 'canceled', updated_at = now() WHERE stripe_subscription_id = ${subId}`
         break
       }
 

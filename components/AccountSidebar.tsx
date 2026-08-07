@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/websites', label: 'Websites', icon: '🌐' },
   { href: '/dashboard/domains', label: 'Domains', icon: '🔎' },
   { href: '/dashboard/crm', label: 'CRM', icon: '🧑‍💼' },
+  { href: '/dashboard/bario-one', label: 'Bario One™', icon: '🏛️' },
   { href: '/dashboard/social', label: 'Social', icon: '📣' },
   { href: '/dashboard/flo-api', label: 'Flo API', icon: '🔌' },
   { href: '/dashboard/voice-agent', label: 'Voice Agent', icon: '📞' },

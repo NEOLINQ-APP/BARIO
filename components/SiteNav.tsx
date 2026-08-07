@@ -4,6 +4,7 @@ const LINKS = [
   { href: '/hosting', label: 'Hosting', key: 'hosting' },
   { href: '/storage', label: 'X-Drive', key: 'storage' },
   { href: '/vps', label: 'VPS Servers', key: 'vps' },
+  { href: '/bario-one', label: 'Bario One', key: 'bario-one' },
   { href: '/site-audit', label: 'Free Site Audit', key: 'audit' },
 ]
 

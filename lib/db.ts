@@ -845,6 +845,17 @@ async function ensureSchema() {
   await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS twenty_api_key_encrypted TEXT`
   await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS twenty_api_key_iv TEXT`
 
+  // Login password for the admin/quick-access panel (app/admin/client-crms)
+  // — lets Sherwin open any client's Twenty CRM without hunting through
+  // memory files for credentials. Reuses lib/vpsPassword.ts's AES-256-GCM
+  // helpers (same VPS_PASSWORD_ENCRYPTION_KEY) rather than a new key, purely
+  // an encrypt/decrypt primitive, no reason to duplicate it. Deliberately
+  // NOT one-time-reveal-then-destroy like vps_instances.root_password — this
+  // is a recurring login the admin needs repeatedly, not a one-time initial
+  // handoff, so the ciphertext stays in place after each reveal.
+  await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS login_password_encrypted TEXT`
+  await sql`ALTER TABLE crm_stacks ADD COLUMN IF NOT EXISTS login_password_iv TEXT`
+
   // Flo's own public API keys (app/api/flo/v1/*) — deliberately separate
   // from personal_access_tokens (that's for Bario's own X-Drive sync client)
   // and from a workspace's Twenty API key above (that's Bario calling
@@ -909,6 +920,32 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+
+  // "Business Brain" — structured knowledge an AI agent consults instead of
+  // one free-text description. Generic on purpose (owner_user_id nullable,
+  // lookup_key for Bario's own house businesses) so future agents (Miko,
+  // Amber, Sky) can read the same table later, not just Victoria. Additive
+  // to voice_agent_configs.business_description below, never a replacement
+  // — a config with no linked profile keeps working exactly as before.
+  await sql`
+    CREATE TABLE IF NOT EXISTS business_profiles (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT REFERENCES users(id),
+      lookup_key TEXT UNIQUE,
+      name TEXT NOT NULL,
+      about TEXT NOT NULL DEFAULT '',
+      services_json TEXT NOT NULL DEFAULT '[]',
+      hours TEXT,
+      service_area_json TEXT NOT NULL DEFAULT '[]',
+      employees_json TEXT NOT NULL DEFAULT '[]',
+      faq_json TEXT NOT NULL DEFAULT '[]',
+      policies TEXT,
+      pricing_notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`ALTER TABLE voice_agent_configs ADD COLUMN IF NOT EXISTS business_profile_id TEXT REFERENCES business_profiles(id)`
 
   // Social Dispatcher ("blast one post to every connected platform") — the
   // customer-facing counterpart to marketing_connections/marketing_posts
@@ -1246,6 +1283,54 @@ async function ensureSchema() {
       ON CONFLICT (id) DO NOTHING
     `
   }
+
+  // Bario One — the multi-tenant "business operating system" suite
+  // (CRM/invoicing/payroll/POS/etc, built module by module). Deliberately
+  // reuses the existing `users` table for login identity (one account
+  // across every Bario product) rather than a separate user system — a
+  // bo_membership row is what turns a normal Bario account into a member
+  // of a specific company/tenant. Prefixed `bo_` to keep this large,
+  // separate product area's tables visually distinct from the site-builder
+  // tables above as this suite grows.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      owner_user_id TEXT NOT NULL REFERENCES users(id),
+      plan TEXT NOT NULL DEFAULT 'starter',
+      subscription_status TEXT NOT NULL DEFAULT 'trialing',
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      trial_ends_at TIMESTAMPTZ,
+      branding_logo_url TEXT,
+      branding_primary_color TEXT NOT NULL DEFAULT '#d4af37',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_memberships (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      user_id TEXT REFERENCES users(id),
+      invited_email TEXT,
+      invite_token TEXT,
+      role TEXT NOT NULL DEFAULT 'employee',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  // Partial unique index rather than a plain UNIQUE constraint — user_id is
+  // NULL for a pending invite (no account yet), and a plain UNIQUE
+  // constraint treats every NULL as distinct anyway in Postgres, but being
+  // explicit here documents that this is intentional, not an oversight.
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS bo_memberships_org_user_unique
+    ON bo_memberships (organization_id, user_id) WHERE user_id IS NOT NULL
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_memberships_user_idx ON bo_memberships (user_id)`
 }
 
 export async function db() {
@@ -1659,6 +1744,8 @@ export type CrmStack = {
   last_error: string | null
   twenty_api_key_encrypted: string | null
   twenty_api_key_iv: string | null
+  login_password_encrypted: string | null
+  login_password_iv: string | null
   created_at: string
   updated_at: string
 }
@@ -1701,7 +1788,25 @@ export type VoiceAgentConfig = {
   forward_to_number: string
   greeting: string
   flo_api_key_id: string | null
+  business_profile_id: string | null
   created_at: string
+}
+
+export type BusinessProfileRow = {
+  id: string
+  owner_user_id: string | null
+  lookup_key: string | null
+  name: string
+  about: string
+  services_json: string
+  hours: string | null
+  service_area_json: string
+  employees_json: string
+  faq_json: string
+  policies: string | null
+  pricing_notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type SocialPlatform = 'facebook' | 'instagram' | 'tiktok' | 'linkedin'
@@ -1778,4 +1883,34 @@ export type SupportMessage = {
   message: string
   status: 'open' | 'closed'
   created_at: string
+}
+
+export type BoPlan = 'starter' | 'professional' | 'business' | 'enterprise'
+
+export type BoOrganization = {
+  id: string
+  name: string
+  slug: string
+  owner_user_id: string
+  plan: BoPlan
+  subscription_status: 'trialing' | 'active' | 'past_due' | 'canceled'
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  trial_ends_at: string | null
+  branding_logo_url: string | null
+  branding_primary_color: string
+  created_at: string
+  updated_at: string
+}
+
+export type BoMembership = {
+  id: string
+  organization_id: string
+  user_id: string | null
+  invited_email: string | null
+  invite_token: string | null
+  role: 'owner' | 'admin' | 'employee'
+  status: 'active' | 'invited' | 'suspended'
+  created_at: string
+  updated_at: string
 }
