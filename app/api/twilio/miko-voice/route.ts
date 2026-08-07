@@ -26,9 +26,11 @@ const FORWARD_RING_SECONDS = 20
 
 export async function POST(req: Request) {
   let to = ''
+  let from = ''
   try {
     const form = await req.formData()
     to = String(form.get('To') ?? '')
+    from = String(form.get('From') ?? '')
   } catch {
     // Malformed/empty body — fall through to the default Unique Group greeting.
   }
@@ -40,10 +42,15 @@ export async function POST(req: Request) {
 
   if (business && FORWARD_FIRST_KEYS.has(business.key)) {
     const fallbackUrl = `https://www.bario.ca/api/twilio/miko-voice/dial-fallback?business=${business.key}`
+    // Whisper plays only to the owner's cell once THEY answer, before the
+    // caller is bridged in — announces which line this is and who's
+    // calling, without affecting the caller's ringing or the no-answer
+    // fallback-to-Victoria path above (scoped to this <Number> leg only).
+    const whisperUrl = `https://www.bario.ca/api/twilio/miko-voice/whisper?business=${business.key}&from=${encodeURIComponent(from)}`
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${business.twilioNumber}" timeout="${FORWARD_RING_SECONDS}" action="${fallbackUrl}">
-    <Number>${business.forwardToNumber}</Number>
+    <Number url="${whisperUrl}">${business.forwardToNumber}</Number>
   </Dial>
 </Response>`
     return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })
