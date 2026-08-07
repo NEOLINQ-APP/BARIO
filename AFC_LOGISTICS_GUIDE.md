@@ -15,7 +15,9 @@ You need **two separate unlocks**, in either order (whichever prompts first):
 
 Once both are done, the dashboard shows real stats, the live driver map, jobs, invoices, driver applications, etc. If you only do the passcode without signing in, you'll see a "demo dashboard" placeholder instead of real data.
 
-**What's in the admin dashboard:** stats (drivers/jobs/revenue/driver pay/profit), live driver map, Driver Applications review (Approve/Reject), Add Driver, Create Job (with $/% driver pay), Rate Sheets (each driver's standing pay rate), Change My Password, Reset a Password (for any driver/client), All Jobs, Invoices.
+**What's in the admin dashboard:** stats (drivers/jobs/revenue/driver pay/profit), a **new-booking notification bell** (red badge count, top right — polls every 10s, toasts when a new one lands), live driver map, Driver Applications review (Approve/Reject), **Quick Quote** (same real pricing engine as the public site, for quoting a caller over the phone — has a "Use in Create Job" button), Add Driver, Create Job (now with real address autocomplete + weight/unit, auto-prices by distance if you leave Price blank), Rate Sheets (each driver's standing pay rate), Change My Password, Reset a Password (for any driver/client), All Jobs (now shows a **Docs** button per job — pulls up POD photo + delivery signature + any damage reports in one window), Invoices.
+
+**Pricing rates are admin-editable** via `PATCH /api/pricing-settings` (no UI form yet, curl/API only) — rate per km and minimum charge per service tier (standard/rush/direct), plus the weight-surcharge threshold. Current defaults (set 2026-08-06, informed by real Alberta hotshot market research — carriers typically run $2.50–$3.50/loaded km): standard $1.75/km ($150 min), rush $2.25/km ($200 min), direct $3.00/km ($250 min), first 500kg free then $8/100kg surcharge. Tune these based on actual competitor quotes/margins.
 
 ---
 
@@ -23,9 +25,29 @@ Once both are done, the dashboard shows real stats, the live driver map, jobs, i
 
 Drivers use the exact same **Sign In** button (top right) as everyone else — enter the email + password they were given after approval. The site automatically detects their role and takes them straight to the Driver Portal (no manual navigation needed).
 
-**What's in the driver portal:** their own jobs only (never sees other drivers' or customers' data), Accept/Decline new job offers, Mark Picked Up → In Transit → Delivered, upload a Proof-of-Delivery photo, and **live GPS sharing starts automatically** the moment they have an active job — no toggle needed, it just works in the background while that tab/page is open. Also shows their real earnings (YTD, all-time, pending) and full pay history.
+**What's in the driver portal:** their own jobs only (never sees other drivers' or customers' data), Accept/Decline new job offers, Mark Picked Up → In Transit → Delivered, upload a Proof-of-Delivery photo, **Report Damage** (dropdown of damage types — minor scuff/dent/crack/water/missing item/packaging/other — plus notes and an optional photo, visible to admin via the job's Docs button), **Get Signature** (a signature pad the customer signs on the driver's phone at delivery, with a "received by" name), and **live GPS sharing starts automatically** the moment they have an active job — no toggle needed, it just works in the background while that tab/page is open. Also shows their real earnings (YTD, all-time, pending) and full pay history.
 
 **Known gap:** drivers don't currently have a self-service "change my password" option (only admin does, for their own account). Worth adding if you want drivers to be able to change a temp password themselves — not built yet.
+
+---
+
+## Instant Quote Calculator (customer-facing, home page)
+
+Real distance + weight pricing, built 2026-08-06 — replaced the old fake service+weight-only formula.
+
+- **Address autocomplete** (Photon/OpenStreetMap, free, no API key): type 3+ characters, pick from the dropdown of real matches — same "multiple locations for one business" disambiguation pattern as Google/Uber/Lyft. Picking a suggestion captures real coordinates; typing a plain address without picking one still works (the backend geocodes it server-side as a fallback).
+- **kg/lb toggle** next to the weight field — accurate conversion either way (1 kg = 2.20462 lb).
+- Submitting calls the real backend (`POST /api/quote`), which geocodes both addresses, gets a real driving distance from OSRM (OpenStreetMap's routing engine, also free/no key), and prices it off the admin-editable rate table above. Shows the real km and the real price — no more fake "$149–$249" ranges.
+- Signed-in customers see **Book This Shipment**, which carries the exact quoted price/addresses/weight into the booking form — the price they see is the price they're booked at.
+- **A real bug was caught and fixed here**: the first version biased address lookups toward Edmonton, which caused "Calgary, AB" to resolve to a street literally named *Calgary Trail* in Edmonton instead of the actual city 300km away — silently massively undercharging that route. Fixed by dropping the geo-bias for full-address lookups (kept it for the as-you-type suggestions, which should stay Edmonton-first). Verified live: Edmonton → Calgary now correctly shows ~297km.
+
+---
+
+## Test / reference logins (live accounts, safe to reuse for demos)
+
+- **Admin**: `admin@afclogistics.ca` / `AFCAdmin2026!` (+ page passcode above).
+- **Driver**: `testdriver@example.com` / `TestDriver2026!` — password set 2026-08-06 specifically so this account is always usable for testing.
+- **Customer**: anyone can self-signup free via **Sign In → Sign up** (company name, email, any 6+ char password) — no approval needed, instant access. A real one was verified live during this build: `e2e-test-1786057270@example.com` / `E2ETest2026!`, which has a real booking on it (`AFC-9894`, Edmonton → Calgary) if you want to see an already-populated Customer Portal.
 
 ---
 
