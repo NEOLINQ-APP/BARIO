@@ -378,8 +378,10 @@ function DesignCanvasSession({ template }: { template: Template }) {
   )
 }
 
-export default function StudioDesignEditor() {
-  const [template, setTemplate] = useState<Template>(TEMPLATES[0])
+export default function StudioDesignEditor({ initialTemplateId }: { initialTemplateId?: string }) {
+  const [template, setTemplate] = useState<Template>(
+    TEMPLATES.find((t) => t.id === initialTemplateId) ?? TEMPLATES[0]
+  )
 
   const socialTemplates = TEMPLATES.filter((t) => t.category === 'social')
   const printTemplates = TEMPLATES.filter((t) => t.category === 'print')

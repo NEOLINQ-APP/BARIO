@@ -406,13 +406,15 @@ function VoiceoverGeneratePanel({ onClipReady }: { onClipReady: AddClip }) {
   )
 }
 
-export default function StudioEditor() {
+export type StudioEditorTab = 'assistant' | 'video' | 'voiceover' | 'text' | 'music'
+
+export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?: StudioEditorTab }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const coreRef = useRef<Core | null>(null)
   const studioRef = useRef<Studio | null>(null)
   const [ready, setReady] = useState(false)
   const [clips, setClips] = useState<ClipSummary[]>([])
-  const [tab, setTab] = useState<'assistant' | 'video' | 'voiceover' | 'text' | 'music'>('assistant')
+  const [tab, setTab] = useState<StudioEditorTab>(initialTab)
   const [exportBusy, setExportBusy] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportUrl, setExportUrl] = useState<string | null>(null)
