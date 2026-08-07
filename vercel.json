@@ -7,6 +7,7 @@
     { "path": "/api/cron/crm-outreach-scheduled", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/studio-reconcile", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/social-token-refresh", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/wp-hosting-health", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/wp-hosting-health", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/bo-invoice-recurring", "schedule": "0 6 * * *" }
   ]
 }

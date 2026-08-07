@@ -729,7 +729,7 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS dialer_call_log (
       id TEXT PRIMARY KEY,
       business_key TEXT NOT NULL,
-      placed_by TEXT NOT NULL REFERENCES users(id),
+      placed_by TEXT REFERENCES users(id),
       to_number TEXT NOT NULL,
       contact_name TEXT,
       status TEXT NOT NULL DEFAULT 'in_progress',
@@ -738,6 +738,12 @@ async function ensureSchema() {
       ended_at TIMESTAMPTZ
     )
   `
+  // placed_by is nullable as of the client Dialer (app/dialer/<key>) --
+  // AFC/Sunbuilt staff using it aren't Bario accounts at all, so there's no
+  // users.id to attribute to. placed_by_label carries a plain-text
+  // attribution instead for that case (e.g. "AFC Logistics client dialer").
+  await sql`ALTER TABLE dialer_call_log ALTER COLUMN placed_by DROP NOT NULL`
+  await sql`ALTER TABLE dialer_call_log ADD COLUMN IF NOT EXISTS placed_by_label TEXT`
 
   // Customer-facing custom-domain mailboxes, backed by the real Mailcow
   // instance on reseller.bario.ca (lib/mailcow.ts). Mailcow itself is the
@@ -1402,6 +1408,56 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_notes_customer_idx ON bo_notes (customer_id, created_at)`
+
+  // Bario One Phase 3 — Bario Invoice. The issuing business's own info
+  // (shown on every invoice/quote/estimate it sends) lives on the org
+  // itself, not duplicated per-document.
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS business_address TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS business_phone TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS business_email TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS tax_number TEXT`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_invoices (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id),
+      type TEXT NOT NULL DEFAULT 'invoice',
+      number TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      public_token TEXT UNIQUE NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'CAD',
+      tax_percent NUMERIC NOT NULL DEFAULT 0,
+      tax_label TEXT NOT NULL DEFAULT 'Tax',
+      discount_type TEXT NOT NULL DEFAULT 'none',
+      discount_value NUMERIC NOT NULL DEFAULT 0,
+      notes TEXT,
+      due_date DATE,
+      is_recurring BOOLEAN NOT NULL DEFAULT false,
+      recurring_interval TEXT,
+      next_recurrence_date DATE,
+      sent_at TIMESTAMPTZ,
+      paid_at TIMESTAMPTZ,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_invoices_org_idx ON bo_invoices (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_invoices_customer_idx ON bo_invoices (customer_id)`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_invoices_org_number_unique ON bo_invoices (organization_id, number)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_invoice_items (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL REFERENCES bo_invoices(id) ON DELETE CASCADE,
+      description TEXT NOT NULL,
+      quantity NUMERIC NOT NULL DEFAULT 1,
+      unit_price_cents INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_invoice_items_invoice_idx ON bo_invoice_items (invoice_id)`
 }
 
 export async function db() {
@@ -1970,6 +2026,10 @@ export type BoOrganization = {
   trial_ends_at: string | null
   branding_logo_url: string | null
   branding_primary_color: string
+  business_address: string | null
+  business_phone: string | null
+  business_email: string | null
+  tax_number: string | null
   created_at: string
   updated_at: string
 }
@@ -2038,4 +2098,40 @@ export type BoNote = {
   kind: 'note' | 'email' | 'sms'
   body: string
   created_at: string
+}
+
+export type BoInvoiceType = 'estimate' | 'quote' | 'invoice'
+
+export type BoInvoice = {
+  id: string
+  organization_id: string
+  customer_id: string
+  type: BoInvoiceType
+  number: string
+  status: 'draft' | 'sent' | 'accepted' | 'paid' | 'overdue' | 'void'
+  public_token: string
+  currency: string
+  tax_percent: number
+  tax_label: string
+  discount_type: 'none' | 'percent' | 'fixed'
+  discount_value: number
+  notes: string | null
+  due_date: string | null
+  is_recurring: boolean
+  recurring_interval: 'weekly' | 'monthly' | 'yearly' | null
+  next_recurrence_date: string | null
+  sent_at: string | null
+  paid_at: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoInvoiceItem = {
+  id: string
+  invoice_id: string
+  description: string
+  quantity: number
+  unit_price_cents: number
+  sort_order: number
 }
