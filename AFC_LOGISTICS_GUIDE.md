@@ -29,6 +29,26 @@ Drivers use the exact same **Sign In** button (top right) as everyone else — e
 
 **Known gap:** drivers don't currently have a self-service "change my password" option (only admin does, for their own account). Worth adding if you want drivers to be able to change a temp password themselves — not built yet.
 
+**Contact Dispatch card** (2026-08-07): the driver portal sidebar has one-tap **Call** and **Text** buttons wired to the real dispatch number (780-977-8865) — plain `tel:`/`sms:` links, opens the phone's own dialer/messaging app, no login or app on the other end needed. Admin gets the reverse: a call/text icon next to every driver's name (Add Driver list and the All Jobs table) using that driver's real phone number on file.
+
+---
+
+## Invoices (admin)
+
+Added 2026-08-07 — create, edit, and email invoices, not just auto-generate + mark paid:
+- **Create**: a new dropdown above the Invoices table lists jobs that don't have one yet — pick one, optionally override the amount (blank = uses the job's price), press Create Invoice.
+- **Edit**: press **Edit** on any invoice to change its amount and/or add notes (shown on the emailed invoice) via two quick prompts.
+- **Email/Share**: press **Email** — if the backend's SMTP were configured it would send for real; **since SMTP isn't configured yet** (see below), it instead opens your own email app pre-filled with the customer's address, a proper subject line, and the invoice details in the body — you just hit send. Either way it's genuinely one click to get an invoice out the door.
+- **SMTP blocker, real and unresolved**: `afc-backend/.env` has `SMTP_HOST=smtp.hostinger.com`, `SMTP_USER=noreply@afclogistics.ca` but `SMTP_PASS` is still the placeholder `YOUR_MAILBOX_PASSWORD`. **To make Email actually auto-send** (rather than opening your email app), the real Hostinger mailbox password for `noreply@afclogistics.ca` needs to be set there and the backend restarted. Until then, the mailto fallback always works regardless.
+
+---
+
+## Receiving texts on the AFC number (780-977-8865 / +18253607175)
+
+Fixed 2026-08-07: the Twilio number backing 780-977-8865 had no SMS webhook configured at all — any text sent to it (including verification codes) was silently dropped, never reaching anyone. Now wired to `https://www.bario.ca/api/twilio/business-sms`, which relays the raw text to 780-977-8865 as a real forwarded SMS.
+
+**Real, unresolved limitation — not fixable by webhook configuration**: Twilio itself detects and blocks any inbound SMS that looks like a one-time verification code (their error `30038`, "OTP Message Body Filtered") as a deliberate anti-fraud measure, regardless of webhook setup. Confirmed live: a test message reading "Your verification code is 482913" was blocked by Twilio before it ever reached the webhook. This account is already a paid "Full" Twilio account (not Trial), so the usual "upgrade to fix this" advice doesn't apply — this appears to be a structural limitation of using a Twilio virtual number to receive OTPs. **Practical takeaway: for anything that needs a real verification code (Google Business Profile, Loadlink, a bank, etc.), use a real personal cell number for that signup, not 780-977-8865.** Regular (non-OTP-looking) texts to that number now forward correctly.
+
 ---
 
 ## Instant Quote Calculator (customer-facing, home page)
