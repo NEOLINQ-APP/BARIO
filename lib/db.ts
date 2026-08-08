@@ -1699,6 +1699,28 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_pos_sale_items_sale_idx ON bo_pos_sale_items (sale_id)`
 
+  // Bario One Phase 9 — Flo API (Bario One's own customer-facing API,
+  // same key shape as the main platform's flo_api_keys but scoped to an
+  // organization_id instead of a crm_stack_id, since Bario One's tenancy
+  // unit is the org). key_prefix stored in plaintext purely for the
+  // customer's own "which key is this" recognition in the UI — the actual
+  // secret only ever exists as a hash (key_hash), shown to the customer
+  // exactly once at creation, same as every other credential in this app.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_api_keys (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      created_by_user_id TEXT REFERENCES users(id),
+      name TEXT NOT NULL,
+      key_prefix TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_api_keys_org_idx ON bo_api_keys (organization_id)`
+
   // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
   // work requests directly and see an AI-estimated ETA computed against the
   // shared open-request queue for both companies. Deliberately separate
@@ -2588,4 +2610,16 @@ export type BoPosSaleItem = {
   quantity: number
   unit_price_cents: number
   sort_order: number
+}
+
+export type BoApiKey = {
+  id: string
+  organization_id: string
+  created_by_user_id: string | null
+  name: string
+  key_prefix: string
+  key_hash: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
 }
