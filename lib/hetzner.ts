@@ -138,6 +138,14 @@ export async function powerOnServer(serverId: string): Promise<void> {
   await hzFetch(`/servers/${serverId}/actions/poweron`, { method: 'POST' })
 }
 
+// Hetzner's own recovery path when a server's root password is lost —
+// generates and sets a brand-new one server-side (no SSH access needed),
+// returned once in the API response and never stored by Hetzner itself.
+export async function resetRootPassword(serverId: string): Promise<string> {
+  const data = await hzFetch(`/servers/${serverId}/actions/reset_password`, { method: 'POST' })
+  return data.root_password as string
+}
+
 // The actual white-labeling mechanism: sets a Bario-branded reverse-DNS PTR
 // record for the server's IP. Note this does NOT hide WHOIS/IP-ownership
 // registration (RIPE will still show Hetzner Online GmbH as the network
