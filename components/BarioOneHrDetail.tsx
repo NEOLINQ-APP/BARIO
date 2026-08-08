@@ -14,6 +14,8 @@ type Data = {
     hourly_rate_cents: number | null
     status: string
     documents: { name: string; url: string }[]
+    province: string | null
+    vacation_pay_percent: number
   }
   timeEntries: { id: string; clock_in: string; clock_out: string | null }[]
   shifts: { id: string; starts_at: string; ends_at: string; notes: string | null }[]
@@ -23,6 +25,62 @@ type Data = {
 
 function hoursBetween(a: string, b: string) {
   return ((new Date(b).getTime() - new Date(a).getTime()) / (1000 * 60 * 60)).toFixed(2)
+}
+
+const PROVINCE_OPTIONS = [
+  { value: '', label: 'Not set — payroll runs will skip this employee' },
+  { value: 'AB', label: 'Alberta' },
+  { value: 'BC', label: 'British Columbia' },
+  { value: 'ON', label: 'Ontario' },
+  { value: 'SK', label: 'Saskatchewan' },
+  { value: 'MB', label: 'Manitoba' },
+  { value: 'QC', label: 'Quebec' },
+]
+
+function PayrollSetupForm({ employeeId, province, vacationPayPercent, onSaved }: { employeeId: string; province: string | null; vacationPayPercent: number; onSaved: () => void }) {
+  const [prov, setProv] = useState(province ?? '')
+  const [vacPct, setVacPct] = useState(String(vacationPayPercent))
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setSaved(false)
+    try {
+      await fetch(`/api/bario-one/hr/employees/${employeeId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ province: prov || undefined, vacationPayPercent: Number(vacPct) }),
+      })
+      setSaved(true)
+      onSaved()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSave} className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 space-y-3">
+      <p className="text-sm font-semibold">Payroll setup</p>
+      <div>
+        <label className="text-xs text-slate-500 dark:text-zinc-400 block mb-1">Province of employment</label>
+        <select value={prov} onChange={(e) => setProv(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm">
+          {PROVINCE_OPTIONS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="text-xs text-slate-500 dark:text-zinc-400 block mb-1">Vacation pay %</label>
+        <input value={vacPct} onChange={(e) => setVacPct(e.target.value)} type="number" min="0" step="0.1" className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
+      </div>
+      <button type="submit" disabled={busy} className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2">
+        {busy ? 'Saving…' : 'Save'}
+      </button>
+      {saved && <p className="text-xs text-emerald-600 dark:text-emerald-400">Saved.</p>}
+    </form>
+  )
 }
 
 export default function BarioOneHrDetail({ employeeId }: { employeeId: string }) {
@@ -154,6 +212,8 @@ export default function BarioOneHrDetail({ employeeId }: { employeeId: string })
             <p>💰 {employee.pay_type === 'hourly' ? `$${((employee.hourly_rate_cents ?? 0) / 100).toFixed(2)}/hr` : `$${((employee.salary_cents ?? 0) / 100).toLocaleString()}/yr`}</p>
           </div>
         </div>
+
+        <PayrollSetupForm employeeId={employee.id} province={employee.province} vacationPayPercent={employee.vacation_pay_percent} onSaved={load} />
 
         <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 space-y-2">
           <p className="text-sm font-semibold">Documents</p>

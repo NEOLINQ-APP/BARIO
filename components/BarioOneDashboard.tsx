@@ -18,7 +18,7 @@ const MODULES = [
   { icon: '🧾', name: 'Invoicing', href: '/dashboard/bario-one/crm/invoices' },
   { icon: '💳', name: 'Payments', href: '/dashboard/bario-one/payments' },
   { icon: '👥', name: 'Employees', href: '/dashboard/bario-one/hr' },
-  { icon: '🇨🇦', name: 'Payroll', href: null },
+  { icon: '🇨🇦', name: 'Payroll', href: '/dashboard/bario-one/payroll' },
   { icon: '🛒', name: 'POS', href: null },
   { icon: '📦', name: 'Inventory', href: null },
   { icon: '🤖', name: 'AI Assistant', href: null },

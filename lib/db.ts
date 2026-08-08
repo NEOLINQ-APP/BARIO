@@ -1550,6 +1550,58 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_employee_notes_employee_idx ON bo_employee_notes (employee_id, created_at)`
 
+  // Bario One Phase 6 — Bario Payroll. province + vacation_pay_percent live
+  // on the employee record since they're per-employee facts (where they
+  // work, their vacation entitlement), not per-pay-run inputs.
+  await sql`ALTER TABLE bo_employees ADD COLUMN IF NOT EXISTS province TEXT`
+  await sql`ALTER TABLE bo_employees ADD COLUMN IF NOT EXISTS vacation_pay_percent NUMERIC NOT NULL DEFAULT 4`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pay_runs (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      frequency TEXT NOT NULL,
+      pay_period_start DATE NOT NULL,
+      pay_period_end DATE NOT NULL,
+      pay_date DATE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pay_runs_org_idx ON bo_pay_runs (organization_id)`
+
+  // One row per employee per pay run — a real, itemized pay stub. Every
+  // deduction amount is a plain cents integer, computed once at pay-run
+  // creation time by lib/barioOnePayroll.ts and stored (not recomputed
+  // live later), so a stub's numbers never silently drift if next year's
+  // tax tables change after the fact.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pay_stubs (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      pay_run_id TEXT NOT NULL REFERENCES bo_pay_runs(id) ON DELETE CASCADE,
+      employee_id TEXT NOT NULL REFERENCES bo_employees(id),
+      province TEXT NOT NULL,
+      regular_hours NUMERIC NOT NULL DEFAULT 0,
+      overtime_hours NUMERIC NOT NULL DEFAULT 0,
+      regular_cents INTEGER NOT NULL DEFAULT 0,
+      overtime_cents INTEGER NOT NULL DEFAULT 0,
+      vacation_pay_cents INTEGER NOT NULL DEFAULT 0,
+      gross_cents INTEGER NOT NULL DEFAULT 0,
+      federal_tax_cents INTEGER NOT NULL DEFAULT 0,
+      provincial_tax_cents INTEGER NOT NULL DEFAULT 0,
+      cpp_or_qpp_cents INTEGER NOT NULL DEFAULT 0,
+      ei_cents INTEGER NOT NULL DEFAULT 0,
+      qpip_cents INTEGER NOT NULL DEFAULT 0,
+      net_pay_cents INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pay_stubs_pay_run_idx ON bo_pay_stubs (pay_run_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_pay_stubs_employee_idx ON bo_pay_stubs (employee_id)`
+
   // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
   // work requests directly and see an AI-estimated ETA computed against the
   // shared open-request queue for both companies. Deliberately separate
@@ -2290,6 +2342,8 @@ export type BoEmployee = {
   hourly_rate_cents: number | null
   status: 'active' | 'inactive'
   document_urls_json: string
+  province: string | null
+  vacation_pay_percent: number
   created_at: string
   updated_at: string
 }
@@ -2332,5 +2386,39 @@ export type BoEmployeeNote = {
   employee_id: string
   author_user_id: string | null
   body: string
+  created_at: string
+}
+
+export type BoPayRun = {
+  id: string
+  organization_id: string
+  frequency: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly'
+  pay_period_start: string
+  pay_period_end: string
+  pay_date: string
+  status: 'draft' | 'finalized'
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoPayStub = {
+  id: string
+  organization_id: string
+  pay_run_id: string
+  employee_id: string
+  province: string
+  regular_hours: number
+  overtime_hours: number
+  regular_cents: number
+  overtime_cents: number
+  vacation_pay_cents: number
+  gross_cents: number
+  federal_tax_cents: number
+  provincial_tax_cents: number
+  cpp_or_qpp_cents: number
+  ei_cents: number
+  qpip_cents: number
+  net_pay_cents: number
   created_at: string
 }

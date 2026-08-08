@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireBoMembership } from '@/lib/barioOne'
+import { PROVINCE_KEYS } from '@/lib/barioOnePayroll'
 import type { BoEmployee, BoTimeEntry, BoShift, BoVacationRequest, BoEmployeeNote } from '@/lib/db'
+import type { ProvinceKey } from '@/lib/payrollTaxTables2026'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -52,7 +54,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const existing = (await sql`SELECT id FROM bo_employees WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown[]
     if (existing.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    const { name, email, phone, position, payType, salaryCents, hourlyRateCents, status } = await req.json()
+    const { name, email, phone, position, payType, salaryCents, hourlyRateCents, status, province, vacationPayPercent } = await req.json()
+    const validProvince = typeof province === 'string' && PROVINCE_KEYS.includes(province as ProvinceKey) ? province : null
 
     await sql`
       UPDATE bo_employees SET
@@ -61,9 +64,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         phone = ${phone ?? null},
         position = ${position ?? null},
         pay_type = COALESCE(${payType === 'salary' || payType === 'hourly' ? payType : null}, pay_type),
-        salary_cents = ${Number.isFinite(salaryCents) ? Math.round(salaryCents) : null},
-        hourly_rate_cents = ${Number.isFinite(hourlyRateCents) ? Math.round(hourlyRateCents) : null},
+        salary_cents = COALESCE(${Number.isFinite(salaryCents) ? Math.round(salaryCents) : null}, salary_cents),
+        hourly_rate_cents = COALESCE(${Number.isFinite(hourlyRateCents) ? Math.round(hourlyRateCents) : null}, hourly_rate_cents),
         status = COALESCE(${status === 'active' || status === 'inactive' ? status : null}, status),
+        province = COALESCE(${validProvince}, province),
+        vacation_pay_percent = COALESCE(${Number.isFinite(vacationPayPercent) ? vacationPayPercent : null}, vacation_pay_percent),
         updated_at = now()
       WHERE id = ${params.id} AND organization_id = ${org.id}
     `
