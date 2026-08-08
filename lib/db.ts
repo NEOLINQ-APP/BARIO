@@ -1602,6 +1602,103 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_pay_stubs_pay_run_idx ON bo_pay_stubs (pay_run_id)`
   await sql`CREATE INDEX IF NOT EXISTS bo_pay_stubs_employee_idx ON bo_pay_stubs (employee_id)`
 
+  // Bario One Phase 7 — Bario POS + Inventory (bundled into one phase per
+  // the approved build order, since a working POS needs real stock
+  // tracking to not be a facade). Loyalty lives directly on bo_customers
+  // (Phase 2's CRM table) rather than a new table — one real point balance
+  // per customer, not a separate ledger for v1.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS loyalty_points INTEGER NOT NULL DEFAULT 0`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_products (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      sku TEXT,
+      barcode TEXT,
+      price_cents INTEGER NOT NULL DEFAULT 0,
+      cost_cents INTEGER NOT NULL DEFAULT 0,
+      stock_quantity INTEGER NOT NULL DEFAULT 0,
+      low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_products_org_idx ON bo_products (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_products_barcode_idx ON bo_products (organization_id, barcode)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_products_sku_idx ON bo_products (organization_id, sku)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_suppliers (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_suppliers_org_idx ON bo_suppliers (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_purchase_orders (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      supplier_id TEXT NOT NULL REFERENCES bo_suppliers(id),
+      status TEXT NOT NULL DEFAULT 'draft',
+      notes TEXT,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_purchase_orders_org_idx ON bo_purchase_orders (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_purchase_order_items (
+      id TEXT PRIMARY KEY,
+      purchase_order_id TEXT NOT NULL REFERENCES bo_purchase_orders(id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL REFERENCES bo_products(id),
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_cost_cents INTEGER NOT NULL DEFAULT 0
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_po_items_po_idx ON bo_purchase_order_items (purchase_order_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pos_sales (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      subtotal_cents INTEGER NOT NULL DEFAULT 0,
+      tax_cents INTEGER NOT NULL DEFAULT 0,
+      discount_cents INTEGER NOT NULL DEFAULT 0,
+      total_cents INTEGER NOT NULL DEFAULT 0,
+      payment_method TEXT NOT NULL DEFAULT 'cash',
+      status TEXT NOT NULL DEFAULT 'completed',
+      loyalty_points_earned INTEGER NOT NULL DEFAULT 0,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pos_sales_org_idx ON bo_pos_sales (organization_id, created_at)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_pos_sales_customer_idx ON bo_pos_sales (customer_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pos_sale_items (
+      id TEXT PRIMARY KEY,
+      sale_id TEXT NOT NULL REFERENCES bo_pos_sales(id) ON DELETE CASCADE,
+      product_id TEXT REFERENCES bo_products(id),
+      description TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price_cents INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pos_sale_items_sale_idx ON bo_pos_sale_items (sale_id)`
+
   // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
   // work requests directly and see an AI-estimated ETA computed against the
   // shared open-request queue for both companies. Deliberately separate
@@ -2246,6 +2343,7 @@ export type BoCustomer = {
   email: string | null
   address: string | null
   tags_json: string
+  loyalty_points: number
   created_by_user_id: string | null
   created_at: string
   updated_at: string
@@ -2421,4 +2519,73 @@ export type BoPayStub = {
   qpip_cents: number
   net_pay_cents: number
   created_at: string
+}
+
+export type BoProduct = {
+  id: string
+  organization_id: string
+  name: string
+  sku: string | null
+  barcode: string | null
+  price_cents: number
+  cost_cents: number
+  stock_quantity: number
+  low_stock_threshold: number
+  status: 'active' | 'inactive'
+  created_at: string
+  updated_at: string
+}
+
+export type BoSupplier = {
+  id: string
+  organization_id: string
+  name: string
+  email: string | null
+  phone: string | null
+  notes: string | null
+  created_at: string
+}
+
+export type BoPurchaseOrder = {
+  id: string
+  organization_id: string
+  supplier_id: string
+  status: 'draft' | 'ordered' | 'received'
+  notes: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoPurchaseOrderItem = {
+  id: string
+  purchase_order_id: string
+  product_id: string
+  quantity: number
+  unit_cost_cents: number
+}
+
+export type BoPosSale = {
+  id: string
+  organization_id: string
+  customer_id: string | null
+  subtotal_cents: number
+  tax_cents: number
+  discount_cents: number
+  total_cents: number
+  payment_method: 'cash' | 'card' | 'other'
+  status: 'completed' | 'refunded'
+  loyalty_points_earned: number
+  created_by_user_id: string | null
+  created_at: string
+}
+
+export type BoPosSaleItem = {
+  id: string
+  sale_id: string
+  product_id: string | null
+  description: string
+  quantity: number
+  unit_price_cents: number
+  sort_order: number
 }
