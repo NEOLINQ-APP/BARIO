@@ -73,6 +73,74 @@ export async function sendEmail(to: string, subject: string, html: string) {
   await getResend().emails.send({ from: FROM, to, subject, html })
 }
 
+// Client Requests Portal (AFC Logistics / Sunbuilt Group). Sherwin's own
+// notify address is env-configurable since there's no existing admin-alert
+// convention yet — see TODO.md's "wire admin alert emails" item.
+const ADMIN_NOTIFY_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || 'surewinmendoza.ca@gmail.com'
+
+function formatEta(estimatedCompletionAt: string | Date | null): string {
+  if (!estimatedCompletionAt) return 'to be determined'
+  return new Date(estimatedCompletionAt).toLocaleString('en-US', {
+    timeZone: 'America/Edmonton',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+export async function sendRequestReceivedEmail(
+  to: string,
+  request: { title: string; companyLabel: string; estimatedCompletionAt: string | Date | null; estimateReasoning: string | null }
+) {
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `Request received: ${request.title}`,
+    html: `
+      <p>Hi ${request.companyLabel},</p>
+      <p>We received your request: <strong>${request.title}</strong>.</p>
+      <p>Estimated completion: <strong>${formatEta(request.estimatedCompletionAt)}</strong> (Mountain time).</p>
+      ${request.estimateReasoning ? `<p style="color:#666">${request.estimateReasoning}</p>` : ''}
+      <p>You can track status and add comments anytime from your Bario dashboard's Requests page.</p>
+      <p>Thanks,<br/>Unique Group Inc.</p>
+    `,
+  })
+}
+
+export async function sendRequestStatusEmail(
+  to: string,
+  request: { title: string; companyLabel: string; status: string; note?: string | null; estimatedCompletionAt?: string | Date | null }
+) {
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `Update on your request: ${request.title}`,
+    html: `
+      <p>Hi ${request.companyLabel},</p>
+      <p>Your request <strong>${request.title}</strong> is now: <strong>${request.status.replace('_', ' ')}</strong>.</p>
+      ${request.estimatedCompletionAt ? `<p>Updated estimated completion: <strong>${formatEta(request.estimatedCompletionAt)}</strong> (Mountain time).</p>` : ''}
+      ${request.note ? `<p>${request.note}</p>` : ''}
+      <p>Thanks,<br/>Unique Group Inc.</p>
+    `,
+  })
+}
+
+export async function sendNewRequestAdminAlert(request: { id: string; title: string; companyLabel: string; description: string }) {
+  await getResend().emails.send({
+    from: FROM,
+    to: ADMIN_NOTIFY_EMAIL,
+    subject: `New request from ${request.companyLabel}: ${request.title}`,
+    html: `
+      <p><strong>${request.companyLabel}</strong> submitted a new request:</p>
+      <p><strong>${request.title}</strong></p>
+      <p>${request.description}</p>
+      <p><a href="https://bario.ca/admin/requests">Review in admin panel</a></p>
+    `,
+  })
+}
+
 export async function sendFamilyInviteEmail(to: string, inviterEmail: string, acceptUrl: string) {
   await getResend().emails.send({
     from: FROM,

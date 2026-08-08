@@ -1471,6 +1471,85 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT`
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_payment_intent TEXT`
 
+  // Bario One Phase 5 — Employee Management. user_id is nullable: a
+  // bo_employee is an HR record first (name/pay/documents), independent of
+  // whether that person also has a Bario login — linking user_id is what
+  // additionally lets them clock themselves in/out instead of an
+  // owner/admin doing it on their behalf.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_employees (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      user_id TEXT REFERENCES users(id),
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      position TEXT,
+      pay_type TEXT NOT NULL DEFAULT 'hourly',
+      salary_cents INTEGER,
+      hourly_rate_cents INTEGER,
+      status TEXT NOT NULL DEFAULT 'active',
+      document_urls_json TEXT NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_employees_org_idx ON bo_employees (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_time_entries (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      employee_id TEXT NOT NULL REFERENCES bo_employees(id),
+      clock_in TIMESTAMPTZ NOT NULL,
+      clock_out TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_time_entries_employee_idx ON bo_time_entries (employee_id, clock_in)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_shifts (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      employee_id TEXT NOT NULL REFERENCES bo_employees(id),
+      starts_at TIMESTAMPTZ NOT NULL,
+      ends_at TIMESTAMPTZ NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_shifts_org_idx ON bo_shifts (organization_id, starts_at)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_shifts_employee_idx ON bo_shifts (employee_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_vacation_requests (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      employee_id TEXT NOT NULL REFERENCES bo_employees(id),
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_vacation_requests_employee_idx ON bo_vacation_requests (employee_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_employee_notes (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      employee_id TEXT NOT NULL REFERENCES bo_employees(id),
+      author_user_id TEXT REFERENCES users(id),
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_employee_notes_employee_idx ON bo_employee_notes (employee_id, created_at)`
+
   // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
   // work requests directly and see an AI-estimated ETA computed against the
   // shared open-request queue for both companies. Deliberately separate
@@ -2196,4 +2275,62 @@ export type BoInvoiceItem = {
   quantity: number
   unit_price_cents: number
   sort_order: number
+}
+
+export type BoEmployee = {
+  id: string
+  organization_id: string
+  user_id: string | null
+  name: string
+  email: string | null
+  phone: string | null
+  position: string | null
+  pay_type: 'salary' | 'hourly'
+  salary_cents: number | null
+  hourly_rate_cents: number | null
+  status: 'active' | 'inactive'
+  document_urls_json: string
+  created_at: string
+  updated_at: string
+}
+
+export type BoTimeEntry = {
+  id: string
+  organization_id: string
+  employee_id: string
+  clock_in: string
+  clock_out: string | null
+  created_at: string
+}
+
+export type BoShift = {
+  id: string
+  organization_id: string
+  employee_id: string
+  starts_at: string
+  ends_at: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoVacationRequest = {
+  id: string
+  organization_id: string
+  employee_id: string
+  start_date: string
+  end_date: string
+  status: 'pending' | 'approved' | 'denied'
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoEmployeeNote = {
+  id: string
+  organization_id: string
+  employee_id: string
+  author_user_id: string | null
+  body: string
+  created_at: string
 }

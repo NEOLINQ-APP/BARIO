@@ -23,8 +23,11 @@ const NAV_ITEMS = [
   { href: '/dashboard/account', label: 'Account', icon: '⚙️' },
 ]
 
-export default function AccountSidebar({ email, isAdmin }: { email: string; isAdmin: boolean }) {
+export default function AccountSidebar({ email, isAdmin, clientCompanyLabel }: { email: string; isAdmin: boolean; clientCompanyLabel?: string | null }) {
   const pathname = usePathname()
+  const navItems = clientCompanyLabel
+    ? [...NAV_ITEMS.slice(0, 1), { href: '/dashboard/requests', label: 'Requests', icon: '📋' }, ...NAV_ITEMS.slice(1)]
+    : NAV_ITEMS
 
   return (
     <aside className="w-full md:w-60 md:min-h-screen md:border-r border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0b111c] px-4 py-6 flex md:flex-col gap-1 md:sticky md:top-0">
@@ -38,7 +41,7 @@ export default function AccountSidebar({ email, isAdmin }: { email: string; isAd
       </div>
 
       <nav className="flex md:flex-col gap-1 flex-1 overflow-x-auto md:overflow-visible">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
           return (
             <a

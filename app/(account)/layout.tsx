@@ -21,9 +21,12 @@ export default async function AccountLayout({ children }: { children: React.Reac
   const user = rows[0]
   if (!user) redirect('/login')
 
+  const clientCompanyRows = (await sql`SELECT company_label FROM client_companies WHERE user_id = ${session.userId}`) as unknown as { company_label: string }[]
+  const clientCompanyLabel = clientCompanyRows[0]?.company_label ?? null
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#0b111c] flex flex-col md:flex-row">
-      <AccountSidebar email={user.email} isAdmin={user.is_admin} />
+      <AccountSidebar email={user.email} isAdmin={user.is_admin} clientCompanyLabel={clientCompanyLabel} />
       <div className="flex-1 min-w-0">{children}</div>
       <PromoPopup isPaid={hasPaidPlan(user)} />
     </div>

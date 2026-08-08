@@ -45,6 +45,10 @@ export default function AdminHome() {
             <div className="font-semibold">Bario Dialer 📞</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Installable per-business apps — real calls as AFC Logistics, Sunbuilt Group, or Unique Group Inc. Separate installable link per business: /admin/dialer/afc, /sunbuilt, /unique.</p>
           </a>
+          <a href="/admin/requests" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Client Requests 📋</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">AFC Logistics / Sunbuilt Group request queue — AI-estimated ETAs, status, and the full comment log.</p>
+          </a>
           <a href="/admin/collections" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Payment Collections</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">3-strike reminder/lockout flow for sites live before payment is received.</p>
@@ -80,6 +84,10 @@ export default function AdminHome() {
           <a href="/admin/voice-agent" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Voice Agent Orders 📞</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Customer-ordered AI phone answering — review paid orders, assign a real Twilio number, hit Build to activate.</p>
+          </a>
+          <a href="/admin/client-crms" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Client CRMs 🔑</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every Twenty CRM workspace provisioned for a client — open it directly or reveal its login, no digging for credentials.</p>
           </a>
           <a href="/admin/ai-integrations" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">AI Integrations & Domains</div>

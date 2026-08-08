@@ -7,8 +7,17 @@ desktop does — it won't have the prior conversation transcript, but it will
 know what's built, why, and what's next.
 
 **Also check `TODO.md`** in this same directory — that's the live, user-editable
-cross-session task tracker. This file explains *how things work*; TODO.md
-tracks *what's currently in progress or blocked*.
+cross-session task tracker for BARIO's own engineering work. This file
+explains *how things work*; TODO.md tracks *what's currently in progress or
+blocked*.
+
+**Also check `SUNBUILT_TODO.md` and `AFC_TODO.md`** — separate per-client task
+lists for sunbuiltgroup.com and afclogistics.ca (marketing/leads/ops, not
+BARIO engineering). Same live/user-editable convention as TODO.md, with one
+extra rule: always get explicit approval before taking any real-world action
+from these lists (sending an email, posting to social, anything that spends
+money or is visible outside this session) — describe exactly what you're
+about to do, wait for a go-ahead, then proceed and check the item off.
 
 ## What Bario is
 
