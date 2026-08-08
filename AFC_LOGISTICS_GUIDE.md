@@ -43,6 +43,15 @@ Added 2026-08-07 — create, edit, and email invoices, not just auto-generate + 
 
 ---
 
+## Driver ↔ Customer messaging & contact (admin-gated)
+
+Added 2026-08-07. Every job has one message thread, but a driver and customer **can't message or call each other directly until dispatch approves contact** on that specific job:
+- **Messages button** (driver job cards, customer's shipment list, admin's All Jobs table) opens a shared thread — polls every 5s while open. Staff can always read/post; driver and client are blocked from posting to each other with a clear error until approved (they can still message staff-side... actually no, this thread is shared with staff too, so posting always reaches dispatch's view — the gate specifically blocks driver/client from posting **at all** pre-approval, matching the "no direct contact before approval" requirement. If you want a staff-always-open channel separate from the gated one, that's not built — flag it if needed).
+- **Approve Contact** button (admin, All Jobs table, "Contact" column) — only enabled once a job has both a driver and a client. Once pressed: the driver's job card gets real Call/Text buttons for the customer's phone, and the customer's shipment card gets real Call/Text buttons for the driver's phone. Before that, both sides see "pending dispatch approval" instead of a number.
+- Customer phone numbers only exist if they signed up **after** 2026-08-07 (phone field was missing from signup before that) or if you add one manually — there's no admin "edit customer phone" tool yet, so an older account without one won't have calling enabled until they re-enter it somewhere (not built) or you add a DB update.
+
+---
+
 ## Receiving texts on the AFC number (780-977-8865 / +18253607175)
 
 Fixed 2026-08-07: the Twilio number backing 780-977-8865 had no SMS webhook configured at all — any text sent to it (including verification codes) was silently dropped, never reaching anyone. Now wired to `https://www.bario.ca/api/twilio/business-sms`, which relays the raw text to 780-977-8865 as a real forwarded SMS.
