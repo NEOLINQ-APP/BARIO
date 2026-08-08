@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
+import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
@@ -21,7 +22,9 @@ export async function GET(req: Request) {
         `) as unknown as BoCustomer[])
       : ((await sql`SELECT * FROM bo_customers WHERE organization_id = ${org.id} ORDER BY created_at DESC`) as unknown as BoCustomer[])
 
-    return NextResponse.json({ customers: rows.map((c) => ({ ...c, tags: JSON.parse(c.tags_json) })) })
+    return NextResponse.json({
+      customers: rows.map((c) => ({ ...c, tags: JSON.parse(c.tags_json), customFields: JSON.parse(c.custom_fields_json) })),
+    })
   } catch (err: any) {
     return errorResponse(err)
   }
@@ -33,17 +36,18 @@ export async function POST(req: Request) {
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 
-    const { companyName, contactName, phone, email, address, notes, tags } = await req.json()
+    const { companyName, contactName, phone, email, address, notes, tags, customFields } = await req.json()
     if (typeof contactName !== 'string' || !contactName.trim()) {
       return NextResponse.json({ error: 'Contact name is required' }, { status: 400 })
     }
 
     const id = randomUUID()
     const tagsJson = JSON.stringify(Array.isArray(tags) ? tags.filter((t) => typeof t === 'string') : [])
+    const customFieldsJson = await mergeCustomFieldValues(sql, org.id, 'customer', '{}', customFields)
 
     await sql`
-      INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, address, tags_json, created_by_user_id)
-      VALUES (${id}, ${org.id}, ${companyName || null}, ${contactName.trim()}, ${phone || null}, ${email || null}, ${address || null}, ${tagsJson}, ${user.id})
+      INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, address, tags_json, custom_fields_json, created_by_user_id)
+      VALUES (${id}, ${org.id}, ${companyName || null}, ${contactName.trim()}, ${phone || null}, ${email || null}, ${address || null}, ${tagsJson}, ${customFieldsJson}, ${user.id})
     `
     if (typeof notes === 'string' && notes.trim()) {
       await sql`

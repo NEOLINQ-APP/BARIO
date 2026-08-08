@@ -1410,6 +1410,28 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_notes_customer_idx ON bo_notes (customer_id, created_at)`
 
+  // Bario One — CRM custom fields (per-org field definitions, attachable to
+  // customers and/or deals). Values live as a JSON map on the entity row
+  // itself (custom_fields_json, keyed by field id) rather than a separate
+  // EAV values table — matches this codebase's existing tags_json convention
+  // and avoids an extra join on every list/detail read.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_custom_fields (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      entity_type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'text',
+      options_json TEXT NOT NULL DEFAULT '[]',
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_custom_fields_org_idx ON bo_custom_fields (organization_id, entity_type)`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS custom_fields_json TEXT NOT NULL DEFAULT '{}'`
+  await sql`ALTER TABLE bo_deals ADD COLUMN IF NOT EXISTS custom_fields_json TEXT NOT NULL DEFAULT '{}'`
+
   // Bario One Phase 3 — Bario Invoice. The issuing business's own info
   // (shown on every invoice/quote/estimate it sends) lives on the org
   // itself, not duplicated per-document.
@@ -2402,6 +2424,7 @@ export type BoCustomer = {
   address: string | null
   tags_json: string
   loyalty_points: number
+  custom_fields_json: string
   created_by_user_id: string | null
   created_at: string
   updated_at: string
@@ -2418,7 +2441,23 @@ export type BoDeal = {
   value_cents: number
   expected_close_date: string | null
   notes: string | null
+  custom_fields_json: string
   created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoCustomFieldEntity = 'customer' | 'deal'
+export type BoCustomFieldType = 'text' | 'number' | 'date' | 'select' | 'checkbox'
+
+export type BoCustomField = {
+  id: string
+  organization_id: string
+  entity_type: BoCustomFieldEntity
+  name: string
+  field_type: BoCustomFieldType
+  options_json: string
+  position: number
   created_at: string
   updated_at: string
 }

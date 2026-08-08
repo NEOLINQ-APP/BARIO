@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import BarioOneCustomFieldInputs from './BarioOneCustomFieldInputs'
+
+type FieldDef = { id: string; name: string; field_type: 'text' | 'number' | 'date' | 'select' | 'checkbox'; options: string[] }
 
 type Data = {
-  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[] }
+  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[]; customFields: Record<string, unknown> }
   deals: { id: string; title: string; stage: string; value_cents: number }[]
   tasks: { id: string; title: string; status: string; due_at: string | null }[]
   notes: { id: string; kind: 'note' | 'email' | 'sms'; body: string; created_at: string; author_email: string | null }[]
+  customFieldDefs: FieldDef[]
 } | null
 
 const KIND_LABEL: Record<string, string> = { note: '📝 Note', email: '📧 Email', sms: '💬 SMS' }
@@ -96,7 +100,16 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
   if (data === undefined) return <p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>
   if (!data) return <p className="text-sm text-red-500 dark:text-red-400">Customer not found.</p>
 
-  const { customer, deals, tasks, notes } = data
+  const { customer, deals, tasks, notes, customFieldDefs } = data
+
+  async function saveCustomField(fieldId: string, value: unknown) {
+    setData((prev) => (prev ? { ...prev, customer: { ...prev.customer, customFields: { ...prev.customer.customFields, [fieldId]: value } } } : prev))
+    await fetch(`/api/bario-one/crm/customers/${customerId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ customFields: { [fieldId]: value } }),
+    })
+  }
 
   return (
     <div className="grid md:grid-cols-[1fr_360px] gap-6">
@@ -130,6 +143,13 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
             <p>📍 {customer.address || '—'}</p>
           </div>
         </div>
+
+        {customFieldDefs.length > 0 && (
+          <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
+            <p className="text-sm font-semibold mb-2">Custom fields</p>
+            <BarioOneCustomFieldInputs fields={customFieldDefs} values={customer.customFields} onChange={saveCustomField} />
+          </div>
+        )}
 
         <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
           <p className="text-sm font-semibold mb-2">Deals</p>

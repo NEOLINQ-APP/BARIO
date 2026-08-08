@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBoMembership } from '@/lib/barioOne'
-import type { BoCustomer, BoDeal, BoTask, BoNote } from '@/lib/db'
+import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
+import type { BoCustomer, BoCustomField, BoDeal, BoTask, BoNote } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -28,11 +29,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       ORDER BY n.created_at DESC
     `) as unknown as (BoNote & { author_email: string | null })[]
 
+    const customFieldDefs = (await sql`
+      SELECT * FROM bo_custom_fields WHERE organization_id = ${org.id} AND entity_type = 'customer' ORDER BY position ASC, created_at ASC
+    `) as unknown as BoCustomField[]
+
     return NextResponse.json({
-      customer: { ...customer, tags: JSON.parse(customer.tags_json) },
+      customer: { ...customer, tags: JSON.parse(customer.tags_json), customFields: JSON.parse(customer.custom_fields_json) },
       deals,
       tasks,
       notes,
+      customFieldDefs: customFieldDefs.map((f) => ({ ...f, options: JSON.parse(f.options_json) })),
     })
   } catch (err: any) {
     return errorResponse(err)
@@ -45,9 +51,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
-    const { companyName, contactName, phone, email, address, tags } = await req.json()
-    const existing = (await sql`SELECT id FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown[]
+    const { companyName, contactName, phone, email, address, tags, customFields } = await req.json()
+    const existing = (await sql`SELECT id, custom_fields_json FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown as { id: string; custom_fields_json: string }[]
     if (existing.length === 0) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+
+    const customFieldsJson = await mergeCustomFieldValues(sql, org.id, 'customer', existing[0].custom_fields_json, customFields)
 
     await sql`
       UPDATE bo_customers SET
@@ -57,6 +65,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         email = ${email ?? null},
         address = ${address ?? null},
         tags_json = ${JSON.stringify(Array.isArray(tags) ? tags.filter((t: any) => typeof t === 'string') : [])},
+        custom_fields_json = ${customFieldsJson},
         updated_at = now()
       WHERE id = ${params.id} AND organization_id = ${org.id}
     `
