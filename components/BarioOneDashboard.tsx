@@ -21,7 +21,7 @@ const MODULES = [
   { icon: '🇨🇦', name: 'Payroll', href: '/dashboard/bario-one/payroll' },
   { icon: '🛒', name: 'POS', href: '/dashboard/bario-one/pos' },
   { icon: '📦', name: 'Inventory', href: '/dashboard/bario-one/pos/products' },
-  { icon: '🤖', name: 'AI Assistant', href: null },
+  { icon: '🤖', name: 'AI Assistant', href: '/dashboard/bario-one/assistant' },
 ]
 
 function OnboardingCard() {

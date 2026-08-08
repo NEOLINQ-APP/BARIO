@@ -1,0 +1,236 @@
+import { randomUUID } from 'node:crypto'
+import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioOneInvoices'
+import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
+
+function invoiceTotalCents(invoice: BoInvoice, items: BoInvoiceItem[]): number {
+  return computeTotals(
+    items.map((i) => ({ description: i.description, quantity: Number(i.quantity), unitPriceCents: i.unit_price_cents })),
+    Number(invoice.tax_percent),
+    { type: invoice.discount_type, value: Number(invoice.discount_value) }
+  ).totalCents
+}
+
+// Bario AI's tool list — same safety principle as the platform's own
+// admin assistant (lib/adminAssistantTools.ts): the tool list itself is
+// the real security boundary, not a prompt instruction. Nothing here can
+// send money, mark something paid, delete data, or process a refund —
+// those simply don't exist as callable functions. The two write actions
+// (create_invoice, schedule_shift) mirror the exact two write-capable
+// example prompts in the approved spec ("Create an invoice for John
+// Smith", "Schedule employees next week"), both scoped to creating new
+// draft/pending records only, never modifying money already in motion.
+
+export const BARIO_ONE_ASSISTANT_TOOLS = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'who_owes_money',
+      description: 'List customers with unpaid (sent or overdue) invoices, with amounts and due dates.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'sales_this_month',
+      description: 'Get total POS sales and invoice payments received so far this calendar month.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_top_customers',
+      description: 'Find the top customers by total revenue (paid invoices + POS sales).',
+      parameters: {
+        type: 'object',
+        properties: { limit: { type: 'number', description: 'How many to return, default 5' } },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_low_stock_products',
+      description: 'List products at or below their low-stock threshold.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_invoice',
+      description: 'Create a new DRAFT invoice for a customer (matched by name). Never sends or charges it — the business still reviews and sends it themselves.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customerName: { type: 'string', description: "The customer's name or company name — matched fuzzily against existing customers" },
+          lineItems: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                description: { type: 'string' },
+                quantity: { type: 'number' },
+                unitPriceDollars: { type: 'number' },
+              },
+              required: ['description', 'quantity', 'unitPriceDollars'],
+            },
+          },
+          notes: { type: 'string' },
+        },
+        required: ['customerName', 'lineItems'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'schedule_shift',
+      description: 'Schedule a work shift for an employee (matched by name).',
+      parameters: {
+        type: 'object',
+        properties: {
+          employeeName: { type: 'string' },
+          startsAt: { type: 'string', description: 'ISO 8601 datetime for shift start' },
+          endsAt: { type: 'string', description: 'ISO 8601 datetime for shift end' },
+        },
+        required: ['employeeName', 'startsAt', 'endsAt'],
+      },
+    },
+  },
+]
+
+async function findCustomerByName(sql: any, orgId: string, name: string) {
+  const rows = (await sql`
+    SELECT * FROM bo_customers
+    WHERE organization_id = ${orgId} AND (contact_name ILIKE ${'%' + name + '%'} OR company_name ILIKE ${'%' + name + '%'})
+    LIMIT 1
+  `) as unknown as { id: string; contact_name: string; company_name: string | null }[]
+  return rows[0] ?? null
+}
+
+async function findEmployeeByName(sql: any, orgId: string, name: string) {
+  const rows = (await sql`SELECT * FROM bo_employees WHERE organization_id = ${orgId} AND name ILIKE ${'%' + name + '%'} LIMIT 1`) as unknown as { id: string; name: string }[]
+  return rows[0] ?? null
+}
+
+export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization, name: string, args: any): Promise<unknown> {
+  switch (name) {
+    case 'who_owes_money': {
+      const invoices = (await sql`
+        SELECT i.*, c.contact_name, c.company_name FROM bo_invoices i
+        JOIN bo_customers c ON c.id = i.customer_id
+        WHERE i.organization_id = ${org.id} AND i.type = 'invoice' AND i.status IN ('sent', 'overdue')
+        ORDER BY i.due_date ASC NULLS LAST
+      `) as unknown as (BoInvoice & { contact_name: string; company_name: string | null })[]
+
+      const results = []
+      for (const inv of invoices) {
+        const items = (await sql`SELECT * FROM bo_invoice_items WHERE invoice_id = ${inv.id}`) as unknown as BoInvoiceItem[]
+        results.push({
+          customer: inv.company_name || inv.contact_name,
+          invoiceNumber: inv.number,
+          amountOwedCents: invoiceTotalCents(inv, items),
+          dueDate: inv.due_date,
+          status: inv.status,
+        })
+      }
+      return { invoices: results }
+    }
+    case 'sales_this_month': {
+      const posRows = (await sql`
+        SELECT COALESCE(SUM(total_cents), 0)::bigint as total_cents, COUNT(*)::int as count
+        FROM bo_pos_sales WHERE organization_id = ${org.id} AND status = 'completed' AND created_at >= date_trunc('month', now())
+      `) as unknown as { total_cents: number; count: number }[]
+
+      const paidInvoices = (await sql`
+        SELECT * FROM bo_invoices WHERE organization_id = ${org.id} AND status = 'paid' AND paid_at >= date_trunc('month', now())
+      `) as unknown as BoInvoice[]
+      let invoicesPaidCents = 0
+      for (const inv of paidInvoices) {
+        const items = (await sql`SELECT * FROM bo_invoice_items WHERE invoice_id = ${inv.id}`) as unknown as BoInvoiceItem[]
+        invoicesPaidCents += invoiceTotalCents(inv, items)
+      }
+
+      return {
+        posSalesCents: Number(posRows[0]?.total_cents ?? 0),
+        posSalesCount: posRows[0]?.count ?? 0,
+        invoicesPaidCents,
+      }
+    }
+    case 'find_top_customers': {
+      const limit = Number.isFinite(args.limit) ? Math.min(Math.max(Math.round(args.limit), 1), 20) : 5
+
+      const customers = (await sql`SELECT * FROM bo_customers WHERE organization_id = ${org.id}`) as unknown as { id: string; contact_name: string; company_name: string | null }[]
+      const posTotals = (await sql`
+        SELECT customer_id, SUM(total_cents)::bigint as total FROM bo_pos_sales
+        WHERE organization_id = ${org.id} AND status = 'completed' AND customer_id IS NOT NULL
+        GROUP BY customer_id
+      `) as unknown as { customer_id: string; total: number }[]
+      const posMap = new Map(posTotals.map((r) => [r.customer_id, Number(r.total)]))
+
+      const paidInvoices = (await sql`SELECT * FROM bo_invoices WHERE organization_id = ${org.id} AND status = 'paid'`) as unknown as BoInvoice[]
+      const invoiceRevenueByCustomer = new Map<string, number>()
+      for (const inv of paidInvoices) {
+        const items = (await sql`SELECT * FROM bo_invoice_items WHERE invoice_id = ${inv.id}`) as unknown as BoInvoiceItem[]
+        invoiceRevenueByCustomer.set(inv.customer_id, (invoiceRevenueByCustomer.get(inv.customer_id) ?? 0) + invoiceTotalCents(inv, items))
+      }
+
+      const ranked = customers
+        .map((c) => ({
+          customer: c.company_name || c.contact_name,
+          revenueCents: (posMap.get(c.id) ?? 0) + (invoiceRevenueByCustomer.get(c.id) ?? 0),
+        }))
+        .filter((c) => c.revenueCents > 0)
+        .sort((a, b) => b.revenueCents - a.revenueCents)
+        .slice(0, limit)
+
+      return { customers: ranked }
+    }
+    case 'list_low_stock_products': {
+      const rows = await sql`
+        SELECT name, sku, stock_quantity, low_stock_threshold FROM bo_products
+        WHERE organization_id = ${org.id} AND stock_quantity <= low_stock_threshold AND status = 'active'
+        ORDER BY stock_quantity ASC
+      `
+      return { products: rows }
+    }
+    case 'create_invoice': {
+      const customer = await findCustomerByName(sql, org.id, String(args.customerName || ''))
+      if (!customer) return { error: `No customer found matching "${args.customerName}"` }
+      const items = Array.isArray(args.lineItems) ? args.lineItems : []
+      if (items.length === 0) return { error: 'At least one line item is required' }
+
+      const id = randomUUID()
+      const number = await nextBoInvoiceNumber(sql, org.id, 'invoice')
+      const publicToken = newPublicToken()
+      await sql`
+        INSERT INTO bo_invoices (id, organization_id, customer_id, type, number, public_token, notes)
+        VALUES (${id}, ${org.id}, ${customer.id}, 'invoice', ${number}, ${publicToken}, ${args.notes || null})
+      `
+      let sortOrder = 0
+      for (const item of items) {
+        await sql`
+          INSERT INTO bo_invoice_items (id, invoice_id, description, quantity, unit_price_cents, sort_order)
+          VALUES (${randomUUID()}, ${id}, ${String(item.description).slice(0, 200)}, ${Number(item.quantity) || 1}, ${Math.round((Number(item.unitPriceDollars) || 0) * 100)}, ${sortOrder++})
+        `
+      }
+      return { ok: true, invoiceId: id, invoiceNumber: number, customer: customer.company_name || customer.contact_name }
+    }
+    case 'schedule_shift': {
+      const employee = await findEmployeeByName(sql, org.id, String(args.employeeName || ''))
+      if (!employee) return { error: `No employee found matching "${args.employeeName}"` }
+      if (!args.startsAt || !args.endsAt) return { error: 'startsAt and endsAt are required' }
+      if (new Date(args.endsAt) <= new Date(args.startsAt)) return { error: 'End time must be after start time' }
+
+      await sql`
+        INSERT INTO bo_shifts (id, organization_id, employee_id, starts_at, ends_at)
+        VALUES (${randomUUID()}, ${org.id}, ${employee.id}, ${args.startsAt}, ${args.endsAt})
+      `
+      return { ok: true, employee: employee.name, startsAt: args.startsAt, endsAt: args.endsAt }
+    }
+    default:
+      return { error: `Unknown tool: ${name}` }
+  }
+}
