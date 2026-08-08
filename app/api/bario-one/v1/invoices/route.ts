@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoApiKey } from '@/lib/barioOneApiAuth'
 import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioOneInvoices'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoInvoice, BoInvoiceItem } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -73,6 +74,8 @@ export async function POST(req: Request) {
         VALUES (${randomUUID()}, ${id}, ${String(item.description).slice(0, 200)}, ${Number(item.quantity) || 1}, ${Math.round(Number(item.unitPriceCents) || 0)}, ${sortOrder++})
       `
     }
+    await triggerWebhooks(sql, org.id, 'invoice.created', { invoiceId: id, number, customerId })
+
     return NextResponse.json({ ok: true, id, number, publicUrl: `https://www.bario.ca/bo-invoice/${publicToken}` })
   } catch (err: any) {
     return errorResponse(err)

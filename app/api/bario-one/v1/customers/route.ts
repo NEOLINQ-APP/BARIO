@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoApiKey } from '@/lib/barioOneApiAuth'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -44,6 +45,8 @@ export async function POST(req: Request) {
       INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, address)
       VALUES (${id}, ${org.id}, ${body.companyName || null}, ${contactName}, ${body.phone || null}, ${body.email || null}, ${body.address || null})
     `
+    await triggerWebhooks(sql, org.id, 'customer.created', { customerId: id, contactName })
+
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     return errorResponse(err)

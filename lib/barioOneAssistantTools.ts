@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioOneInvoices'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 function invoiceTotalCents(invoice: BoInvoice, items: BoInvoiceItem[]): number {
@@ -216,6 +217,7 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
           VALUES (${randomUUID()}, ${id}, ${String(item.description).slice(0, 200)}, ${Number(item.quantity) || 1}, ${Math.round((Number(item.unitPriceDollars) || 0) * 100)}, ${sortOrder++})
         `
       }
+      await triggerWebhooks(sql, org.id, 'invoice.created', { invoiceId: id, number, customerId: customer.id })
       return { ok: true, invoiceId: id, invoiceNumber: number, customer: customer.company_name || customer.contact_name }
     }
     case 'schedule_shift': {
@@ -224,10 +226,12 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       if (!args.startsAt || !args.endsAt) return { error: 'startsAt and endsAt are required' }
       if (new Date(args.endsAt) <= new Date(args.startsAt)) return { error: 'End time must be after start time' }
 
+      const shiftId = randomUUID()
       await sql`
         INSERT INTO bo_shifts (id, organization_id, employee_id, starts_at, ends_at)
-        VALUES (${randomUUID()}, ${org.id}, ${employee.id}, ${args.startsAt}, ${args.endsAt})
+        VALUES (${shiftId}, ${org.id}, ${employee.id}, ${args.startsAt}, ${args.endsAt})
       `
+      await triggerWebhooks(sql, org.id, 'shift.scheduled', { shiftId, employeeId: employee.id, startsAt: args.startsAt, endsAt: args.endsAt })
       return { ok: true, employee: employee.name, startsAt: args.startsAt, endsAt: args.endsAt }
     }
     default:

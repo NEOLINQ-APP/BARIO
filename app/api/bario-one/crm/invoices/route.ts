@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
 import { nextBoInvoiceNumber, newPublicToken } from '@/lib/barioOneInvoices'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoInvoice, BoInvoiceType } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -94,6 +95,10 @@ export async function POST(req: Request) {
         `
       }
     })
+
+    if (docType === 'invoice') {
+      await triggerWebhooks(sql, org.id, 'invoice.created', { invoiceId: id, number, customerId })
+    }
 
     return NextResponse.json({ ok: true, id, number })
   } catch (err: any) {

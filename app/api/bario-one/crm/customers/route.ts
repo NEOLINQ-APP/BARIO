@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -50,6 +51,8 @@ export async function POST(req: Request) {
         VALUES (${randomUUID()}, ${org.id}, ${id}, ${user.id}, 'note', ${notes.trim()})
       `
     }
+
+    await triggerWebhooks(sql, org.id, 'customer.created', { customerId: id, contactName: contactName.trim() })
 
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {

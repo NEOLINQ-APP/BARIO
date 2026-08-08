@@ -1,4 +1,5 @@
 import { getStripe } from '@/lib/stripe'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 // Bario's own cut of every payment collected through a tenant's connected
@@ -144,5 +145,6 @@ export async function confirmBoInvoicePayment(sql: any, org: BoOrganization, inv
       stripe_payment_intent = ${String(session.payment_intent ?? '')}, updated_at = now()
     WHERE id = ${invoice.id} AND status != 'paid'
   `
+  await triggerWebhooks(sql, org.id, 'invoice.paid', { invoiceId: invoice.id, number: invoice.number, customerId: invoice.customer_id })
   return true
 }

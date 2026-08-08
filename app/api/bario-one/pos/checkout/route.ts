@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
 import { computeSaleTotals, loyaltyPointsForTotal, type SaleLineInput } from '@/lib/barioOnePos'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoProduct } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
 
     const saleId = randomUUID()
     let resolvedItems: (SaleLineInput & { productId?: string })[] = []
+    let finalTotalCents = 0
 
     try {
       await sql.begin(async (tx: any) => {
@@ -51,6 +53,7 @@ export async function POST(req: Request) {
 
         const totals = computeSaleTotals(resolvedItems, Number(taxPercent) || 0, Number(discountCents) || 0)
         const loyaltyPoints = customerId ? loyaltyPointsForTotal(totals.totalCents) : 0
+        finalTotalCents = totals.totalCents
 
         await tx`
           INSERT INTO bo_pos_sales (id, organization_id, customer_id, subtotal_cents, tax_cents, discount_cents, total_cents, payment_method, loyalty_points_earned, created_by_user_id)
@@ -70,6 +73,8 @@ export async function POST(req: Request) {
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Checkout failed' }, { status: 400 })
     }
+
+    await triggerWebhooks(sql, org.id, 'pos_sale.completed', { saleId, totalCents: finalTotalCents, customerId: customerId || null })
 
     return NextResponse.json({ ok: true, id: saleId })
   } catch (err: any) {

@@ -1721,6 +1721,42 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_api_keys_org_idx ON bo_api_keys (organization_id)`
 
+  // Bario One Phase 9 (finish) — outbound webhooks. This is the real,
+  // buildable half of "Marketplace integrations": it connects Bario One to
+  // Zapier/Make/n8n/literally-anything without Bario needing individual
+  // developer-app approval from every provider (QuickBooks/Shopify each
+  // require a real review process that can't be completed unilaterally —
+  // see bario_one_platform memory). event_types_json is an array of
+  // subscribed event names (e.g. ["invoice.paid","customer.created"]).
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_webhooks (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      url TEXT NOT NULL,
+      event_types_json TEXT NOT NULL DEFAULT '[]',
+      secret TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_webhooks_org_idx ON bo_webhooks (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_webhook_deliveries (
+      id TEXT PRIMARY KEY,
+      webhook_id TEXT NOT NULL REFERENCES bo_webhooks(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      response_status INTEGER,
+      success BOOLEAN NOT NULL DEFAULT false,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_webhook_deliveries_webhook_idx ON bo_webhook_deliveries (webhook_id, created_at)`
+
   // Client Requests Portal — lets AFC Logistics and Sunbuilt Group submit
   // work requests directly and see an AI-estimated ETA computed against the
   // shared open-request queue for both companies. Deliberately separate
@@ -2622,4 +2658,29 @@ export type BoApiKey = {
   created_at: string
   last_used_at: string | null
   revoked_at: string | null
+}
+
+export type BoWebhookEvent = 'invoice.created' | 'invoice.sent' | 'invoice.paid' | 'customer.created' | 'pos_sale.completed' | 'shift.scheduled'
+
+export type BoWebhook = {
+  id: string
+  organization_id: string
+  url: string
+  event_types_json: string
+  secret: string
+  status: 'active' | 'disabled'
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoWebhookDelivery = {
+  id: string
+  webhook_id: string
+  event_type: string
+  payload_json: string
+  response_status: number | null
+  success: boolean
+  error: string | null
+  created_at: string
 }

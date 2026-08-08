@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import BarioOneApiKeys from '@/components/BarioOneApiKeys'
+import BarioOneWebhooks from '@/components/BarioOneWebhooks'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,9 @@ export default async function BarioOneApiPage() {
         </a>
         <h1 className="text-2xl font-bold mt-3 mb-6">Flo API</h1>
         <BarioOneApiKeys />
+
+        <h2 className="text-xl font-bold mt-10 mb-4">Integrations</h2>
+        <BarioOneWebhooks />
       </div>
     </main>
   )

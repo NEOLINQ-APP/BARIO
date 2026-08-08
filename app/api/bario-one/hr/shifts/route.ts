@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoShift } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -45,6 +46,8 @@ export async function POST(req: Request) {
       INSERT INTO bo_shifts (id, organization_id, employee_id, starts_at, ends_at, notes)
       VALUES (${id}, ${org.id}, ${employeeId}, ${startsAt}, ${endsAt}, ${notes || null})
     `
+    await triggerWebhooks(sql, org.id, 'shift.scheduled', { shiftId: id, employeeId, startsAt, endsAt })
+
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     return errorResponse(err)
