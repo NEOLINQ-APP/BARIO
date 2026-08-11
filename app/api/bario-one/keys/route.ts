@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { createBoApiKey, listBoApiKeys, revokeBoApiKey } from '@/lib/barioOneApiKeys'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -28,7 +28,7 @@ export async function GET() {
 // decision, not a day-to-day admin task.
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, user, org, membership } = auth
     if (membership.role !== 'owner') {
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role !== 'owner') {

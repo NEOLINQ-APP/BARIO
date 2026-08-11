@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/errors'
 
 export async function GET(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 

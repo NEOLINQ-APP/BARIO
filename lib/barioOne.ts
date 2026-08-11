@@ -3,6 +3,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User, type BoOrganization, type BoMembership, type BoPlan } from '@/lib/db'
 import { BO_PLANS } from '@/lib/barioOneTiers'
+import { BO_MODULES, ensureModulesForOrg, getEnabledModules, hasModule, seatLimitForModules, type BoModuleKey } from '@/lib/barioOneModules'
 import { sendEmail } from '@/lib/email'
 
 function slugify(name: string): string {
@@ -98,8 +99,8 @@ export async function listOrgMembers(sql: any, organizationId: string): Promise<
   `) as unknown as (BoMembership & { email: string | null })[]
 }
 
-function seatCount(plan: BoPlan): number | null {
-  return BO_PLANS[plan].seatLimit
+function seatCount(org: BoOrganization): number | null {
+  return seatLimitForModules(getEnabledModules(org))
 }
 
 // Invites a teammate by email — if they already have a Bario account, this
@@ -116,17 +117,18 @@ export async function inviteMember(
   const normalizedEmail = email.trim().toLowerCase()
 
   const orgRows = (await sql`SELECT * FROM bo_organizations WHERE id = ${organizationId}`) as unknown as BoOrganization[]
-  const org = orgRows[0]
+  let org = orgRows[0]
   if (!org) return { ok: false, error: 'Organization not found' }
+  org = await ensureModulesForOrg(sql, org)
 
-  const limit = seatCount(org.plan)
+  const limit = seatCount(org)
   if (limit !== null) {
     const countRows = (await sql`
       SELECT count(*)::int as count FROM bo_memberships
       WHERE organization_id = ${organizationId} AND status IN ('active', 'invited')
     `) as unknown as { count: number }[]
     if ((countRows[0]?.count ?? 0) >= limit) {
-      return { ok: false, error: `The ${org.plan} plan is limited to ${limit} users — upgrade your plan to invite more.` }
+      return { ok: false, error: `Your current modules are limited to ${limit} users — enable another module to add more seats.` }
     }
   }
 
@@ -199,4 +201,29 @@ export async function requireBoMembership(): Promise<
   if (!found) return NextResponse.json({ error: 'Set up Bario One for your business first' }, { status: 404 })
 
   return { sql, user, org: found.org, membership: found.membership }
+}
+
+// Module-gated variant of requireBoMembership() — every route for a paid
+// module (CRM, Invoicing, Payments, Employees, Payroll, POS, AI Assistant,
+// API & Integrations) calls this instead, with its module key. Same return
+// shape, so the call-site idiom (`if (auth instanceof NextResponse) return
+// auth`) never changes at the ~60 call sites — only which guard function is
+// called. Lazily backfills enabled_modules_json on first touch (see
+// ensureModulesForOrg) so a pre-existing org's access doesn't change on the
+// day this system rolled out.
+export async function requireBoModule(
+  moduleKey: BoModuleKey
+): Promise<{ sql: any; user: User; org: BoOrganization; membership: BoMembership } | NextResponse> {
+  const auth = await requireBoMembership()
+  if (auth instanceof NextResponse) return auth
+
+  const org = await ensureModulesForOrg(auth.sql, auth.org)
+  if (!hasModule(org, moduleKey)) {
+    return NextResponse.json(
+      { error: 'module_not_enabled', moduleKey, moduleName: BO_MODULES[moduleKey].name },
+      { status: 403 }
+    )
+  }
+
+  return { ...auth, org }
 }

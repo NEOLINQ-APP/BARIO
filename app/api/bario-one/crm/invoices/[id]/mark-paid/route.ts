@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { runAutomations } from '@/lib/barioOneAutomations'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { errorResponse } from '@/lib/errors'
@@ -12,7 +12,7 @@ import { errorResponse } from '@/lib/errors'
 // stand-in for the real thing.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 

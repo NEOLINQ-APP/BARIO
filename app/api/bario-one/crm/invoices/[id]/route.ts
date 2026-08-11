@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { computeTotals } from '@/lib/barioOneInvoices'
 import type { BoInvoice, BoInvoiceItem, BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -73,7 +73,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

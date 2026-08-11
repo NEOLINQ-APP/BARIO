@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { getOpenAI } from '@/lib/openai'
 import { BARIO_ONE_ASSISTANT_TOOLS, executeBarioOneAssistantTool } from '@/lib/barioOneAssistantTools'
 import { errorResponse } from '@/lib/errors'
 
 // "Bario AI" — the Module 8 business assistant, scoped to the caller's own
-// organization via requireBoMembership() same as every other Bario One
-// route. Same server-side tool-calling-loop shape as the platform's own
+// organization via requireBoModule('ai_assistant') same as every other
+// Bario One route. Same server-side tool-calling-loop shape as the platform's own
 // admin assistant (lib/adminAssistantTools.ts): the tool list itself is
 // the security boundary (no refund/delete/payment tools exist to call),
 // and every write action (create_invoice, schedule_shift) only ever
@@ -31,7 +31,7 @@ const MAX_HISTORY = 20
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('ai_assistant')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 

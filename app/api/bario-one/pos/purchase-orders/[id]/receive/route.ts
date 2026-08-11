@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import type { BoPurchaseOrder, BoPurchaseOrderItem } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/errors'
 // when goods are confirmed in hand, not when the order is merely placed.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('pos')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

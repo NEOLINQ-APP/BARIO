@@ -1572,6 +1572,14 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT`
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS stripe_payment_intent TEXT`
 
+  // Modular pay-per-module packaging: replaces the fixed starter/professional/
+  // business tiers as the actual entitlement mechanism. `plan` stays for
+  // backward-compat display only; enabled_modules_json is now the single
+  // source of truth for what an org can access, kept in sync with Stripe
+  // subscription items going forward. Empty ('[]') means "not yet
+  // backfilled" — see ensureModulesForOrg in lib/barioOneModules.ts.
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS enabled_modules_json TEXT NOT NULL DEFAULT '[]'`
+
   // Bario One Phase 5 — Employee Management. user_id is nullable: a
   // bo_employee is an HR record first (name/pay/documents), independent of
   // whether that person also has a Bario login — linking user_id is what
@@ -2476,6 +2484,7 @@ export type BoOrganization = {
   business_phone: string | null
   business_email: string | null
   tax_number: string | null
+  enabled_modules_json: string
   stripe_connect_account_id: string | null
   stripe_connect_status: 'none' | 'onboarding' | 'active' | 'restricted'
   created_at: string

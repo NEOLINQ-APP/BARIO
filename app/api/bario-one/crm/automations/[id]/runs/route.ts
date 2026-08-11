@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import type { BoAutomationRun } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 

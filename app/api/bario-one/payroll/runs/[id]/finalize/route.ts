@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { errorResponse } from '@/lib/errors'
 
 // Locking a pay run doesn't move any money — Bario One doesn't run real
@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/errors'
 // hours or tax tables are edited later.
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('payroll')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

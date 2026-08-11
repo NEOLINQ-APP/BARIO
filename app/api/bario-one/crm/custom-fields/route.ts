@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { CUSTOM_FIELD_TYPES } from '@/lib/barioOneCustomFields'
 import type { BoCustomField, BoCustomFieldEntity } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
@@ -9,7 +9,7 @@ const VALID_ENTITIES: BoCustomFieldEntity[] = ['customer', 'deal']
 
 export async function GET(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

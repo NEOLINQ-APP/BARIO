@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { getOrCreateConnectAccount, createOnboardingLink } from '@/lib/barioOnePayments'
 import { errorResponse } from '@/lib/errors'
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('payments')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role !== 'owner') {

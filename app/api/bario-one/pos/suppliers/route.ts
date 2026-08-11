@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import type { BoSupplier } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('pos')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('pos')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

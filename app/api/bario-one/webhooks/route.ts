@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { randomUUID, randomBytes } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { BO_WEBHOOK_EVENTS } from '@/lib/barioOneWebhooks'
 import type { BoWebhook } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, user, org, membership } = auth
     if (membership.role === 'employee') {
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('api_webhooks')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

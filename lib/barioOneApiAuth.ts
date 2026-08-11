@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db, type BoApiKey, type BoOrganization } from '@/lib/db'
 import { verifyBoApiKey } from '@/lib/barioOneApiKeys'
+import { ensureModulesForOrg, hasModule } from '@/lib/barioOneModules'
 import { rateLimit, rateLimitResponse } from '@/lib/rateLimit'
 
 type Sql = Awaited<ReturnType<typeof db>>
@@ -26,8 +27,13 @@ export async function requireBoApiKey(req: Request): Promise<{ sql: Sql; apiKey:
   if (!allowed) return rateLimitResponse()
 
   const rows = (await sql`SELECT * FROM bo_organizations WHERE id = ${apiKey.organization_id}`) as unknown as BoOrganization[]
-  const org = rows[0]
+  let org = rows[0]
   if (!org) return NextResponse.json({ error: "This key's organization no longer exists" }, { status: 410 })
+
+  org = await ensureModulesForOrg(sql, org)
+  if (!hasModule(org, 'api_webhooks')) {
+    return NextResponse.json({ error: 'The API & Integrations module is not enabled for this organization' }, { status: 403 })
+  }
 
   return { sql, apiKey, org }
 }

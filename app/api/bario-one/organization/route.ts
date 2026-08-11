@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
 import { getActiveOrgForUser, listOrgMembers } from '@/lib/barioOne'
 import { BO_PLANS } from '@/lib/barioOneTiers'
+import { ensureModulesForOrg, getEnabledModules, seatLimitForModules } from '@/lib/barioOneModules'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
@@ -14,9 +15,11 @@ export async function GET() {
     const found = await getActiveOrgForUser(sql, session.userId)
     if (!found) return NextResponse.json({ org: null })
 
-    const { org, membership } = found
+    const { membership } = found
+    const org = await ensureModulesForOrg(sql, found.org)
     const members = await listOrgMembers(sql, org.id)
     const plan = BO_PLANS[org.plan]
+    const enabledModules = getEnabledModules(org)
 
     return NextResponse.json({
       org: {
@@ -25,7 +28,8 @@ export async function GET() {
         slug: org.slug,
         plan: org.plan,
         planName: plan.name,
-        seatLimit: plan.seatLimit,
+        enabledModules,
+        seatLimit: seatLimitForModules(enabledModules),
         subscriptionStatus: org.subscription_status,
         trialEndsAt: org.trial_ends_at,
         hasLiveBilling: Boolean(org.stripe_subscription_id),

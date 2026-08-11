@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import type { BoEmployee } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -8,7 +8,7 @@ const MAX_SIZE = 10 * 1024 * 1024
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('employees')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
     if (membership.role === 'employee') {

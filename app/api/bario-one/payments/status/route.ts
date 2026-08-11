@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { refreshConnectStatus, BARIO_PAYMENTS_FEE_PERCENT } from '@/lib/barioOnePayments'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('payments')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 

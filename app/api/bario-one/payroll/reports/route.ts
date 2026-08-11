@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { errorResponse } from '@/lib/errors'
 
 // One row per pay run with aggregated totals across its stubs — the
@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/errors'
 // to hand to a bookkeeper.
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('payroll')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 

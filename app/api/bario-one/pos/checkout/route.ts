@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { computeSaleTotals, loyaltyPointsForTotal, type SaleLineInput } from '@/lib/barioOnePos'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoProduct } from '@/lib/db'
@@ -14,7 +14,7 @@ import { errorResponse } from '@/lib/errors'
 // — those don't touch inventory at all.
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('pos')
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 

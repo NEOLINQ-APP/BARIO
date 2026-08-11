@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import type { BoEmployee, BoTimeEntry } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/errors'
 // most recent entries — the "who's on the clock right now" view.
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('employees')
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
 

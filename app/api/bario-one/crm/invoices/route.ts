@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { requireBoMembership } from '@/lib/barioOne'
+import { requireBoModule } from '@/lib/barioOne'
 import { nextBoInvoiceNumber, newPublicToken } from '@/lib/barioOneInvoices'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoInvoice, BoInvoiceType } from '@/lib/db'
@@ -11,7 +11,7 @@ const VALID_INTERVALS = ['weekly', 'monthly', 'yearly']
 
 export async function GET() {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, org } = auth
 
@@ -30,7 +30,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireBoMembership()
+    const auth = await requireBoModule('invoicing')
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 
