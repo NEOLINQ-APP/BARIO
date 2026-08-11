@@ -1438,6 +1438,41 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS custom_fields_json TEXT NOT NULL DEFAULT '{}'`
   await sql`ALTER TABLE bo_deals ADD COLUMN IF NOT EXISTS custom_fields_json TEXT NOT NULL DEFAULT '{}'`
 
+  // Bario One — multiple CRM pipelines (Monday/Twenty parity phase 2).
+  // bo_deals.stage stays the source of truth for "which stage" (a plain
+  // TEXT key) for backward compatibility with the original 5 hardcoded
+  // stages — bo_pipeline_stages just adds structure/config (custom names,
+  // custom additional pipelines, ordering) on top of that same key, rather
+  // than replacing it. Every org lazily gets a default pipeline the first
+  // time it's touched (see ensureDefaultPipeline in lib/barioOnePipelines.ts)
+  // instead of a one-time backfill migration script.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pipelines (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pipelines_org_idx ON bo_pipelines (organization_id)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_pipeline_stages (
+      id TEXT PRIMARY KEY,
+      pipeline_id TEXT NOT NULL REFERENCES bo_pipelines(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_pipeline_stages_pipeline_idx ON bo_pipeline_stages (pipeline_id)`
+  await sql`ALTER TABLE bo_deals ADD COLUMN IF NOT EXISTS pipeline_id TEXT REFERENCES bo_pipelines(id)`
+
   // Bario One Phase 3 — Bario Invoice. The issuing business's own info
   // (shown on every invoice/quote/estimate it sends) lives on the org
   // itself, not duplicated per-document.
@@ -2449,7 +2484,28 @@ export type BoDeal = {
   expected_close_date: string | null
   notes: string | null
   custom_fields_json: string
+  pipeline_id: string | null
   created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoPipeline = {
+  id: string
+  organization_id: string
+  name: string
+  is_default: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export type BoPipelineStage = {
+  id: string
+  pipeline_id: string
+  key: string
+  name: string
+  position: number
   created_at: string
   updated_at: string
 }
