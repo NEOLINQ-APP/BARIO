@@ -7,23 +7,26 @@ type OrgInfo = {
   name: string
   plan: string
   planName: string
+  enabledModules: string[]
   seatLimit: number | null
   subscriptionStatus: string
   trialEndsAt: string | null
   hasLiveBilling: boolean
 } | null
 
+// key: null means this tile doesn't gate on its own module (Inventory is
+// part of the `pos` module, just a different landing page within it).
 const MODULES = [
-  { icon: '🧑‍💼', name: 'CRM', href: '/dashboard/bario-one/crm' },
-  { icon: '🧾', name: 'Invoicing', href: '/dashboard/bario-one/crm/invoices' },
-  { icon: '💳', name: 'Payments', href: '/dashboard/bario-one/payments' },
-  { icon: '👥', name: 'Employees', href: '/dashboard/bario-one/hr' },
-  { icon: '🇨🇦', name: 'Payroll', href: '/dashboard/bario-one/payroll' },
-  { icon: '🛒', name: 'POS', href: '/dashboard/bario-one/pos' },
-  { icon: '📦', name: 'Inventory', href: '/dashboard/bario-one/pos/products' },
-  { icon: '🤖', name: 'AI Assistant', href: '/dashboard/bario-one/assistant' },
-  { icon: '🔌', name: 'Flo API', href: '/dashboard/bario-one/api' },
-]
+  { icon: '🧑‍💼', name: 'CRM', href: '/dashboard/bario-one/crm', key: 'crm' },
+  { icon: '🧾', name: 'Invoicing', href: '/dashboard/bario-one/crm/invoices', key: 'invoicing' },
+  { icon: '💳', name: 'Payments', href: '/dashboard/bario-one/payments', key: 'payments' },
+  { icon: '👥', name: 'Employees', href: '/dashboard/bario-one/hr', key: 'employees' },
+  { icon: '🇨🇦', name: 'Payroll', href: '/dashboard/bario-one/payroll', key: 'payroll' },
+  { icon: '🛒', name: 'POS', href: '/dashboard/bario-one/pos', key: 'pos' },
+  { icon: '📦', name: 'Inventory', href: '/dashboard/bario-one/pos/products', key: 'pos' },
+  { icon: '🤖', name: 'AI Assistant', href: '/dashboard/bario-one/assistant', key: 'ai_assistant' },
+  { icon: '🔌', name: 'Flo API', href: '/dashboard/bario-one/api', key: 'api_webhooks' },
+] as const
 
 function OnboardingCard() {
   const [companyName, setCompanyName] = useState('')
@@ -153,19 +156,25 @@ export default function BarioOneDashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold">Modules</h3>
-          <a href="/dashboard/bario-one/team" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
-            Manage team →
-          </a>
+          <div className="flex gap-4">
+            <a href="/dashboard/bario-one/modules" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
+              Manage modules →
+            </a>
+            <a href="/dashboard/bario-one/team" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
+              Manage team →
+            </a>
+          </div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {MODULES.map((m) => {
+            const enabled = org.enabledModules.includes(m.key)
             const content = (
               <>
                 <div className="flex items-start justify-between">
                   <span className="text-2xl">{m.icon}</span>
-                  {!m.href && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400">
-                      Coming soon
+                  {!enabled && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-[#d4af37]">
+                      Enable
                     </span>
                   )}
                 </div>
@@ -173,12 +182,12 @@ export default function BarioOneDashboard() {
               </>
             )
             const className = `rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4 flex flex-col gap-2 ${
-              m.href ? 'hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors' : 'opacity-60'
+              enabled ? 'hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors' : 'opacity-70 hover:opacity-100 transition-opacity'
             }`
-            return m.href ? (
-              <a key={m.name} href={m.href} className={className}>{content}</a>
-            ) : (
-              <div key={m.name} className={className}>{content}</div>
+            return (
+              <a key={m.name} href={enabled ? m.href : '/dashboard/bario-one/modules'} className={className}>
+                {content}
+              </a>
             )
           })}
         </div>

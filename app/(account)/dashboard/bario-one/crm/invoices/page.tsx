@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { getBoModuleGate } from '@/lib/barioOneModuleGate'
 import BarioOneInvoiceList from '@/components/BarioOneInvoiceList'
+import BarioOneLockedModule from '@/components/BarioOneLockedModule'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +15,9 @@ export default async function BarioOneInvoicesPage() {
   const rows = (await sql`SELECT id FROM users WHERE id = ${session.userId}`) as unknown as User[]
   if (!rows[0]) redirect('/login')
 
+  const gate = await getBoModuleGate(sql, session.userId, 'invoicing')
+  if (!gate.hasOrg) redirect('/dashboard/bario-one')
+
   return (
     <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-3xl">
@@ -20,7 +25,7 @@ export default async function BarioOneInvoicesPage() {
           ← Bario One
         </a>
         <h1 className="text-2xl font-bold mt-3 mb-6">Estimates, Quotes &amp; Invoices</h1>
-        <BarioOneInvoiceList />
+        {gate.locked ? <BarioOneLockedModule moduleKey="invoicing" /> : <BarioOneInvoiceList />}
       </div>
     </main>
   )
