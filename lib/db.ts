@@ -57,6 +57,12 @@ async function ensureSchema() {
     END $$
   `
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`
+  // Free-text internal note an admin can set on an account (billing holds,
+  // suspensions, anything the support assistant should proactively know
+  // about) -- surfaced into the post-login support assistant's own prompt
+  // (app/api/assistant/support/route.ts) so it can speak to the situation
+  // instead of giving a generic answer if the customer reaches out.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_note TEXT`
   // Personal media-library storage (separate product from the site plan —
   // a user can be on any site plan and independently subscribe for more
   // storage, same as Google One stacking on a free Google account).
@@ -1845,6 +1851,7 @@ export type User = {
   credits_reset_at: string | null
   email_verified: boolean
   session_version: number
+  admin_note: string | null
   storage_tier: string
   storage_subscription_status: string
   stripe_storage_subscription_id: string | null

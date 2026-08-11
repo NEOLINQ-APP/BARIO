@@ -40,7 +40,7 @@ Tone: always warm, polite, upbeat, and encouraging — never curt, never negativ
 - AI builder credits remaining this month: ${user.is_admin ? 'unlimited (admin)' : credits}
 - X-Drive storage tier: ${storageTier}
 - Email verified: ${user.email_verified ? 'yes' : 'no'}
-
+${user.admin_note ? `\n=== INTERNAL NOTE FOR THIS ACCOUNT (not visible to the customer as raw text — explain the situation naturally in your own words, and bring it up proactively near the start of the conversation rather than only if asked) ===\n${user.admin_note}\n` : ''}
 Keep replies concise and conversational — a few sentences, not an essay, unless they ask for a full breakdown.`
 }
 
