@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { VPS_TIER_KEYS, BILLING_CYCLE_KEYS, type VpsTierKey, type BillingCycle } from '@/lib/vpsTiers'
+import { BO_MODULE_KEYS, BO_MODULES, type BoModuleKey } from '@/lib/barioOneModules'
 
 let _stripe: Stripe | undefined
 
@@ -55,8 +56,26 @@ export const WP_SHARED_PRICE_ID = process.env.STRIPE_PRICE_WP_SHARED
 
 // Bario One — Starter/Professional/Business flat monthly tiers. Enterprise
 // is deliberately absent (contact-sales, no self-serve Stripe checkout).
+// Superseded by BO_MODULE_PRICE_IDS below for new billing — left in place
+// (not deleted) since it's harmless and nothing forces an existing
+// subscription off it.
 export const BO_PLAN_PRICE_IDS: Record<'starter' | 'professional' | 'business', string | undefined> = {
   starter: process.env.STRIPE_PRICE_BO_STARTER,
   professional: process.env.STRIPE_PRICE_BO_PROFESSIONAL,
   business: process.env.STRIPE_PRICE_BO_BUSINESS,
+}
+
+// Bario One — one recurring Price per module, the real billing mechanism
+// behind modular/a-la-carte packaging. Built from each module's own
+// stripePriceEnvVar so the catalog in lib/barioOneModules.ts stays the
+// single place a module's identity is defined.
+export const BO_MODULE_PRICE_IDS: Record<BoModuleKey, string | undefined> = Object.fromEntries(
+  BO_MODULE_KEYS.map((key) => [key, process.env[BO_MODULES[key].stripePriceEnvVar]])
+) as Record<BoModuleKey, string | undefined>
+
+// Reverse lookup used by the Stripe webhook to reconcile enabled_modules_json
+// from a subscription's actual line-item prices (Stripe is the source of
+// truth for what's really being billed).
+export function moduleKeyForPriceId(priceId: string): BoModuleKey | undefined {
+  return BO_MODULE_KEYS.find((key) => BO_MODULE_PRICE_IDS[key] === priceId)
 }

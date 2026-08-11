@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, moduleKeyForPriceId } from '@/lib/stripe'
 import { db, type VpsInstance } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import { isStorageTierKey } from '@/lib/storageTiers'
@@ -256,11 +256,18 @@ export async function POST(req: Request) {
 
       const boOrgId = session.metadata?.boOrgId
       if (session.mode === 'subscription' && userId && boOrgId) {
+        // moduleKeys is set by the new modular checkout route
+        // (app/api/bario-one/modules/checkout); the old single-plan
+        // checkout route never sets it, so enabled_modules_json is simply
+        // left untouched (already backfilled by ensureModulesForOrg on
+        // first API touch) for orgs still on the legacy flow.
+        const moduleKeysJson = session.metadata?.moduleKeys
         await sql`
           UPDATE bo_organizations
           SET stripe_customer_id = ${String(session.customer)},
               stripe_subscription_id = ${String(session.subscription)},
               subscription_status = 'active',
+              enabled_modules_json = COALESCE(${moduleKeysJson ?? null}, enabled_modules_json),
               updated_at = now()
           WHERE id = ${boOrgId}
         `
@@ -318,7 +325,28 @@ export async function POST(req: Request) {
 
       const boMatch = (await sql`SELECT id FROM bo_organizations WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
       if (boMatch.length > 0) {
-        await sql`UPDATE bo_organizations SET subscription_status = ${sub.status}, updated_at = now() WHERE stripe_subscription_id = ${subId}`
+        // Stripe's subscription items are the reconciled source of truth
+        // for which modules are actually being billed — re-derive
+        // enabled_modules_json from them on every update (covers the
+        // self-serve add/remove route, any change made directly in the
+        // Stripe dashboard, and proration events), not just
+        // subscription_status. A price that doesn't map to a known module
+        // (e.g. a legacy single-plan price) is simply skipped rather than
+        // erroring, so this stays a no-op for any org still on the old
+        // single-price flow.
+        const moduleKeys = sub.items.data
+          .map((item) => moduleKeyForPriceId(item.price.id))
+          .filter((key): key is NonNullable<typeof key> => Boolean(key))
+
+        if (moduleKeys.length > 0) {
+          await sql`
+            UPDATE bo_organizations
+            SET subscription_status = ${sub.status}, enabled_modules_json = ${JSON.stringify(moduleKeys)}, updated_at = now()
+            WHERE stripe_subscription_id = ${subId}
+          `
+        } else {
+          await sql`UPDATE bo_organizations SET subscription_status = ${sub.status}, updated_at = now() WHERE stripe_subscription_id = ${subId}`
+        }
         break
       }
 
@@ -402,6 +430,20 @@ export async function POST(req: Request) {
       const storageMatch = (await sql`SELECT id FROM users WHERE stripe_storage_subscription_id = ${subId}`) as { id: string }[]
       if (storageMatch.length > 0) {
         await sql`UPDATE users SET storage_subscription_status = 'past_due', storage_tier = 'free' WHERE stripe_storage_subscription_id = ${subId}`
+        break
+      }
+
+      // Bario One never had a dedicated branch here before — past-due
+      // detection relied entirely on customer.subscription.updated also
+      // firing with status: 'past_due', which Stripe typically does, but
+      // not guaranteed to race ahead of a customer noticing. This mirrors
+      // the generic `users` fallback below (flip status), without a
+      // suspend mechanism — Bario One has no equivalent to powering off a
+      // VPS, so there's nothing further to do here besides making the
+      // status change immediate rather than waiting on a second event.
+      const boFailedMatch = (await sql`SELECT id FROM bo_organizations WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (boFailedMatch.length > 0) {
+        await sql`UPDATE bo_organizations SET subscription_status = 'past_due', updated_at = now() WHERE stripe_subscription_id = ${subId}`
         break
       }
 

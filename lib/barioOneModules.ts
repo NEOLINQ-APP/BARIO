@@ -61,6 +61,21 @@ export function hasModule(org: Pick<BoOrganization, 'enabled_modules_json'>, key
   return getEnabledModules(org).includes(key)
 }
 
+// Expands a requested module set to include every transitively-required
+// module (e.g. selecting just `payroll` also pulls in `employees`) — used
+// wherever a customer picks modules (signup, self-serve add/remove) so a
+// dependency is never silently missing from what actually gets billed/enabled.
+export function resolveModuleDependencies(requested: BoModuleKey[]): BoModuleKey[] {
+  const resolved = new Set<BoModuleKey>()
+  const visit = (key: BoModuleKey) => {
+    if (resolved.has(key)) return
+    resolved.add(key)
+    for (const dep of BO_MODULES[key].requires) visit(dep)
+  }
+  for (const key of requested) visit(key)
+  return BO_MODULE_KEYS.filter((k) => resolved.has(k))
+}
+
 // Replaces the old fixed per-plan seat table — a flat function of how many
 // modules an org has turned on, so seat capacity scales with what they're
 // actually paying for instead of a hardcoded tier constant. null = unlimited.

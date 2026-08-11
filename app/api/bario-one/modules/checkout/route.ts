@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getStripe, BO_PLAN_PRICE_IDS } from '@/lib/stripe'
+import { getStripe, BO_MODULE_PRICE_IDS } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getActiveOrgForUser } from '@/lib/barioOne'
+import { BO_MODULE_KEYS, resolveModuleDependencies, type BoModuleKey } from '@/lib/barioOneModules'
 import { errorResponse } from '@/lib/errors'
 
-// Converts a trialing-with-no-live-subscription org (created by
-// /api/bario-one/signup) into a real Stripe subscription. Deliberately
-// separate from signup so a card isn't required at account-creation time —
-// same "preview/commit split" pattern Product C's static-conversion flow
-// uses, just for billing instead of a static-site preview.
+// Converts a trialing-with-no-live-subscription org into a real, multi-item
+// Stripe subscription — one line item per selected module (resolved to
+// include dependencies, e.g. picking `payroll` also bills `employees`).
+// Mirrors /api/bario-one/checkout's shape (separate from signup so a card
+// isn't required at account-creation time) but supports an arbitrary module
+// set instead of one of 3 fixed plans.
 export async function POST(req: Request) {
   try {
     const session = await getSession()
@@ -26,16 +28,24 @@ export async function POST(req: Request) {
     if (membership.role !== 'owner') {
       return NextResponse.json({ error: 'Only the account owner can manage billing' }, { status: 403 })
     }
-    if (org.plan === 'enterprise') {
-      return NextResponse.json({ error: 'Enterprise is contact-sales only — reach out to your account rep' }, { status: 400 })
-    }
     if (org.stripe_subscription_id) {
-      return NextResponse.json({ error: 'Billing is already active for this organization' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Billing is already active for this organization — use the module update endpoint to add or remove modules' },
+        { status: 400 }
+      )
     }
 
-    const priceId = BO_PLAN_PRICE_IDS[org.plan as 'starter' | 'professional' | 'business']
-    if (!priceId) {
-      return NextResponse.json({ error: 'This plan is not available for purchase right now' }, { status: 400 })
+    const { moduleKeys } = await req.json()
+    if (!Array.isArray(moduleKeys) || moduleKeys.length === 0 || !moduleKeys.every((k) => (BO_MODULE_KEYS as string[]).includes(k))) {
+      return NextResponse.json({ error: `moduleKeys must be a non-empty array of: ${BO_MODULE_KEYS.join(', ')}` }, { status: 400 })
+    }
+
+    const resolvedKeys = resolveModuleDependencies(moduleKeys as BoModuleKey[])
+    const lineItems: { price: string; quantity: number }[] = []
+    for (const key of resolvedKeys) {
+      const priceId = BO_MODULE_PRICE_IDS[key]
+      if (!priceId) return NextResponse.json({ error: `The ${key} module isn't available for purchase right now` }, { status: 400 })
+      lineItems.push({ price: priceId, quantity: 1 })
     }
 
     const trialDaysRemaining = org.trial_ends_at
@@ -48,8 +58,8 @@ export async function POST(req: Request) {
       mode: 'subscription',
       ...(org.stripe_customer_id ? { customer: org.stripe_customer_id } : { customer_email: user.email }),
       client_reference_id: user.id,
-      metadata: { boOrgId: org.id, userId: user.id },
-      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { boOrgId: org.id, userId: user.id, moduleKeys: JSON.stringify(resolvedKeys) },
+      line_items: lineItems,
       subscription_data: trialDaysRemaining > 0 ? { trial_period_days: trialDaysRemaining } : undefined,
       success_url: `${origin}/dashboard/bario-one?checkout=success`,
       cancel_url: `${origin}/dashboard/bario-one/modules`,
