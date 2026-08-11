@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const targetUser = await resolveUser(sql, email)
     if (!targetUser) return NextResponse.json({ error: `No account found for ${email}` }, { status: 404 })
 
-    const files = (await sql`SELECT id, folder, filename, url, size_bytes, created_at FROM media_assets WHERE user_id = ${targetUser.id} ORDER BY folder, filename`) as unknown as MediaAsset[]
+    const files = (await sql`SELECT id, folder, filename, url, size_bytes, encrypted, created_at FROM media_assets WHERE user_id = ${targetUser.id} ORDER BY folder, filename`) as unknown as MediaAsset[]
     return NextResponse.json({ ok: true, count: files.length, files })
   } catch (err: any) {
     return errorResponse(err)
