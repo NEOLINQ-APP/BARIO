@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireBoMembership } from '@/lib/barioOne'
+import { runAutomations } from '@/lib/barioOneAutomations'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { errorResponse } from '@/lib/errors'
 
@@ -21,6 +22,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     await sql`UPDATE bo_invoices SET status = 'paid', paid_at = now(), updated_at = now() WHERE id = ${params.id} AND organization_id = ${org.id}`
     await triggerWebhooks(sql, org.id, 'invoice.paid', { invoiceId: existing[0].id, number: existing[0].number, customerId: existing[0].customer_id })
+    await runAutomations(sql, org.id, 'invoice.paid', { invoiceId: existing[0].id, customerId: existing[0].customer_id })
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return errorResponse(err)

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
+import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoCustomer } from '@/lib/db'
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
     }
 
     await triggerWebhooks(sql, org.id, 'customer.created', { customerId: id, contactName: contactName.trim() })
+    await runAutomations(sql, org.id, 'customer.created', { customerId: id })
 
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {

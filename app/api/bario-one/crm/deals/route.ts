@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoMembership } from '@/lib/barioOne'
+import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { ensureDefaultPipeline, getPipelineStages } from '@/lib/barioOnePipelines'
 import type { BoDeal } from '@/lib/db'
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
       INSERT INTO bo_deals (id, organization_id, customer_id, title, stage, value_cents, expected_close_date, notes, custom_fields_json, pipeline_id, created_by_user_id)
       VALUES (${id}, ${org.id}, ${customerId}, ${title.trim()}, ${dealStage}, ${Number.isFinite(valueCents) ? Math.round(valueCents) : 0}, ${expectedCloseDate || null}, ${notes || null}, ${customFieldsJson}, ${targetPipelineId}, ${user.id})
     `
+    await runAutomations(sql, org.id, 'deal.created', { dealId: id, customerId, pipelineId: targetPipelineId, stage: dealStage })
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     return errorResponse(err)

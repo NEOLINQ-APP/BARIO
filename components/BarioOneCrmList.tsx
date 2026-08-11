@@ -114,6 +114,9 @@ export default function BarioOneCrmList() {
           <a href="/dashboard/bario-one/crm/fields" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline self-center">
             Custom fields →
           </a>
+          <a href="/dashboard/bario-one/crm/automations" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline self-center">
+            Automations →
+          </a>
         </div>
       </div>
 

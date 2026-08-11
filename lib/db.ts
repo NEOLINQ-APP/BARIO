@@ -1473,6 +1473,44 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_pipeline_stages_pipeline_idx ON bo_pipeline_stages (pipeline_id)`
   await sql`ALTER TABLE bo_deals ADD COLUMN IF NOT EXISTS pipeline_id TEXT REFERENCES bo_pipelines(id)`
 
+  // Bario One — no-code automations (Monday/Twenty parity phase 3): "when
+  // X happens, do Y." Reuses the same event vocabulary the outbound
+  // webhooks feature already established, extended with deal-specific
+  // events (webhooks never covered deals). Actions are deliberately
+  // limited to safe, additive operations (create a task, tag/note/email/SMS
+  // a customer) — same "the action list itself is the security boundary"
+  // pattern as the admin/Bario AI assistants: no delete/refund/mark-paid
+  // action exists to configure, so a misconfigured or abused automation
+  // can't do real damage.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_automations (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      trigger_event TEXT NOT NULL,
+      trigger_filter_json TEXT NOT NULL DEFAULT '{}',
+      action_type TEXT NOT NULL,
+      action_config_json TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_automations_org_idx ON bo_automations (organization_id, trigger_event, status)`
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_automation_runs (
+      id TEXT PRIMARY KEY,
+      automation_id TEXT NOT NULL REFERENCES bo_automations(id) ON DELETE CASCADE,
+      context_json TEXT NOT NULL DEFAULT '{}',
+      success BOOLEAN NOT NULL DEFAULT false,
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_automation_runs_automation_idx ON bo_automation_runs (automation_id, created_at)`
+
   // Bario One Phase 3 — Bario Invoice. The issuing business's own info
   // (shown on every invoice/quote/estimate it sends) lives on the org
   // itself, not duplicated per-document.
@@ -2508,6 +2546,32 @@ export type BoPipelineStage = {
   position: number
   created_at: string
   updated_at: string
+}
+
+export type BoAutomationTrigger = 'deal.created' | 'deal.stage_changed' | 'customer.created' | 'invoice.paid'
+export type BoAutomationActionType = 'create_task' | 'add_tag' | 'add_note' | 'send_email' | 'send_sms'
+
+export type BoAutomation = {
+  id: string
+  organization_id: string
+  name: string
+  trigger_event: BoAutomationTrigger
+  trigger_filter_json: string
+  action_type: BoAutomationActionType
+  action_config_json: string
+  status: 'active' | 'paused'
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoAutomationRun = {
+  id: string
+  automation_id: string
+  context_json: string
+  success: boolean
+  error: string | null
+  created_at: string
 }
 
 export type BoCustomFieldEntity = 'customer' | 'deal'

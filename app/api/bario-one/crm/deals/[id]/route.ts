@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireBoMembership } from '@/lib/barioOne'
+import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { getPipelineStages } from '@/lib/barioOnePipelines'
 import { errorResponse } from '@/lib/errors'
@@ -11,8 +12,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { sql, org } = auth
 
     const existing = (await sql`
-      SELECT id, custom_fields_json, pipeline_id FROM bo_deals WHERE id = ${params.id} AND organization_id = ${org.id}
-    `) as unknown as { id: string; custom_fields_json: string; pipeline_id: string | null }[]
+      SELECT id, custom_fields_json, pipeline_id, stage, customer_id FROM bo_deals WHERE id = ${params.id} AND organization_id = ${org.id}
+    `) as unknown as { id: string; custom_fields_json: string; pipeline_id: string | null; stage: string; customer_id: string }[]
     if (existing.length === 0) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
     const { title, stage, valueCents, expectedCloseDate, notes, customFields, pipelineId } = await req.json()
@@ -49,6 +50,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         updated_at = now()
       WHERE id = ${params.id} AND organization_id = ${org.id}
     `
+
+    if (dealStage && dealStage !== existing[0].stage) {
+      await runAutomations(sql, org.id, 'deal.stage_changed', {
+        dealId: params.id,
+        customerId: existing[0].customer_id,
+        pipelineId: targetPipelineId ?? undefined,
+        stage: dealStage,
+      })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return errorResponse(err)
