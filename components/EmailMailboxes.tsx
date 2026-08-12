@@ -5,10 +5,13 @@ import { useEffect, useState } from 'react'
 type Site = { id: string; name: string; custom_domain: string | null; domain_status: string }
 type Mailbox = { id: string; site_id: string; domain: string; local_part: string; full_address: string; status: string; created_at: string }
 
+const WEBMAIL_URL = 'https://reseller.bario.ca/SOGo'
+
 export default function EmailMailboxes() {
   const [sites, setSites] = useState<Site[] | null>(null)
   const [mailboxes, setMailboxes] = useState<Mailbox[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const [siteId, setSiteId] = useState('')
   const [localPart, setLocalPart] = useState('')
@@ -149,10 +152,8 @@ export default function EmailMailboxes() {
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
           <p className="font-semibold text-emerald-600 dark:text-emerald-400">🎉 {justCreated.fullAddress} is ready.</p>
           <p className="text-slate-600 dark:text-zinc-400 mt-1">
-            Webmail: <a href="https://reseller.bario.ca/SOGo" target="_blank" rel="noreferrer" className="underline">reseller.bario.ca/SOGo</a>
+            Check your email anytime from the list below — click <strong>Open Webmail</strong> next to {justCreated.fullAddress}.
           </p>
-          <p className="text-slate-600 dark:text-zinc-400">IMAP: reseller.bario.ca, port 993, SSL/TLS</p>
-          <p className="text-slate-600 dark:text-zinc-400">SMTP: reseller.bario.ca, port 587, STARTTLS</p>
           {!justCreated.dnsAutoConfigured && (
             <p className="text-amber-600 dark:text-amber-400 mt-2">
               We couldn't auto-configure DNS for this domain — add MX/SPF/DKIM records manually so mail actually routes here.
@@ -166,20 +167,50 @@ export default function EmailMailboxes() {
         {mailboxes.map((m) => (
           <div
             key={m.id}
-            className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-transparent p-4"
+            className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-transparent p-4"
           >
-            <div>
-              <span className="font-semibold">{m.full_address}</span>
-              <span className="block text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
-                Created {new Date(m.created_at).toLocaleDateString()}
-              </span>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <span className="font-semibold">{m.full_address}</span>
+                <span className="block text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
+                  Created {new Date(m.created_at).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={WEBMAIL_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs"
+                >
+                  Open Webmail
+                </a>
+                <button
+                  onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
+                  className="text-xs text-slate-500 dark:text-zinc-400 underline"
+                >
+                  {expandedId === m.id ? 'Hide settings' : 'Connection settings'}
+                </button>
+                <button
+                  onClick={() => handleDelete(m.id, m.full_address)}
+                  className="text-xs text-red-500 dark:text-red-400 underline"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => handleDelete(m.id, m.full_address)}
-              className="text-xs text-red-500 dark:text-red-400 underline"
-            >
-              Delete
-            </button>
+
+            {expandedId === m.id && (
+              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800 text-xs text-slate-600 dark:text-zinc-400 space-y-1">
+                <p>
+                  Webmail: <a href={WEBMAIL_URL} target="_blank" rel="noreferrer" className="underline">reseller.bario.ca/SOGo</a> — log in with {m.full_address} and your mailbox password.
+                </p>
+                <p>To use this address in an app like Outlook or your phone's Mail app instead, add a new account with:</p>
+                <p>Incoming (IMAP): reseller.bario.ca, port 993, SSL/TLS</p>
+                <p>Outgoing (SMTP): reseller.bario.ca, port 587, STARTTLS</p>
+                <p>Username: {m.full_address} — Password: whatever you set when creating this mailbox.</p>
+              </div>
+            )}
           </div>
         ))}
       </div>
