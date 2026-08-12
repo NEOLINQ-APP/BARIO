@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 import { getOpenAI } from '@/lib/openai'
 
 // Real text-to-image generation — nothing else in this codebase does this

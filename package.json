@@ -12,6 +12,8 @@
     "@ai-sdk/anthropic": "^4.0.24",
     "@ai-sdk/openai": "^4.0.24",
     "@anthropic-ai/sdk": "^0.115.0",
+    "@aws-sdk/client-s3": "^3.1108.0",
+    "@aws-sdk/s3-request-presigner": "^3.1108.0",
     "@google/genai": "^2.15.0",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^1.1.0",

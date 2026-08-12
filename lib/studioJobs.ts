@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 import { randomUUID } from 'node:crypto'
 import { getJobStatus } from '@/lib/runpod'
 

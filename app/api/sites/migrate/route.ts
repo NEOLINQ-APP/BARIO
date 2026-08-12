@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import * as cheerio from 'cheerio'
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'

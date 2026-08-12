@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { upload } from '@vercel/blob/client'
+import { uploadFile } from '@/lib/clientUpload'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 
@@ -149,10 +149,7 @@ export default function TemplateBuilder({
     setImageUploading(true)
     setImageUploadError(null)
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/sites/upload-asset',
-      })
+      const blob = await uploadFile(file)
       img.src = blob.url
       scheduleAutosave()
     } catch (err: any) {

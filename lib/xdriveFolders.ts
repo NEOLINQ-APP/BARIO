@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 
 // Default X-Drive folder set every account starts with — mirrors the
 // familiar top-level categories a Samsung "My Files" app ships with

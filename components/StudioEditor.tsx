@@ -11,6 +11,7 @@
 // visual timeline is the next piece.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { uploadFile } from '@/lib/clientUpload'
 import { Core } from '@openvideo/core'
 import { Studio, Compositor, Video, Audio } from '@openvideo/engine-pixi'
 import { CURRENT_STUDIO_POLICY_VERSION } from '@/lib/legalVersion'
@@ -26,9 +27,9 @@ const VOICE_OPTIONS = [
 
 type JobStatus = 'idle' | 'submitting' | 'pending' | 'processing' | 'complete' | 'failed'
 type ClipSummary = { id: string; type: string; name: string }
-type AddClip = (type: 'Video' | 'Audio', src: string, name: string) => Promise<void>
+type AddClip = (type: 'Video' | 'Audio' | 'Image', src: string, name: string) => Promise<void>
 type AddTextClip = (text: string) => Promise<void>
-type AddMusicClip = (file: File) => Promise<void>
+type AddUploadClip = (file: File) => Promise<void>
 
 function TextAddPanel({ onAdd }: { onAdd: AddTextClip }) {
   const [text, setText] = useState('')
@@ -62,9 +63,10 @@ function TextAddPanel({ onAdd }: { onAdd: AddTextClip }) {
   )
 }
 
-function MusicAddPanel({ onAdd }: { onAdd: AddMusicClip }) {
+function UploadAddPanel({ onAdd }: { onAdd: AddUploadClip }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -83,11 +85,23 @@ function MusicAddPanel({ onAdd }: { onAdd: AddMusicClip }) {
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="text-sm font-medium block mb-1">Upload a music/audio track</label>
-        <input type="file" accept="audio/*" onChange={handleFile} disabled={busy} className="text-sm" />
-      </div>
-      {busy && <p className="text-xs text-slate-500 dark:text-zinc-400">Adding…</p>}
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 transition-colors py-8 disabled:opacity-50"
+      >
+        <span className="w-10 h-10 rounded-full bg-amber-500 text-white text-2xl leading-none flex items-center justify-center">+</span>
+        <span className="text-sm font-medium">{busy ? 'Uploading…' : 'Upload image, video, or audio'}</span>
+        <span className="text-xs text-slate-400">Drops straight into your project</span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,video/*,audio/*"
+        onChange={handleFile}
+        disabled={busy}
+        className="hidden"
+      />
       {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
     </div>
   )
@@ -406,7 +420,7 @@ function VoiceoverGeneratePanel({ onClipReady }: { onClipReady: AddClip }) {
   )
 }
 
-export type StudioEditorTab = 'assistant' | 'video' | 'voiceover' | 'text' | 'music'
+export type StudioEditorTab = 'assistant' | 'video' | 'voiceover' | 'text' | 'upload'
 
 export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?: StudioEditorTab }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -455,11 +469,16 @@ export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?
     } as any)
   }, [])
 
-  const addMusicClip = useCallback<AddMusicClip>(async (file) => {
+  // Direct-to-Blob (same pattern as TemplateBuilder.tsx's image upload) so
+  // a real video file isn't capped by Vercel's ~4.5MB serverless body limit
+  // — and, unlike the old URL.createObjectURL approach, the resulting URL
+  // is a real persisted asset, not one that vanishes on refresh.
+  const addUploadClip = useCallback<AddUploadClip>(async (file) => {
     const core = coreRef.current
     if (!core) return
-    const objectUrl = URL.createObjectURL(file)
-    await core.clip.add({ type: 'Audio', src: objectUrl, name: file.name })
+    const blob = await uploadFile(file)
+    const clipType = file.type.startsWith('video/') ? 'Video' : file.type.startsWith('audio/') ? 'Audio' : 'Image'
+    await core.clip.add({ type: clipType, src: blob.url, name: file.name } as any)
   }, [])
 
   function removeClip(id: string) {
@@ -531,8 +550,17 @@ export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?
         </div>
 
         <div className="rounded-lg border border-slate-300 dark:border-zinc-700 p-3">
-          <p className="text-xs font-medium mb-2">Clips ({clips.length})</p>
-          {clips.length === 0 && <p className="text-xs text-slate-400">No clips yet — generate one on the right to get started.</p>}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium">Clips ({clips.length})</p>
+            <button
+              onClick={() => setTab('upload')}
+              title="Upload image, video, or audio"
+              className="w-6 h-6 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm leading-none flex items-center justify-center"
+            >
+              +
+            </button>
+          </div>
+          {clips.length === 0 && <p className="text-xs text-slate-400">No clips yet — upload a file or generate one on the right to get started.</p>}
           <ul className="space-y-1">
             {clips.map((c) => (
               <li key={c.id} className="flex items-center justify-between text-xs">
@@ -563,7 +591,7 @@ export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?
 
       <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
         <div className="flex gap-2 mb-4 flex-wrap">
-          {(['assistant', 'video', 'voiceover', 'text', 'music'] as const).map((t) => (
+          {(['assistant', 'video', 'voiceover', 'text', 'upload'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -577,7 +605,7 @@ export default function StudioEditor({ initialTab = 'assistant' }: { initialTab?
         {tab === 'video' && <VideoGeneratePanel onClipReady={addClipToCanvas} />}
         {tab === 'voiceover' && <VoiceoverGeneratePanel onClipReady={addClipToCanvas} />}
         {tab === 'text' && <TextAddPanel onAdd={addTextClip} />}
-        {tab === 'music' && <MusicAddPanel onAdd={addMusicClip} />}
+        {tab === 'upload' && <UploadAddPanel onAdd={addUploadClip} />}
       </div>
     </div>
   )

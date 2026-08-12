@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 import { requireBoModule } from '@/lib/barioOne'
 import type { BoEmployee } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'

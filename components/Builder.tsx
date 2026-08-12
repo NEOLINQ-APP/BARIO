@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, createElement } from 'react'
 import { useRouter } from 'next/navigation'
-import { upload } from '@vercel/blob/client'
+import { uploadFile } from '@/lib/clientUpload'
 import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
@@ -551,10 +551,7 @@ export default function Builder({
     setUploadingFile(true)
     setUploadError(null)
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/sites/upload-asset',
-      })
+      const blob = await uploadFile(file)
       setAttachment({ url: blob.url, kind, name: file.name })
     } catch (err: any) {
       setUploadError(err.message ?? 'Upload failed')

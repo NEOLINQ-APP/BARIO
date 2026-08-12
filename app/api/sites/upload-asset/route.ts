@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
+import { createPresignedUploadUrl } from '@/lib/b2Storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
-// Client-side direct-to-Blob upload — the file goes straight from the
-// browser to storage, never through this serverless function's body, so
-// video/audio attachments aren't capped by Vercel's ~4.5MB request limit.
-// This route only ever issues a short-lived upload token after checking auth.
-const ALLOWED_CONTENT_TYPES = ['image/*', 'video/*', 'audio/*']
+// Client-side direct-to-storage upload — the browser PUTs file bytes
+// straight to B2 via a short-lived presigned URL, never through this
+// serverless function's body, so video/audio attachments aren't capped by
+// Vercel's ~4.5MB request limit. This route only ever issues that presigned
+// URL after checking auth.
+const ALLOWED_CONTENT_TYPE_PREFIXES = ['image/', 'video/', 'audio/']
 const MAX_SIZE = 100 * 1024 * 1024 // 100MB
 
 export async function POST(req: Request) {
@@ -24,26 +25,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
-    const body = (await req.json()) as HandleUploadBody
+    const { filename, contentType, size } = (await req.json()) as { filename?: string; contentType?: string; size?: number }
+    if (!filename || !contentType) {
+      return NextResponse.json({ error: 'filename and contentType are required' }, { status: 400 })
+    }
+    if (!ALLOWED_CONTENT_TYPE_PREFIXES.some((p) => contentType.startsWith(p))) {
+      return NextResponse.json({ error: 'Only image, video, or audio files are supported' }, { status: 400 })
+    }
+    if (typeof size === 'number' && size > MAX_SIZE) {
+      return NextResponse.json({ error: 'File is too large (100MB max)' }, { status: 400 })
+    }
 
-    const jsonResponse = await handleUpload({
-      body,
-      request: req,
-      onBeforeGenerateToken: async () => {
-        return {
-          allowedContentTypes: ALLOWED_CONTENT_TYPES,
-          maximumSizeInBytes: MAX_SIZE,
-          addRandomSuffix: true,
-          tokenPayload: JSON.stringify({ userId: session.userId }),
-        }
-      },
-      onUploadCompleted: async () => {
-        // No DB write needed here — the resulting URL is attached to a chat
-        // message client-side and only persisted if it ends up in a section.
-      },
+    const result = await createPresignedUploadUrl(`builder-assets/${session.userId}/${filename}`, {
+      contentType,
+      addRandomSuffix: true,
     })
 
-    return NextResponse.json(jsonResponse)
+    return NextResponse.json(result)
   } catch (err: any) {
     return errorResponse(err)
   }

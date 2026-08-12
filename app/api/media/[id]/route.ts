@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { del } from '@vercel/blob'
+import { del } from '@/lib/b2Storage'
 import { getSession } from '@/lib/session'
 import { db, type User, type MediaAsset } from '@/lib/db'
 import { getEffectiveStorage } from '@/lib/mediaQuota'

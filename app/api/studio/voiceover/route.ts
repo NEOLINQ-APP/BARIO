@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { put } from '@/lib/b2Storage'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { put, del } from '@vercel/blob'
+import { put, del } from '@/lib/b2Storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'

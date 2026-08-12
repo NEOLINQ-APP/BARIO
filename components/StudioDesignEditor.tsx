@@ -14,6 +14,7 @@
 // screen/digital formats only.
 
 import { useEffect, useRef, useState } from 'react'
+import { uploadFile } from '@/lib/clientUpload'
 import { Core } from '@openvideo/core'
 import { Studio } from '@openvideo/engine-pixi'
 
@@ -165,6 +166,9 @@ function DesignCanvasSession({ template }: { template: Template }) {
   const [pdfExportUrl, setPdfExportUrl] = useState<string | null>(null)
   const [pdfExportBusy, setPdfExportBusy] = useState(false)
   const [sidebarTab, setSidebarTab] = useState<'assistant' | 'manual'>('assistant')
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -185,13 +189,23 @@ function DesignCanvasSession({ template }: { template: Template }) {
     }
   }, [template])
 
+  // Direct-to-Blob (same pattern as TemplateBuilder.tsx and StudioEditor.tsx)
+  // — real persisted URL rather than an object URL that vanishes on refresh.
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     const core = coreRef.current
     if (!file || !core) return
-    const objectUrl = URL.createObjectURL(file)
-    await core.clip.add({ type: 'Image', src: objectUrl, name: file.name })
-    e.target.value = ''
+    setUploadError(null)
+    setUploadBusy(true)
+    try {
+      const blob = await uploadFile(file)
+      await core.clip.add({ type: 'Image', src: blob.url, name: file.name })
+    } catch (err: any) {
+      setUploadError(err.message)
+    } finally {
+      setUploadBusy(false)
+      e.target.value = ''
+    }
   }
 
   async function handleAddText() {
@@ -352,7 +366,23 @@ function DesignCanvasSession({ template }: { template: Template }) {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium block mb-1">Add image</label>
-              <input type="file" accept="image/*" onChange={handleImageUpload} className="text-sm" />
+              <button
+                onClick={() => uploadInputRef.current?.click()}
+                disabled={uploadBusy}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 dark:border-zinc-700 hover:border-amber-500 dark:hover:border-amber-500 transition-colors py-4 disabled:opacity-50"
+              >
+                <span className="w-7 h-7 rounded-full bg-amber-500 text-white text-lg leading-none flex items-center justify-center">+</span>
+                <span className="text-sm font-medium">{uploadBusy ? 'Uploading…' : 'Upload an image'}</span>
+              </button>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploadBusy}
+                className="hidden"
+              />
+              {uploadError && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{uploadError}</p>}
             </div>
             <div>
               <label className="text-sm font-medium block mb-1">Add text</label>
