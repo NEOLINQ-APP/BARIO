@@ -7,6 +7,12 @@ import { createDnsRecord } from '@/lib/cloudflare'
 import { ensureDomain, createMailbox, getDkim, deleteMailbox } from '@/lib/mailcow'
 import { errorResponse } from '@/lib/errors'
 
+// A brand-new domain's ensureDomain() call now also restarts sogo-mailcow
+// over SSH (see lib/mailcow.ts) so its webmail login works immediately
+// instead of silently breaking until someone restarts it by hand — that
+// restart alone takes ~10-15s, so the default function timeout isn't enough.
+export const maxDuration = 60
+
 const LOCAL_PART_RE = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/
 
 export async function GET() {
