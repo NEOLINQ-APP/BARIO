@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { getSession } from '@/lib/session'
-import { db, type User, type BoOrganization, type BoMembership, type BoPlan } from '@/lib/db'
-import { BO_PLANS } from '@/lib/barioOneTiers'
-import { BO_MODULES, ensureModulesForOrg, getEnabledModules, hasModule, seatLimitForModules, type BoModuleKey } from '@/lib/barioOneModules'
+import { db, type User, type BoOrganization, type BoMembership } from '@/lib/db'
+import { BO_MODULES, ensureModulesForOrg, getEnabledModules, hasModule, resolveModuleDependencies, seatLimitForModules, type BoModuleKey } from '@/lib/barioOneModules'
 import { sendEmail } from '@/lib/email'
 
 function slugify(name: string): string {
@@ -30,20 +29,29 @@ async function uniqueSlug(sql: any, name: string): Promise<string> {
 // called from both the public /bario-one signup flow and (later) an admin
 // comped-account flow, same shape as provisionVpsInstance being the single
 // shared entry point for both the webhook and admin retry routes.
+//
+// Takes the real module selection directly (resolved to include
+// dependencies) rather than one of the old fixed plan names — modular
+// packaging is the real entitlement/billing mechanism now (see
+// lib/barioOneModules.ts). `plan` stays 'starter' (the column's default)
+// purely for backward-compat display; it's never read as authoritative
+// anywhere anymore. Every self-serve signup gets a flat 14-day no-card
+// trial covering whatever modules were selected — same policy every fixed
+// plan used to share (only Enterprise, which isn't self-serve, had none).
 export async function createOrganizationWithOwner(
   sql: any,
   ownerUserId: string,
   name: string,
-  plan: BoPlan
+  moduleKeys: BoModuleKey[]
 ): Promise<BoOrganization> {
   const id = randomUUID()
   const slug = await uniqueSlug(sql, name)
-  const trialDays = BO_PLANS[plan].trialDays
-  const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  const enabledModulesJson = JSON.stringify(resolveModuleDependencies(moduleKeys))
 
   await sql`
-    INSERT INTO bo_organizations (id, name, slug, owner_user_id, plan, subscription_status, trial_ends_at)
-    VALUES (${id}, ${name}, ${slug}, ${ownerUserId}, ${plan}, 'trialing', ${trialEndsAt})
+    INSERT INTO bo_organizations (id, name, slug, owner_user_id, subscription_status, trial_ends_at, enabled_modules_json)
+    VALUES (${id}, ${name}, ${slug}, ${ownerUserId}, 'trialing', ${trialEndsAt}, ${enabledModulesJson})
   `
   await sql`
     INSERT INTO bo_memberships (id, organization_id, user_id, role, status)

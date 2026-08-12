@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { BoModuleKey } from '@/lib/barioOneModules'
+import BarioOneModuleCheckboxes from './BarioOneModuleCheckboxes'
 
 type OrgInfo = {
   id: string
@@ -30,7 +32,7 @@ const MODULES = [
 
 function OnboardingCard() {
   const [companyName, setCompanyName] = useState('')
-  const [plan, setPlan] = useState('starter')
+  const [moduleKeys, setModuleKeys] = useState<BoModuleKey[]>(['crm'])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,7 +44,7 @@ function OnboardingCard() {
       const res = await fetch('/api/bario-one/signup', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ companyName, plan }),
+        body: JSON.stringify({ companyName, moduleKeys }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
@@ -56,7 +58,7 @@ function OnboardingCard() {
   return (
     <div className="max-w-md rounded-2xl border border-[#d4af37]/30 bg-black text-white p-6 space-y-4">
       <h2 className="text-lg font-bold">Set up Bario One for your business</h2>
-      <p className="text-sm text-zinc-400">This creates your company workspace and starts a 14-day free trial.</p>
+      <p className="text-sm text-zinc-400">This creates your company workspace and starts a 14-day free trial on whatever modules you pick.</p>
       <form onSubmit={handleCreate} className="space-y-3">
         <input
           type="text"
@@ -66,15 +68,7 @@ function OnboardingCard() {
           placeholder="Company name"
           className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white focus:border-[#d4af37] outline-none"
         />
-        <select
-          value={plan}
-          onChange={(e) => setPlan(e.target.value)}
-          className="w-full rounded-lg bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white focus:border-[#d4af37] outline-none"
-        >
-          <option value="starter">Starter — $49/mo</option>
-          <option value="professional">Professional — $149/mo</option>
-          <option value="business">Business — $299/mo</option>
-        </select>
+        <BarioOneModuleCheckboxes selected={moduleKeys} onChange={setModuleKeys} dark />
         {error && <p className="text-xs text-red-400">{error}</p>}
         <button
           type="submit"
@@ -91,7 +85,6 @@ function OnboardingCard() {
 export default function BarioOneDashboard() {
   const [org, setOrg] = useState<OrgInfo>(undefined as any)
   const [loading, setLoading] = useState(true)
-  const [checkoutBusy, setCheckoutBusy] = useState(false)
 
   async function load() {
     const res = await fetch('/api/bario-one/organization')
@@ -104,31 +97,21 @@ export default function BarioOneDashboard() {
     load()
   }, [])
 
-  async function startBilling() {
-    setCheckoutBusy(true)
-    try {
-      const res = await fetch('/api/bario-one/checkout', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      window.location.href = data.url
-    } catch (err: any) {
-      alert(err.message)
-      setCheckoutBusy(false)
-    }
-  }
-
   if (loading) return <p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>
   if (!org) return <OnboardingCard />
 
   const trialDaysLeft = org.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(org.trialEndsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null
+  const moduleCount = org.enabledModules.length
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-[#d4af37]/30 bg-black text-white p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-[#d4af37] font-semibold">{org.planName} plan</p>
+          <p className="text-xs uppercase tracking-wide text-[#d4af37] font-semibold">
+            {moduleCount} module{moduleCount === 1 ? '' : 's'} enabled
+          </p>
           <h2 className="text-2xl font-extrabold">{org.name}</h2>
           <p className="text-sm text-zinc-400 mt-1">
             {org.subscriptionStatus === 'trialing' && !org.hasLiveBilling && trialDaysLeft !== null
@@ -142,14 +125,13 @@ export default function BarioOneDashboard() {
               : org.subscriptionStatus}
           </p>
         </div>
-        {!org.hasLiveBilling && org.plan !== 'enterprise' && (
-          <button
-            onClick={startBilling}
-            disabled={checkoutBusy}
-            className="rounded-lg bg-[#d4af37] hover:bg-[#c49f2f] disabled:opacity-50 text-black font-semibold text-sm px-4 py-2.5"
+        {!org.hasLiveBilling && (
+          <a
+            href="/dashboard/bario-one/modules"
+            className="rounded-lg bg-[#d4af37] hover:bg-[#c49f2f] text-black font-semibold text-sm px-4 py-2.5"
           >
-            {checkoutBusy ? 'Redirecting…' : 'Add payment method'}
-          </button>
+            Activate billing
+          </a>
         )}
       </div>
 

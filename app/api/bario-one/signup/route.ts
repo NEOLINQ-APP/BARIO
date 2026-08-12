@@ -4,7 +4,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getSession, createSession } from '@/lib/session'
 import { createOrganizationWithOwner } from '@/lib/barioOne'
-import { isBoPlan } from '@/lib/barioOneTiers'
+import { BO_MODULE_KEYS, type BoModuleKey } from '@/lib/barioOneModules'
 import { rateLimit, rateLimitResponse, clientIp } from '@/lib/rateLimit'
 import { sendVerificationEmail } from '@/lib/email'
 import { errorResponse } from '@/lib/errors'
@@ -13,17 +13,17 @@ import { errorResponse } from '@/lib/errors'
 // the same call, an Organization with them as owner + a trial. Mirrors
 // /api/auth/signup for the account-creation half — kept as its own route
 // rather than reusing that one directly, since Bario One's signup form also
-// collects companyName/plan and needs to run the org-creation step in the
-// same request.
+// collects companyName/modules and needs to run the org-creation step in
+// the same request.
 export async function POST(req: Request) {
   try {
-    const { email, password, companyName, plan } = await req.json()
+    const { email, password, companyName, moduleKeys } = await req.json()
 
     if (typeof companyName !== 'string' || !companyName.trim()) {
       return NextResponse.json({ error: 'Company name is required' }, { status: 400 })
     }
-    if (typeof plan !== 'string' || !isBoPlan(plan) || plan === 'enterprise') {
-      return NextResponse.json({ error: 'Choose a valid plan' }, { status: 400 })
+    if (!Array.isArray(moduleKeys) || moduleKeys.length === 0 || !moduleKeys.every((k) => (BO_MODULE_KEYS as string[]).includes(k))) {
+      return NextResponse.json({ error: `Choose at least one module: ${BO_MODULE_KEYS.join(', ')}` }, { status: 400 })
     }
 
     const sql = await db()
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const org = await createOrganizationWithOwner(sql, userId, companyName.trim(), plan)
+    const org = await createOrganizationWithOwner(sql, userId, companyName.trim(), moduleKeys as BoModuleKey[])
 
     if (!existingSession) await createSession(userId, 0)
 

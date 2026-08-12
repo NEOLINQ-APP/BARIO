@@ -1,19 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import type { BoPlan } from '@/lib/db'
+import type { BoModuleKey } from '@/lib/barioOneModules'
+import BarioOneModuleCheckboxes from './BarioOneModuleCheckboxes'
 
-const PLAN_LABELS: Record<Exclude<BoPlan, 'enterprise'>, string> = {
-  starter: 'Starter — $49/mo',
-  professional: 'Professional — $149/mo',
-  business: 'Business — $299/mo',
-}
-
-export default function BarioOneSignupForm({ initialPlan = 'starter' }: { initialPlan?: Exclude<BoPlan, 'enterprise'> }) {
+export default function BarioOneSignupForm({ initialModuleKeys = ['crm'] }: { initialModuleKeys?: BoModuleKey[] }) {
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [plan, setPlan] = useState<Exclude<BoPlan, 'enterprise'>>(initialPlan)
+  const [moduleKeys, setModuleKeys] = useState<BoModuleKey[]>(initialModuleKeys)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -25,7 +20,7 @@ export default function BarioOneSignupForm({ initialPlan = 'starter' }: { initia
       const res = await fetch('/api/bario-one/signup', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ companyName, email, password, plan }),
+        body: JSON.stringify({ companyName, email, password, moduleKeys }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
@@ -77,18 +72,7 @@ export default function BarioOneSignupForm({ initialPlan = 'starter' }: { initia
           className="w-full rounded-lg bg-black border border-zinc-700 px-3 py-2 text-sm text-white focus:border-[#d4af37] outline-none"
         />
       </div>
-      <div>
-        <label className="text-xs font-medium text-zinc-400 block mb-1">Plan</label>
-        <select
-          value={plan}
-          onChange={(e) => setPlan(e.target.value as Exclude<BoPlan, 'enterprise'>)}
-          className="w-full rounded-lg bg-black border border-zinc-700 px-3 py-2 text-sm text-white focus:border-[#d4af37] outline-none"
-        >
-          {(Object.keys(PLAN_LABELS) as Exclude<BoPlan, 'enterprise'>[]).map((key) => (
-            <option key={key} value={key}>{PLAN_LABELS[key]}</option>
-          ))}
-        </select>
-      </div>
+      <BarioOneModuleCheckboxes selected={moduleKeys} onChange={setModuleKeys} dark />
       {error && <p className="text-xs text-red-400">{error}</p>}
       <button
         type="submit"
