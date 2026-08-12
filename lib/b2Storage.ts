@@ -122,6 +122,11 @@ export async function del(urlOrKey: string): Promise<void> {
     await vercelDel(urlOrKey)
     return
   }
-  const key = urlOrKey.startsWith('http') ? urlOrKey.slice(urlOrKey.indexOf(BUCKET) + BUCKET.length + 1) : urlOrKey.replace(/^\/+/, '')
+  // Use the URL's own path rather than searching for BUCKET as a substring
+  // -- PUBLIC_BASE is virtual-hosted-style (bucket.endpoint/key), so the
+  // bucket name is part of the hostname, not a path segment, and a future
+  // Cloudflare custom domain (cdn.bario.ca/key) won't contain the bucket
+  // name anywhere in the URL at all.
+  const key = urlOrKey.startsWith('http') ? new URL(urlOrKey).pathname.replace(/^\/+/, '') : urlOrKey.replace(/^\/+/, '')
   await client().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: decodeURIComponent(key) }))
 }
