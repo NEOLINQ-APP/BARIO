@@ -9,6 +9,7 @@ export default function LoginForm() {
   const params = useSearchParams()
   const plan = params.get('plan')
   const promoCode = params.get('promo')
+  const next = params.get('next')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +30,7 @@ export default function LoginForm() {
       setLoading(false)
       return
     }
-    await continueAfterAuth(plan, promoCode)
+    await continueAfterAuth(plan, promoCode, next)
   }
 
   return (
@@ -59,7 +60,12 @@ export default function LoginForm() {
       </button>
       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Don't have an account?{' '}
-        <a href={`/signup${plan ? `?plan=${plan}` : ''}`} className="text-amber-600 dark:text-[#f59e0b]">Sign up</a>
+        <a
+          href={`/signup?${new URLSearchParams({ ...(plan ? { plan } : {}), ...(next ? { next } : {}) }).toString()}`}
+          className="text-amber-600 dark:text-[#f59e0b]"
+        >
+          Sign up
+        </a>
       </p>
     </form>
   )
