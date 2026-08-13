@@ -10,6 +10,16 @@ export const maxDuration = 120 // dispatch_business_task can chain several model
 
 const anthropicClient = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null
 
+// Anthropic's hosted web search tool — server-executed, same tool type
+// already live on Victoria's phone/ConversationRelay backend
+// (/var/www/miko-voice/server.js's WEB_SEARCH_TOOL). Unlike the custom
+// tools in VICTORIA_APP_TOOLS, the API runs the search itself and folds
+// results straight into the response (server_tool_use +
+// web_search_tool_result blocks), so the existing tool_use round-trip loop
+// below doesn't need to know about it at all — it only ever sees and
+// handles plain `tool_use` blocks.
+const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20260209 = { type: 'web_search_20260209', name: 'web_search', max_uses: 5 }
+
 // This is Sherwin's own single-operator work tool — it drafts real emails,
 // proposes real invoices, and reads business data as HIS voice, so it's
 // gated to his specific account, not just any is_admin session (any staff
@@ -57,6 +67,7 @@ Important behaviors:
 - If he attaches an image or document, you can actually see/read its contents — discuss it naturally, don't ask him to describe it to you.
 - For real coding/engineering work on the Bario codebase (fix a bug, add a feature, change a page): use queue_coding_task. This only QUEUES it — an automated hourly pass does the actual work and reports back as new messages in this chat once there's progress. Be honest that it's not instant: tell him it's queued and he'll see an update within the hour, never "done."
 - For substantial non-coding work (research, drafting, analysis) that's more than you should just answer directly: use dispatch_business_task. This runs for real, right now (can take up to a minute or two) and comes back with a reviewed answer — tell him you're working on it before the result comes back.
+- You have real web_search — use it freely and quickly whenever he asks you to look something up, or whenever answering well depends on current information you don't already know (news, prices, a product, a business, anything time-sensitive). Don't hedge or say you can't check the internet — just search. Don't announce that you're searching or narrate the process, just do it and answer with what you found.
 - Keep replies focused and useful — this is a work tool, not small talk, though a little warmth is fine.`
 
 // Loads persisted history so the app actually shows past conversation (and
@@ -141,7 +152,10 @@ export async function POST(req: Request) {
     const messages: Anthropic.MessageParam[] = [...priorMessages, { role: 'user', content: currentBlocks }]
 
     const cachedSystem: Anthropic.TextBlockParam[] = [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }]
-    const cachedTools = [...VICTORIA_APP_TOOLS.slice(0, -1), { ...VICTORIA_APP_TOOLS[VICTORIA_APP_TOOLS.length - 1], cache_control: { type: 'ephemeral' as const } }]
+    // cache_control on the LAST tool marks the cache breakpoint covering
+    // everything before it, so web_search (a real API-level tool, not one
+    // of VICTORIA_APP_TOOLS) has to go last, carrying the breakpoint itself.
+    const cachedTools: Anthropic.ToolUnion[] = [...VICTORIA_APP_TOOLS, { ...WEB_SEARCH_TOOL, cache_control: { type: 'ephemeral' } }]
 
     const toolLog: { tool: string; args: unknown; result: unknown }[] = []
     let response = await anthropicClient.messages.create({

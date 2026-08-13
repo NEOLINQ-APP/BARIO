@@ -46,6 +46,8 @@ export default function VictoriaAppChat() {
   const [lastToolLog, setLastToolLog] = useState<ToolLogEntry[]>([])
   const [listening, setListening] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
+  const [speakReplies, setSpeakReplies] = useState(false)
+  const [ttsSupported, setTtsSupported] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -65,6 +67,7 @@ export default function VictoriaAppChat() {
       navigator.serviceWorker.register('/victoria-app-sw.js').catch(() => {})
     }
     setSpeechSupported(!!getSpeechRecognition())
+    setTtsSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
 
     // Load persisted history — without this, past conversation (and
     // anything narrated in from a Claude Code session via the admin
@@ -170,8 +173,16 @@ export default function VictoriaAppChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function send() {
-    const text = input.trim()
+  function speak(text: string) {
+    if (!ttsSupported) return
+    window.speechSynthesis.cancel() // don't stack replies if one's still talking
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1.05
+    window.speechSynthesis.speak(utterance)
+  }
+
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim()
     if ((!text && pendingAttachments.length === 0) || busy) return
     const attachments = pendingAttachments
     const next = [...messages, { role: 'user', content: text, attachments } as Msg]
@@ -189,10 +200,15 @@ export default function VictoriaAppChat() {
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
       setMessages((m) => [...m, { role: 'assistant', content: data.reply }])
       setLastToolLog(data.toolLog ?? [])
+      if (speakReplies) speak(data.reply)
     } catch (err: any) {
       setMessages((m) => [...m, { role: 'assistant', content: `Error: ${err.message ?? 'something went wrong'}` }])
     }
     setBusy(false)
+  }
+
+  function sendVoiceTranscript(transcript: string) {
+    send(transcript)
   }
 
   async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -229,7 +245,10 @@ export default function VictoriaAppChat() {
     recognition.lang = 'en-US'
     recognition.onresult = (event: any) => {
       const transcript = event.results?.[0]?.[0]?.transcript
-      if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      // Auto-send straight from voice — pass the transcript directly
+      // rather than routing through the `input` state, since setState is
+      // async and send() would otherwise fire before `input` catches up.
+      if (transcript) sendVoiceTranscript(transcript)
     }
     recognition.onend = () => setListening(false)
     recognition.onerror = () => setListening(false)
@@ -391,12 +410,27 @@ export default function VictoriaAppChat() {
                 type="button"
                 onClick={toggleListening}
                 disabled={busy}
-                title={listening ? 'Stop listening' : 'Speak instead of typing'}
+                title={listening ? 'Stop listening' : 'Speak instead of typing — sends automatically'}
                 className={`shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border text-sm disabled:opacity-50 ${
                   listening ? 'border-red-400 bg-red-500/10 text-red-500' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
                 }`}
               >
                 🎙️
+              </button>
+            )}
+            {ttsSupported && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (speakReplies) window.speechSynthesis.cancel()
+                  setSpeakReplies((v) => !v)
+                }}
+                title={speakReplies ? 'Victoria will stop speaking her replies' : 'Victoria will speak her replies out loud'}
+                className={`shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
+                  speakReplies ? 'border-cyan-400 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                }`}
+              >
+                {speakReplies ? '🔊' : '🔈'}
               </button>
             )}
             <input
