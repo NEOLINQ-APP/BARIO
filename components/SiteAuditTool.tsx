@@ -2,20 +2,20 @@
 
 import { useState } from 'react'
 
-type AuditResult = {
+type PreviewResult = {
   url: string
   isWordPress: boolean
-  pagesFound: number
-  pagesFoundIsExact: boolean
-  homepageLoadMs: number
-  pluginsDetected: string[]
 }
 
+// Public, no-login teaser widget — a real, full site audit (page count,
+// load time, SEO/technical checks, and an AI-powered deep-dive report)
+// now requires a free Bario account, at /site-audit. This stays as a
+// zero-friction "is this WordPress?" check for top-of-funnel/shareable use.
 export default function SiteAuditTool() {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<AuditResult | null>(null)
+  const [result, setResult] = useState<PreviewResult | null>(null)
 
   async function handleAudit(e: React.FormEvent) {
     e.preventDefault()
@@ -30,7 +30,7 @@ export default function SiteAuditTool() {
         body: JSON.stringify({ url: url.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Audit failed')
+      if (!res.ok) throw new Error(data.error ?? 'Check failed')
       setResult(data)
     } catch (err: any) {
       setError(err.message)
@@ -53,11 +53,11 @@ export default function SiteAuditTool() {
           disabled={busy || !url.trim()}
           className="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold bg-cyan-500 text-slate-950 disabled:opacity-50 whitespace-nowrap"
         >
-          {busy ? 'Auditing…' : 'Run Free Audit'}
+          {busy ? 'Checking…' : 'Quick Check'}
         </button>
       </form>
 
-      {busy && <p className="text-sm text-slate-500 mt-3 text-center">Checking your site — this takes a few seconds.</p>}
+      {busy && <p className="text-sm text-slate-500 mt-3 text-center">Checking your site…</p>}
       {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3 text-center">{error}</p>}
 
       {result && (
@@ -65,44 +65,18 @@ export default function SiteAuditTool() {
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Platform</div>
             <div className="text-lg font-semibold text-slate-900 dark:text-white">
-              {result.isWordPress ? 'WordPress detected' : "Doesn't look like WordPress — that's fine, migration works for other platforms too"}
+              {result.isWordPress ? 'WordPress detected' : "Doesn't look like WordPress"}
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Pages found</div>
-              <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
-                {result.pagesFoundIsExact ? result.pagesFound : `${result.pagesFound}+`}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Homepage load time</div>
-              <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{(result.homepageLoadMs / 1000).toFixed(2)}s</div>
-            </div>
-          </div>
-
-          {result.pluginsDetected.length > 0 && (
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Plugins detected ({result.pluginsDetected.length})</div>
-              <div className="flex flex-wrap gap-2">
-                {result.pluginsDetected.map((p) => (
-                  <span key={p} className="text-xs px-2.5 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{p}</span>
-                ))}
-              </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Each plugin is a piece of software that can have security bugs — one of them is usually how a WordPress
-                site gets hacked. A static site has none of these running, so there's nothing there to exploit.
-              </p>
-            </div>
-          )}
 
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
-            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xs">
-              Bring all {result.pagesFoundIsExact ? result.pagesFound : `${result.pagesFound}+`} pages over automatically, live on your own bario.ca address in minutes.
+            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-sm">
+              That's the free preview. A full account unlocks a real crawl of your whole site, real SEO/technical
+              checks, and an AI report grounded in your actual content — the kind of specific analysis a generic
+              chatbot can't produce, because it can't crawl your site itself.
             </p>
             <a href="/signup" className="px-5 py-2.5 rounded-xl font-semibold bg-cyan-500 text-slate-950 whitespace-nowrap">
-              Migrate My Site
+              Get the Full Audit — Free
             </a>
           </div>
         </div>

@@ -63,6 +63,12 @@ async function ensureSchema() {
   // (app/api/assistant/support/route.ts) so it can speak to the situation
   // instead of giving a generic answer if the customer reaches out.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_note TEXT`
+  // NULL = active. Checked in both getSession() (kicks out an already-live
+  // session on the very next request, not just future logins) and the login
+  // route (clear "suspended" message instead of a generic invalid-password
+  // error). Suspending also bumps session_version as a second, independent
+  // layer — belt and suspenders, not redundant with the getSession() check.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ`
   // Personal media-library storage (separate product from the site plan —
   // a user can be on any site plan and independently subscribe for more
   // storage, same as Google One stacking on a free Google account).
@@ -175,6 +181,38 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS victoria_app_messages_user_idx ON victoria_app_messages (user_id, created_at)`
+
+  // Family members (Mya, Julianna, ...) get their own Victoria app access —
+  // link + access_token instead of a real Bario login, since they're not
+  // Bario customers. Deliberately its own table/token scheme rather than a
+  // users row, so a leaked token can only ever reach this member's own
+  // restricted chat (see lib/victoriaFamilyTools.ts's much smaller tool
+  // set), never Sherwin's business tools or account.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_family_members (
+      key TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone_number TEXT,
+      access_token TEXT NOT NULL,
+      last_location_lat DOUBLE PRECISION,
+      last_location_lng DOUBLE PRECISION,
+      last_location_at TIMESTAMPTZ,
+      location_sharing_enabled BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_family_messages (
+      id TEXT PRIMARY KEY,
+      member_key TEXT NOT NULL REFERENCES victoria_family_members(key),
+      direction TEXT NOT NULL,
+      body TEXT NOT NULL,
+      attachments_json TEXT,
+      tool_log_json TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS victoria_family_messages_member_idx ON victoria_family_messages (member_key, created_at)`
 
   // Queue for coding tasks Victoria hands off to Claude rather than doing
   // herself — picked up by an hourly "Victoria Coding Dispatcher" routine
@@ -392,6 +430,27 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS audit_requests_ip_idx ON audit_requests (ip, created_at)`
+
+  // Gated site-audit feature (2026-08-13) — persists both the free
+  // rule-based findings and the paid AI deep-dive report per logged-in
+  // user, so results can be revisited without re-crawling, and so the
+  // deep-dive's credit charge has a durable receipt (charged only after a
+  // successful LLM response — see app/api/site-audit/deep/route.ts).
+  await sql`
+    CREATE TABLE IF NOT EXISTS site_audits (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      url TEXT NOT NULL,
+      findings_json TEXT NOT NULL,
+      ai_report_json TEXT,
+      credits_charged INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'complete',
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS site_audits_user_idx ON site_audits (user_id, created_at DESC)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS support_messages (
       id TEXT PRIMARY KEY,
@@ -1933,6 +1992,7 @@ export type User = {
   email_verified: boolean
   session_version: number
   admin_note: string | null
+  suspended_at: string | null
   storage_tier: string
   storage_subscription_status: string
   stripe_storage_subscription_id: string | null
@@ -1944,6 +2004,18 @@ export type User = {
   e2e_recovery_salt: string | null
   e2e_recovery_wrapped_mek: string | null
   e2e_recovery_wrapped_mek_iv: string | null
+}
+
+export type SiteAudit = {
+  id: string
+  user_id: string
+  url: string
+  findings_json: string
+  ai_report_json: string | null
+  credits_charged: number
+  status: 'complete' | 'pending' | 'failed'
+  error: string | null
+  created_at: string
 }
 
 export type InvoiceChangeRequest = {
@@ -2194,6 +2266,28 @@ export type VictoriaMessage = {
 export type VictoriaAppMessage = {
   id: string
   user_id: string
+  direction: 'inbound' | 'outbound'
+  body: string
+  attachments_json: string | null
+  tool_log_json: string | null
+  created_at: string
+}
+
+export type VictoriaFamilyMember = {
+  key: string
+  name: string
+  phone_number: string | null
+  access_token: string
+  last_location_lat: number | null
+  last_location_lng: number | null
+  last_location_at: string | null
+  location_sharing_enabled: boolean
+  created_at: string
+}
+
+export type VictoriaFamilyMessage = {
+  id: string
+  member_key: string
   direction: 'inbound' | 'outbound'
   body: string
   attachments_json: string | null
