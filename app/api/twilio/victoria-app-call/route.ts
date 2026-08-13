@@ -29,10 +29,18 @@ const DEFAULT_PERSONA = 'victoria'
 
 export async function POST(req: Request) {
   let personaKey = DEFAULT_PERSONA
+  let member = ''
   try {
     const form = await req.formData()
     const requested = String(form.get('persona') ?? '')
     if (requested && PERSONA_VOICES[requested]) personaKey = requested
+    // Set only for a family member's own /victoria-family/[member] link
+    // (see app/api/victoria/family/voice-token/route.ts) -- tells the VPS
+    // ConversationRelay backend to use the restricted family prompt/tools
+    // instead of Sherwin's full personal-assistant set. Absent entirely for
+    // Sherwin's own app, so his call flow is completely unchanged.
+    const requestedMember = String(form.get('member') ?? '')
+    if (/^[a-z]+$/.test(requestedMember)) member = requestedMember
   } catch {
     // Malformed/empty body — fall through to the default persona.
   }
@@ -49,6 +57,7 @@ export async function POST(req: Request) {
       voice="${persona.voice}"
     >
       <Parameter name="persona" value="${personaKey}" />
+      ${member ? `<Parameter name="member" value="${member}" />` : ''}
     </ConversationRelay>
   </Connect>
 </Response>`

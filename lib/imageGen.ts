@@ -16,9 +16,8 @@ export type GeneratedImage = {
   url: string
 }
 
-export async function generateImage(sql: any, userId: string, prompt: string, purpose: ImagePurpose = 'general'): Promise<GeneratedImage> {
+async function generateImageBytes(prompt: string): Promise<Buffer> {
   const openai = getOpenAI()
-
   const response = await openai.images.generate({
     model: 'gpt-image-1',
     prompt,
@@ -26,11 +25,13 @@ export async function generateImage(sql: any, userId: string, prompt: string, pu
     quality: 'low',
     n: 1,
   })
-
   const b64 = response.data?.[0]?.b64_json
   if (!b64) throw new Error('Image generation returned no data')
+  return Buffer.from(b64, 'base64')
+}
 
-  const buffer = Buffer.from(b64, 'base64')
+export async function generateImage(sql: any, userId: string, prompt: string, purpose: ImagePurpose = 'general'): Promise<GeneratedImage> {
+  const buffer = await generateImageBytes(prompt)
   const filename = `${purpose}-${Date.now()}.png`
   const blob = await put(`media/${userId}/victoria-generated/${filename}`, buffer, {
     access: 'public',
@@ -45,4 +46,20 @@ export async function generateImage(sql: any, userId: string, prompt: string, pu
   `
 
   return { id, url: blob.url }
+}
+
+// For non-account holders (Victoria's family-member chat, see
+// lib/victoriaFamilyTools.ts) -- same generation, just no media_assets row,
+// since that table's user_id is a real FK to users(id) and family members
+// aren't Bario customers with an account. Stored under its own B2 prefix
+// instead of a user's X-Drive folder.
+export async function generateImageStandalone(prompt: string, purpose: ImagePurpose = 'general'): Promise<GeneratedImage> {
+  const buffer = await generateImageBytes(prompt)
+  const filename = `${purpose}-${Date.now()}.png`
+  const blob = await put(`victoria-family-generated/${filename}`, buffer, {
+    access: 'public',
+    addRandomSuffix: true,
+    contentType: 'image/png',
+  })
+  return { id: randomUUID(), url: blob.url }
 }

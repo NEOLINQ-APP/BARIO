@@ -1,0 +1,15 @@
+{
+  "name": "Victoria — Julianna's Assistant",
+  "short_name": "Victoria",
+  "description": "Talk to Victoria anytime — restaurants, weather, safety, or just to check in.",
+  "start_url": "/victoria-family/julianna",
+  "scope": "/victoria-family/julianna",
+  "display": "standalone",
+  "background_color": "#0b111c",
+  "theme_color": "#0b111c",
+  "icons": [
+    { "src": "/victoria-avatar-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/victoria-avatar-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/victoria-avatar-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
