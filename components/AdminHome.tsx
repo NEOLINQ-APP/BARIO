@@ -41,6 +41,10 @@ export default function AdminHome() {
             <div className="font-semibold">CRM Outreach</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>
           </a>
+          <a href="/admin/site-audit-leads" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Site Audit Leads 🎯</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every account created through the free site-audit funnel — email, site audited, score, CSV export.</p>
+          </a>
           <a href="/admin/dialer" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Bario Dialer 📞</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Installable per-business apps — real calls as AFC Logistics, Sunbuilt Group, or Unique Group Inc. Separate installable link per business: /admin/dialer/afc, /sunbuilt, /unique.</p>
@@ -88,6 +92,10 @@ export default function AdminHome() {
           <a href="/admin/client-crms" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Client CRMs 🔑</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every Twenty CRM workspace provisioned for a client — open it directly or reveal its login, no digging for credentials.</p>
+          </a>
+          <a href="/admin/users" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">All Users 👥</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every account signed up on bario.ca — search, upgrade a plan, suspend, or delete.</p>
           </a>
           <a href="/admin/ai-integrations" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">AI Integrations & Domains</div>
