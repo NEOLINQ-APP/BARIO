@@ -1115,6 +1115,30 @@ async function ensureSchema() {
     )
   `
   await sql`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_phone TEXT`
+
+  // Recurring monthly bills for real external clients (AFC Logistics,
+  // Sunbuilt Group, ...) who use Bario Dialer / Voice Agent but aren't
+  // Bario.ca account holders themselves -- the invoices table above is
+  // one-time-document only, so this is the go-forward subscription half.
+  // Nothing charges until the client actually completes the Stripe
+  // Checkout link (stripe_subscription_id stays NULL until then).
+  await sql`
+    CREATE TABLE IF NOT EXISTS external_client_subscriptions (
+      id TEXT PRIMARY KEY,
+      client_key TEXT NOT NULL,
+      client_name TEXT NOT NULL,
+      client_email TEXT,
+      stripe_customer_id TEXT NOT NULL,
+      stripe_subscription_id TEXT,
+      stripe_checkout_session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_checkout',
+      line_items_json TEXT NOT NULL,
+      tax_percent NUMERIC NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_line_items (
       id TEXT PRIMARY KEY,
@@ -2144,6 +2168,21 @@ export type Invoice = {
   stripe_checkout_session_id: string | null
   stripe_payment_intent: string | null
   paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ExternalClientSubscription = {
+  id: string
+  client_key: string
+  client_name: string
+  client_email: string | null
+  stripe_customer_id: string
+  stripe_subscription_id: string | null
+  stripe_checkout_session_id: string | null
+  status: 'pending_checkout' | 'active' | 'canceled'
+  line_items_json: string
+  tax_percent: string
   created_at: string
   updated_at: string
 }

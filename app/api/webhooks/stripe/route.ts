@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
-import { getStripe, moduleKeyForPriceId } from '@/lib/stripe'
+import { getStripe, moduleKeyForPriceId, tierKeyForPriceId } from '@/lib/stripe'
+import { BO_PLANS } from '@/lib/barioOneTiers'
 import { db, type VpsInstance } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import { isStorageTierKey } from '@/lib/storageTiers'
@@ -256,22 +257,48 @@ export async function POST(req: Request) {
 
       const boOrgId = session.metadata?.boOrgId
       if (session.mode === 'subscription' && userId && boOrgId) {
-        // moduleKeys is set by the new modular checkout route
-        // (app/api/bario-one/modules/checkout); the old single-plan
-        // checkout route never sets it, so enabled_modules_json is simply
-        // left untouched (already backfilled by ensureModulesForOrg on
-        // first API touch) for orgs still on the legacy flow.
+        // moduleKeys is set by the a-la-carte checkout route
+        // (app/api/bario-one/modules/checkout); boTierPlan/boTierBilling
+        // is set by the bundled-tier checkout route
+        // (app/api/bario-one/checkout). Exactly one of the two is present
+        // on any given session — a tier checkout sets enabled_modules_json
+        // from the tier's module set directly (BO_PLANS[plan].modules is
+        // already a fully dependency-resolved list, hand-authored to be
+        // one), an a-la-carte checkout uses the modules it resolved itself.
         const moduleKeysJson = session.metadata?.moduleKeys
+        const tierPlan = session.metadata?.boTierPlan
+        const tierBilling = session.metadata?.boTierBilling === 'annual' ? 'annual' : 'monthly'
+        const tierModulesJson = tierPlan && tierPlan in BO_PLANS ? JSON.stringify(BO_PLANS[tierPlan as keyof typeof BO_PLANS].modules) : null
+
         await sql`
           UPDATE bo_organizations
           SET stripe_customer_id = ${String(session.customer)},
               stripe_subscription_id = ${String(session.subscription)},
               subscription_status = 'active',
-              enabled_modules_json = COALESCE(${moduleKeysJson ?? null}, enabled_modules_json),
+              enabled_modules_json = COALESCE(${tierModulesJson ?? moduleKeysJson ?? null}, enabled_modules_json),
+              plan = COALESCE(${tierPlan ?? null}, plan),
+              tier_active = ${Boolean(tierModulesJson)},
+              billing_period = ${tierBilling},
               updated_at = now()
           WHERE id = ${boOrgId}
         `
         break
+      }
+
+      if (session.mode === 'subscription') {
+        // External client subscriptions (Bario Dialer / Voice Agent billed
+        // to AFC Logistics, Sunbuilt Group, etc.) have no Bario userId —
+        // matched by checkout session id instead, set by
+        // app/api/admin/client-subscriptions/route.ts.
+        const extRows = (await sql`SELECT id FROM external_client_subscriptions WHERE stripe_checkout_session_id = ${session.id}`) as unknown as { id: string }[]
+        if (extRows[0]) {
+          await sql`
+            UPDATE external_client_subscriptions
+            SET status = 'active', stripe_subscription_id = ${String(session.subscription)}, updated_at = now()
+            WHERE id = ${extRows[0].id}
+          `
+          break
+        }
       }
 
       const plan = session.metadata?.plan
@@ -326,26 +353,37 @@ export async function POST(req: Request) {
       const boMatch = (await sql`SELECT id FROM bo_organizations WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
       if (boMatch.length > 0) {
         // Stripe's subscription items are the reconciled source of truth
-        // for which modules are actually being billed — re-derive
-        // enabled_modules_json from them on every update (covers the
-        // self-serve add/remove route, any change made directly in the
-        // Stripe dashboard, and proration events), not just
-        // subscription_status. A price that doesn't map to a known module
-        // (e.g. a legacy single-plan price) is simply skipped rather than
-        // erroring, so this stays a no-op for any org still on the old
-        // single-price flow.
-        const moduleKeys = sub.items.data
+        // for which modules/tier are actually being billed — re-derive
+        // enabled_modules_json (and tier_active/plan) from them on every
+        // update (covers the self-serve add/remove route, a tier
+        // upgrade/downgrade, any change made directly in the Stripe
+        // dashboard, and proration events), not just subscription_status.
+        // A price that doesn't map to a known module or tier is simply
+        // skipped rather than erroring.
+        const tierMatches = sub.items.data
+          .map((item) => tierKeyForPriceId(item.price.id))
+          .filter((key): key is NonNullable<typeof key> => Boolean(key))
+        const tierPlan = tierMatches[0] // a subscription only ever carries one tier price at a time
+        const tierModules = tierPlan ? BO_PLANS[tierPlan].modules : []
+
+        const addOnModules = sub.items.data
           .map((item) => moduleKeyForPriceId(item.price.id))
           .filter((key): key is NonNullable<typeof key> => Boolean(key))
+
+        const moduleKeys = Array.from(new Set([...tierModules, ...addOnModules]))
 
         if (moduleKeys.length > 0) {
           await sql`
             UPDATE bo_organizations
-            SET subscription_status = ${sub.status}, enabled_modules_json = ${JSON.stringify(moduleKeys)}, updated_at = now()
+            SET subscription_status = ${sub.status},
+                enabled_modules_json = ${JSON.stringify(moduleKeys)},
+                plan = COALESCE(${tierPlan ?? null}, plan),
+                tier_active = ${Boolean(tierPlan)},
+                updated_at = now()
             WHERE stripe_subscription_id = ${subId}
           `
         } else {
-          await sql`UPDATE bo_organizations SET subscription_status = ${sub.status}, updated_at = now() WHERE stripe_subscription_id = ${subId}`
+          await sql`UPDATE bo_organizations SET subscription_status = ${sub.status}, tier_active = false, updated_at = now() WHERE stripe_subscription_id = ${subId}`
         }
         break
       }
@@ -365,6 +403,12 @@ export async function POST(req: Request) {
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription
       const subId = sub.id
+
+      const extCancelMatch = (await sql`SELECT id FROM external_client_subscriptions WHERE stripe_subscription_id = ${subId}`) as { id: string }[]
+      if (extCancelMatch.length > 0) {
+        await sql`UPDATE external_client_subscriptions SET status = 'canceled', updated_at = now() WHERE stripe_subscription_id = ${subId}`
+        break
+      }
 
       const storageMatch = (await sql`SELECT id FROM users WHERE stripe_storage_subscription_id = ${subId}`) as { id: string }[]
       if (storageMatch.length > 0) {
