@@ -98,6 +98,16 @@ Add items anywhere, any time. Claude checks this file and updates it as work get
 
 ## New requests — need scoping before building
 
+### Dashboard nav breadth, inspired by Hostinger's sidebar (raised 2026-08-13, part of your marketing strategy)
+- You shared a screenshot of Hostinger's real dashboard sidebar and asked to save it for later, not act now. Structure, for reference:
+  - Top-level: Home, Websites, Domains, Emails, More services
+  - "Hostinger apps": Horizons, Email marketing, Ecommerce
+  - "AI agents": Agent, OpenClaw, Hermes Agent, n8n
+  - "Dev tools": VPS, GPU (Beta), API, AI Router (nexos.ai)
+- Where Bario already has a real equivalent: Websites/Domains/Emails (hosting, domain reseller, Mailcow email), VPS, marketing posts (`/admin/marketing`, admin-only today not customer-facing), an n8n instance already running on the main VPS (internal use only, not customer-facing).
+- Where Bario has nothing today: a customer-facing "AI agents" nav category (Sky/Bario AI exist but aren't framed as a discoverable agent marketplace the way Hostinger frames "Agent/OpenClaw/Hermes Agent"), GPU hosting, a customer-facing "AI Router" product, a dedicated Ecommerce app.
+- [ ] Not started — needs a real scoping conversation on which of these are worth building for competitive/marketing positioning vs. which are just Hostinger's own upsells that don't fit Bario's product line.
+
 ### Admin coupon/discount panel
 - Confirmed: `/admin/gift-codes` already exists, but only grants free AI-builder credits via a generic code — no plan upgrades, no $/% discounts, no targeting a specific customer's email, no CRM integration.
 - [ ] Extend it (or build alongside it) to: generate a code/discount tied to one specific client's email, admin can upgrade/downgrade or discount any user's plan ($ or %) on demand, pick-and-choose per user rather than a generic redeemable code.
