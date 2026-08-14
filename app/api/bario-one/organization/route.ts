@@ -27,7 +27,7 @@ export async function GET() {
         name: org.name,
         slug: org.slug,
         plan: org.plan,
-        planName: plan.name,
+        planName: plan.displayName,
         enabledModules,
         seatLimit: seatLimitForModules(enabledModules),
         subscriptionStatus: org.subscription_status,
