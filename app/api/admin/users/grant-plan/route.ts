@@ -4,7 +4,7 @@ import { creditsForPlan } from '@/lib/credits'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 
-const VALID_PLANS = ['starter', 'business', 'agency']
+const VALID_PLANS = ['free', 'starter', 'business', 'agency']
 
 // Manually comps a plan onto an existing account — no Stripe subscription
 // involved, so this never touches stripe_customer_id/stripe_subscription_id.
@@ -13,6 +13,9 @@ const VALID_PLANS = ['starter', 'business', 'agency']
 // exactly like a real paid account, and it stays that way indefinitely
 // since there's no real subscription to lapse or get canceled — a deliberate
 // comp, not a trial.
+// 'free' is the downgrade path — it's not a real plan value in the DB
+// (regular accounts just have plan = NULL), so it's handled separately here
+// rather than being added to creditsForPlan/etc.
 export async function POST(req: Request) {
   const auth = await requireAdmin(req)
   if (auth instanceof NextResponse) return auth
@@ -27,11 +30,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Plan must be one of: ${VALID_PLANS.join(', ')}` }, { status: 400 })
     }
 
+    const dbPlan = plan === 'free' ? null : plan
     const rows = (await sql`
       UPDATE users
-      SET plan = ${plan},
-          subscription_status = 'active',
-          credits_remaining = ${creditsForPlan(plan)},
+      SET plan = ${dbPlan},
+          subscription_status = ${dbPlan ? 'active' : 'none'},
+          credits_remaining = ${creditsForPlan(dbPlan)},
           credits_reset_at = now() + interval '1 month'
       WHERE email = ${email.trim().toLowerCase()}
       RETURNING id, email, plan
