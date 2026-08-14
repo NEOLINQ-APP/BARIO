@@ -1994,6 +1994,21 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS client_request_events_request_idx ON client_request_events (request_id, created_at)`
+
+  // Quick Links — admin-managed one-click buttons shown in the client
+  // Requests portal (e.g. "Open Your CRM") so clients don't need to
+  // remember URLs or juggle separate logins by hand.
+  await sql`
+    CREATE TABLE IF NOT EXISTS client_quick_links (
+      id TEXT PRIMARY KEY,
+      company_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS client_quick_links_company_idx ON client_quick_links (company_key, sort_order)`
 }
 
 export async function db() {
