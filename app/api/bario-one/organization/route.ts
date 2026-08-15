@@ -34,6 +34,11 @@ export async function GET() {
         trialEndsAt: org.trial_ends_at,
         hasLiveBilling: Boolean(org.stripe_subscription_id),
         brandingPrimaryColor: org.branding_primary_color,
+        brandingLogoUrl: org.branding_logo_url,
+        businessAddress: org.business_address,
+        businessPhone: org.business_phone,
+        businessEmail: org.business_email,
+        taxNumber: org.tax_number,
       },
       myRole: membership.role,
       members: members.map((m) => ({

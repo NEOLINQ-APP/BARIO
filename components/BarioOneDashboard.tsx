@@ -139,6 +139,9 @@ export default function BarioOneDashboard() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-bold">Modules</h3>
           <div className="flex gap-4">
+            <a href="/dashboard/bario-one/company" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
+              Company settings →
+            </a>
             <a href="/dashboard/bario-one/modules" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
               Manage modules →
             </a>
