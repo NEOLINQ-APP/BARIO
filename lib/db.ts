@@ -1878,6 +1878,23 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS invoice_theme_key TEXT NOT NULL DEFAULT 'classic'`
   await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS invoice_field_toggles_json TEXT NOT NULL DEFAULT '{}'`
 
+  // Work orders + estimate->invoice conversion. Work orders are a 4th
+  // bo_invoices.type value rather than a new table — this reuses numbering,
+  // items, PDF/HTML rendering, send/void, and the public customer view for
+  // free; scheduled_date/job_site_address/assigned_employee_id are simply
+  // NULL/unused for estimate/quote/invoice rows. assigned_employee_id
+  // references bo_employees (a separately-gated 'employees' module) — the
+  // UI must degrade to free-text or hide the picker when that module isn't
+  // enabled, never hard-require it. converted_to_invoice_id/
+  // converted_from_id are a self-referential pair so the UI can show
+  // "Converted to INV-1042" and the convert route can refuse to
+  // double-convert the same estimate/quote.
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS scheduled_date DATE`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS job_site_address TEXT`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS assigned_employee_id TEXT REFERENCES bo_employees(id)`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS converted_to_invoice_id TEXT REFERENCES bo_invoices(id)`
+  await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS converted_from_id TEXT REFERENCES bo_invoices(id)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_suppliers (
       id TEXT PRIMARY KEY,
@@ -2829,7 +2846,7 @@ export type BoNote = {
   created_at: string
 }
 
-export type BoInvoiceType = 'estimate' | 'quote' | 'invoice'
+export type BoInvoiceType = 'estimate' | 'quote' | 'invoice' | 'work_order'
 
 export type BoInvoice = {
   id: string
@@ -2854,6 +2871,11 @@ export type BoInvoice = {
   stripe_checkout_session_id: string | null
   stripe_payment_intent: string | null
   created_by_user_id: string | null
+  scheduled_date: string | null
+  job_site_address: string | null
+  assigned_employee_id: string | null
+  converted_to_invoice_id: string | null
+  converted_from_id: string | null
   created_at: string
   updated_at: string
 }
