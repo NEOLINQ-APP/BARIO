@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react'
 
 type CustomerOption = { id: string; contact_name: string; company_name: string | null }
-type Row = { description: string; quantity: string; unitPriceDollars: string }
+type ProductOption = { id: string; name: string; description: string | null; price_cents: number; item_type: 'product' | 'service' }
+type Row = { description: string; quantity: string; unitPriceDollars: string; productId: string | null }
 
 export default function BarioOneInvoiceCreate() {
   const [customers, setCustomers] = useState<CustomerOption[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
   const [customerId, setCustomerId] = useState('')
   const [type, setType] = useState<'estimate' | 'quote' | 'invoice'>('invoice')
-  const [rows, setRows] = useState<Row[]>([{ description: '', quantity: '1', unitPriceDollars: '' }])
+  const [rows, setRows] = useState<Row[]>([{ description: '', quantity: '1', unitPriceDollars: '', productId: null }])
   const [taxPercent, setTaxPercent] = useState('0')
   const [taxLabel, setTaxLabel] = useState('GST/HST')
   const [discountValue, setDiscountValue] = useState('0')
@@ -24,16 +26,32 @@ export default function BarioOneInvoiceCreate() {
     fetch('/api/bario-one/crm/customers')
       .then((r) => r.json())
       .then((data) => setCustomers(data.customers ?? []))
+    fetch('/api/bario-one/crm/invoices/products')
+      .then((r) => r.json())
+      .then((data) => setProducts(data.products ?? []))
   }, [])
 
   function updateRow(i: number, patch: Partial<Row>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
   function addRow() {
-    setRows((prev) => [...prev, { description: '', quantity: '1', unitPriceDollars: '' }])
+    setRows((prev) => [...prev, { description: '', quantity: '1', unitPriceDollars: '', productId: null }])
   }
   function removeRow(i: number) {
     setRows((prev) => prev.filter((_, idx) => idx !== i))
+  }
+  function pickProduct(i: number, productId: string) {
+    if (!productId) {
+      updateRow(i, { productId: null })
+      return
+    }
+    const p = products.find((p) => p.id === productId)
+    if (!p) return
+    updateRow(i, {
+      productId: p.id,
+      description: p.description || p.name,
+      unitPriceDollars: (p.price_cents / 100).toFixed(2),
+    })
   }
 
   const total = rows.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitPriceDollars) || 0), 0)
@@ -45,7 +63,12 @@ export default function BarioOneInvoiceCreate() {
     try {
       const items = rows
         .filter((r) => r.description.trim())
-        .map((r) => ({ description: r.description.trim(), quantity: Number(r.quantity) || 1, unitPriceCents: Math.round((Number(r.unitPriceDollars) || 0) * 100) }))
+        .map((r) => ({
+          description: r.description.trim(),
+          quantity: Number(r.quantity) || 1,
+          unitPriceCents: Math.round((Number(r.unitPriceDollars) || 0) * 100),
+          productId: r.productId,
+        }))
       const res = await fetch('/api/bario-one/crm/invoices', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -89,9 +112,26 @@ export default function BarioOneInvoiceCreate() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-semibold">Line items</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">Line items</p>
+          <a href="/dashboard/bario-one/crm/invoices/products" target="_blank" rel="noreferrer" className="text-xs font-medium text-amber-600 dark:text-[#d4af37] hover:underline">
+            + Manage products/services →
+          </a>
+        </div>
         {rows.map((r, i) => (
-          <div key={i} className="flex gap-2 items-center">
+          <div key={i} className="flex flex-wrap gap-2 items-center">
+            {products.length > 0 && (
+              <select
+                value={r.productId ?? ''}
+                onChange={(e) => pickProduct(i, e.target.value)}
+                className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-2 py-2 text-sm"
+              >
+                <option value="">Custom line…</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
             <input value={r.description} onChange={(e) => updateRow(i, { description: e.target.value })} placeholder="Description" className="flex-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
             <input value={r.quantity} onChange={(e) => updateRow(i, { quantity: e.target.value })} type="number" min="0" step="0.01" placeholder="Qty" className="w-20 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
             <input value={r.unitPriceDollars} onChange={(e) => updateRow(i, { unitPriceDollars: e.target.value })} type="number" min="0" step="0.01" placeholder="Price $" className="w-24 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />

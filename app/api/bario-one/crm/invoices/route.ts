@@ -60,6 +60,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Every line item needs a description' }, { status: 400 })
       }
     }
+
+    // Resolve any productId line items against this org's catalog and
+    // snapshot cost_cents at create-time — bo_products.cost_cents can
+    // change later, historical invoices must not silently re-price.
+    const productIds = Array.from(new Set(items.map((i: any) => i.productId).filter((id: any) => typeof id === 'string')))
+    const productCostById = new Map<string, number>()
+    if (productIds.length > 0) {
+      const productRows = (await sql`
+        SELECT id, cost_cents FROM bo_products WHERE organization_id = ${org.id} AND id = ANY(${productIds})
+      `) as unknown as { id: string; cost_cents: number }[]
+      for (const p of productRows) productCostById.set(p.id, p.cost_cents)
+    }
     const recurring = Boolean(isRecurring) && VALID_INTERVALS.includes(recurringInterval)
 
     const customerRows = (await sql`SELECT id FROM bo_customers WHERE id = ${customerId} AND organization_id = ${org.id}`) as unknown[]
@@ -89,9 +101,11 @@ export async function POST(req: Request) {
       `
       let sortOrder = 0
       for (const item of items) {
+        const productId = typeof item.productId === 'string' && productCostById.has(item.productId) ? item.productId : null
+        const unitCostCents = productId ? productCostById.get(productId)! : 0
         await tx`
-          INSERT INTO bo_invoice_items (id, invoice_id, description, quantity, unit_price_cents, sort_order)
-          VALUES (${randomUUID()}, ${id}, ${item.description.trim()}, ${Number(item.quantity) || 1}, ${Math.round(Number(item.unitPriceCents) || 0)}, ${sortOrder++})
+          INSERT INTO bo_invoice_items (id, invoice_id, description, quantity, unit_price_cents, sort_order, product_id, unit_cost_cents)
+          VALUES (${randomUUID()}, ${id}, ${item.description.trim()}, ${Number(item.quantity) || 1}, ${Math.round(Number(item.unitPriceCents) || 0)}, ${sortOrder++}, ${productId}, ${unitCostCents})
         `
       }
     })
