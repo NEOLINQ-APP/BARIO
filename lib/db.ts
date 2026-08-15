@@ -767,6 +767,28 @@ async function ensureSchema() {
     )
   `
 
+  // Resolve any pre-existing duplicate active sessions *before* creating
+  // the uniqueness constraint below. IF NOT EXISTS on the CREATE UNIQUE
+  // INDEX only skips re-creation once the index already exists — it does
+  // nothing for a first attempt that fails outright because current rows
+  // already violate it, which is exactly the state real data can be in
+  // (the race this index fixes already produced duplicate 'running' rows
+  // for the same project before this migration ever ran). A failed CREATE
+  // INDEX here would throw inside ensureSchema(), which every route calling
+  // db() awaits — breaking login, admin, and every hosted site, not just
+  // Bario Build. Keeping only the newest row per project active lets the
+  // index creation below succeed unconditionally regardless of DB state.
+  await sql`
+    UPDATE build_sandbox_sessions b
+    SET status = 'failed', last_error = 'superseded by a newer session for the same project (schema migration cleanup)', updated_at = now()
+    WHERE b.status IN ('starting', 'running')
+      AND b.id NOT IN (
+        SELECT DISTINCT ON (project_id) id FROM build_sandbox_sessions
+        WHERE status IN ('starting', 'running')
+        ORDER BY project_id, created_at DESC
+      )
+  `
+
   // Enforces one active (starting/running) sandbox session per project at
   // the DB level. Without this, two requests that both see "no session
   // yet" (e.g. the editor's on-mount session-warmup call racing the first
