@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { computeTotals, sanitizeForPdf, type Discount, type LineItemInput } from '@/lib/invoices'
+import { INVOICE_THEMES, hexToRgbUnit, parseFieldToggles, type InvoiceThemeKey } from '@/lib/barioOneInvoiceThemes'
 import type { BoOrganization, BoCustomer, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 export { computeTotals }
@@ -57,11 +58,33 @@ export async function generateBoInvoicePdf(
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
 
+  const themeKey: InvoiceThemeKey = (INVOICE_THEMES[org.invoice_theme_key as InvoiceThemeKey] ? org.invoice_theme_key : 'classic') as InvoiceThemeKey
+  const theme = INVOICE_THEMES[themeKey]
+  const toggles = parseFieldToggles(org.invoice_field_toggles_json)
+  const [ar, ag, ab] = hexToRgbUnit(org.branding_primary_color)
+  const accentColor = rgb(ar, ag, ab)
+
   const margin = 50
   let y = 792 - margin
 
   const draw = (text: string, x: number, size: number, useFont = font, color = rgb(0.1, 0.1, 0.1)) => {
     page.drawText(sanitizeForPdf(text), { x, y, size, font: useFont, color })
+  }
+
+  const headerTextColor = theme.headerStyle === 'band' ? rgb(1, 1, 1) : accentColor
+  const infoColor = theme.headerStyle === 'band' ? rgb(0.95, 0.95, 0.95) : rgb(0.4, 0.4, 0.4)
+  const nameSize = theme.accentWeight === 'bold' ? 24 : 20
+  const centered = theme.headerStyle === 'centered'
+
+  // Header height depends on how many optional info lines actually render,
+  // so the 'band' background can be sized to fit instead of a guessed
+  // fixed height that risks overlapping the "Bill to" section below.
+  const addressLines = toggles.showBusinessAddress && org.business_address ? org.business_address.split('\n').length : 0
+  const infoLineCount = addressLines + (org.business_email ? 1 : 0) + (org.business_phone ? 1 : 0) + (toggles.showTaxNumber && org.tax_number ? 1 : 0)
+  const headerHeight = 38 + infoLineCount * 12 + 20
+
+  if (theme.headerStyle === 'band') {
+    page.drawRectangle({ x: 0, y: 792 - headerHeight, width: 612, height: headerHeight, color: accentColor })
   }
 
   let logoWidth = 0
@@ -71,29 +94,39 @@ export async function generateBoInvoicePdf(
       const embed = org.branding_logo_url.endsWith('.jpg') || org.branding_logo_url.endsWith('.jpeg') ? doc.embedJpg.bind(doc) : doc.embedPng.bind(doc)
       const logoImage = await embed(logoBytes)
       const logoDim = logoImage.scale(26 / logoImage.width)
-      page.drawImage(logoImage, { x: margin, y: y - 20, width: logoDim.width, height: logoDim.height })
-      logoWidth = logoDim.width + 8
+      const logoX = centered ? 612 / 2 - logoDim.width / 2 : margin
+      page.drawImage(logoImage, { x: logoX, y: y - 20, width: logoDim.width, height: logoDim.height })
+      logoWidth = centered ? 0 : logoDim.width + 8
     } catch {
       // Non-fatal — the PDF still generates correctly without the logo image.
     }
   }
 
-  draw(org.name, margin + logoWidth, 20, bold, rgb(0.02, 0.5, 0.55))
-  draw(invoice.type.toUpperCase(), 612 - margin - 100, 20, bold)
+  const nameX = centered ? 612 / 2 - (org.name.length * nameSize * 0.28) : margin + logoWidth
+  draw(org.name, nameX, nameSize, bold, headerTextColor)
+  draw(invoice.type.toUpperCase(), 612 - margin - 100, 20, bold, theme.headerStyle === 'band' ? rgb(1, 1, 1) : rgb(0.1, 0.1, 0.1))
   y -= 18
+  const infoX = centered ? margin : margin + logoWidth
+  if (toggles.showBusinessAddress && org.business_address) {
+    for (const line of org.business_address.split('\n')) {
+      draw(line, infoX, 9, font, infoColor)
+      y -= 12
+    }
+  }
   if (org.business_email) {
-    draw(org.business_email, margin + logoWidth, 9, font, rgb(0.4, 0.4, 0.4))
+    draw(org.business_email, infoX, 9, font, infoColor)
     y -= 12
   }
   if (org.business_phone) {
-    draw(org.business_phone, margin + logoWidth, 9, font, rgb(0.4, 0.4, 0.4))
+    draw(org.business_phone, infoX, 9, font, infoColor)
     y -= 12
   }
-  if (org.tax_number) {
-    draw(`Tax #: ${org.tax_number}`, margin + logoWidth, 9, font, rgb(0.4, 0.4, 0.4))
+  if (toggles.showTaxNumber && org.tax_number) {
+    draw(`Tax #: ${org.tax_number}`, infoX, 9, font, infoColor)
+    y -= 12
   }
-  draw(invoice.number, 612 - margin - 100, 12, font, rgb(0.4, 0.4, 0.4))
-  y -= 40
+  draw(invoice.number, 612 - margin - 100, 12, font, theme.headerStyle === 'band' ? rgb(0.95, 0.95, 0.95) : rgb(0.4, 0.4, 0.4))
+  y -= 20
 
   draw('Bill to:', margin, 10, bold, rgb(0.4, 0.4, 0.4))
   y -= 14
@@ -118,7 +151,7 @@ export async function generateBoInvoicePdf(
   let ry = 792 - margin - 20
   page.drawText(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, { x: rightX, y: ry, size: 10, font })
   ry -= 14
-  if (invoice.due_date) {
+  if (toggles.showDueDate && invoice.due_date) {
     page.drawText(`Due: ${new Date(invoice.due_date).toLocaleDateString()}`, { x: rightX, y: ry, size: 10, font })
     ry -= 14
   }
@@ -169,11 +202,11 @@ export async function generateBoInvoicePdf(
     draw(money(taxCents, invoice.currency), 540, 10)
     y -= 16
   }
-  draw('Total', 460, 12, bold)
-  draw(money(totalCents, invoice.currency), 540, 12, bold)
+  draw('Total', 460, 12, bold, accentColor)
+  draw(money(totalCents, invoice.currency), 540, 12, bold, accentColor)
   y -= 30
 
-  if (invoice.notes) {
+  if (toggles.showNotes && invoice.notes) {
     page.drawLine({ start: { x: margin, y }, end: { x: 612 - margin, y }, thickness: 1, color: rgb(0.9, 0.9, 0.9) })
     y -= 20
     draw('Notes', margin, 10, bold, rgb(0.4, 0.4, 0.4))
