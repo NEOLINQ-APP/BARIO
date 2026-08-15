@@ -4,32 +4,12 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
 import ThemeToggle from '@/components/ThemeToggle'
-
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Home', icon: '🏠' },
-  { href: '/dashboard/websites', label: 'Websites', icon: '🌐' },
-  { href: '/dashboard/domains', label: 'Domains', icon: '🔎' },
-  { href: '/dashboard/crm', label: 'CRM', icon: '🧑‍💼' },
-  { href: '/dashboard/bario-one', label: 'Bario One™', icon: '🏛️' },
-  { href: '/dashboard/social', label: 'Social', icon: '📣' },
-  { href: '/dashboard/flo-api', label: 'Flo API', icon: '🔌' },
-  { href: '/dashboard/voice-agent', label: 'Voice Agent', icon: '📞' },
-  { href: '/dashboard/email', label: 'Email', icon: '📧' },
-  { href: '/media', label: 'X-Drive', icon: '📁' },
-  { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },
-  { href: '/build/apps', label: 'Build (beta)', icon: '⚡' },
-  { href: '/dashboard/servers', label: 'Servers', icon: '🖥️' },
-  { href: '/dashboard/wp-hosting', label: 'WordPress Hosting', icon: '📝' },
-  { href: '/dashboard/billing', label: 'Billing', icon: '💳' },
-  { href: '/dashboard/account', label: 'Account', icon: '⚙️' },
-]
+import { ACCOUNT_NAV_ITEMS, withClientRequestsLink } from '@/lib/accountNav'
 
 export default function AccountSidebar({ email, isAdmin, clientCompanyLabel }: { email: string; isAdmin: boolean; clientCompanyLabel?: string | null }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navItems = clientCompanyLabel
-    ? [...NAV_ITEMS.slice(0, 1), { href: '/dashboard/requests', label: 'Requests', icon: '📋' }, ...NAV_ITEMS.slice(1)]
-    : NAV_ITEMS
+  const navItems = withClientRequestsLink(ACCOUNT_NAV_ITEMS, clientCompanyLabel ?? null)
 
   function navLink(item: { href: string; label: string; icon: string }, onNavigate?: () => void) {
     const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)
