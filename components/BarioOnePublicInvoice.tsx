@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { INVOICE_THEMES, type InvoiceThemeKey } from '@/lib/barioOneInvoiceThemes'
 
 type Data = {
   invoice: {
@@ -16,7 +17,17 @@ type Data = {
   items: { description: string; quantity: number; unitPriceCents: number }[]
   totals: { subtotalCents: number; discountCents: number; taxCents: number; totalCents: number }
   customer: { name: string; email: string | null; address: string | null } | null
-  org: { name: string; logoUrl: string | null } | null
+  org: {
+    name: string
+    logoUrl: string | null
+    primaryColor: string
+    themeKey: string
+    fieldToggles: { showTaxNumber: boolean; showDueDate: boolean; showNotes: boolean; showBusinessAddress: boolean }
+    businessAddress: string | null
+    businessPhone: string | null
+    businessEmail: string | null
+    taxNumber: string | null
+  } | null
   canPayOnline: boolean
 } | null
 
@@ -83,21 +94,37 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
 
   const { invoice, items, totals, customer, org, canPayOnline } = data
   const canPay = canPayOnline && invoice.status !== 'paid' && invoice.status !== 'void'
+  const theme = INVOICE_THEMES[(org?.themeKey as InvoiceThemeKey) ?? 'classic'] ?? INVOICE_THEMES.classic
+  const accent = org?.primaryColor || '#d4af37'
+  const isBand = theme.headerStyle === 'band'
+  const isCentered = theme.headerStyle === 'centered'
+  const toggles = org?.fieldToggles
 
   return (
     <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased px-6 py-16">
       <div className="max-w-xl mx-auto">
-        <div className="flex items-start justify-between mb-8">
-          <div className="flex items-center gap-2">
+        <div
+          className={`flex items-start justify-between mb-8 rounded-xl ${isBand ? 'p-4 -mx-4 sm:mx-0' : ''} ${isCentered ? 'flex-col items-center gap-2 text-center' : ''}`}
+          style={isBand ? { backgroundColor: accent, color: '#fff' } : undefined}
+        >
+          <div className={`flex items-center gap-2 ${isCentered ? 'flex-col' : ''}`}>
             {org?.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={org.logoUrl} alt={org.name} className="h-8 w-8 object-contain" />
             )}
-            <p className="font-extrabold text-lg leading-tight">{org?.name ?? 'Business'}</p>
+            <div>
+              <p className="font-extrabold text-lg leading-tight" style={!isBand ? { color: accent } : undefined}>{org?.name ?? 'Business'}</p>
+              {toggles?.showBusinessAddress && org?.businessAddress && (
+                <p className={`text-xs whitespace-pre-line ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'}`}>{org.businessAddress}</p>
+              )}
+              {org?.businessEmail && <p className={`text-xs ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'}`}>{org.businessEmail}</p>}
+              {org?.businessPhone && <p className={`text-xs ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'}`}>{org.businessPhone}</p>}
+              {toggles?.showTaxNumber && org?.taxNumber && <p className={`text-xs ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-400'}`}>Tax #: {org.taxNumber}</p>}
+            </div>
           </div>
-          <div className="text-right">
+          <div className={isCentered ? 'text-center' : 'text-right'}>
             <p className="text-lg font-bold uppercase">{invoice.type}</p>
-            <p className="text-sm text-slate-500 dark:text-zinc-500">{invoice.number}</p>
+            <p className={`text-sm ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-500'}`}>{invoice.number}</p>
           </div>
         </div>
 
@@ -123,7 +150,7 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
             <div className="text-right">
               <p className="text-xs text-slate-500 dark:text-zinc-500">Date</p>
               <p>{new Date(invoice.createdAt).toLocaleDateString()}</p>
-              {invoice.dueDate && (
+              {toggles?.showDueDate !== false && invoice.dueDate && (
                 <>
                   <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2">Due</p>
                   <p>{new Date(invoice.dueDate).toLocaleDateString()}</p>
@@ -161,10 +188,10 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
             {totals.taxCents > 0 && (
               <div className="flex justify-between"><span className="text-slate-500 dark:text-zinc-400">{invoice.taxLabel}</span><span>{money(totals.taxCents, invoice.currency)}</span></div>
             )}
-            <div className="flex justify-between font-bold text-base pt-1 border-t border-slate-200 dark:border-zinc-800"><span>Total</span><span>{money(totals.totalCents, invoice.currency)}</span></div>
+            <div className="flex justify-between font-bold text-base pt-1 border-t border-slate-200 dark:border-zinc-800" style={{ color: accent }}><span>Total</span><span>{money(totals.totalCents, invoice.currency)}</span></div>
           </div>
 
-          {invoice.notes && (
+          {toggles?.showNotes !== false && invoice.notes && (
             <div className="text-sm border-t border-slate-200 dark:border-zinc-800 pt-4">
               <p className="text-xs text-slate-500 dark:text-zinc-500 mb-1">Notes</p>
               <p className="whitespace-pre-line">{invoice.notes}</p>

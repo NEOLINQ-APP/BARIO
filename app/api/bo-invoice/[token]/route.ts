@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { computeTotals } from '@/lib/barioOneInvoices'
+import { parseFieldToggles } from '@/lib/barioOneInvoiceThemes'
 import type { BoInvoice, BoInvoiceItem, BoCustomer, BoOrganization } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -40,7 +41,19 @@ export async function GET(_req: Request, { params }: { params: { token: string }
       items: items.map((i) => ({ description: i.description, quantity: Number(i.quantity), unitPriceCents: i.unit_price_cents })),
       totals,
       customer: customerRows[0] ? { name: customerRows[0].company_name || customerRows[0].contact_name, email: customerRows[0].email, address: customerRows[0].address } : null,
-      org: orgRows[0] ? { name: orgRows[0].name, logoUrl: orgRows[0].branding_logo_url } : null,
+      org: orgRows[0]
+        ? {
+            name: orgRows[0].name,
+            logoUrl: orgRows[0].branding_logo_url,
+            primaryColor: orgRows[0].branding_primary_color,
+            themeKey: orgRows[0].invoice_theme_key,
+            fieldToggles: parseFieldToggles(orgRows[0].invoice_field_toggles_json),
+            businessAddress: orgRows[0].business_address,
+            businessPhone: orgRows[0].business_phone,
+            businessEmail: orgRows[0].business_email,
+            taxNumber: orgRows[0].tax_number,
+          }
+        : null,
       canPayOnline: invoice.type === 'invoice' && orgRows[0]?.stripe_connect_status === 'active',
     })
   } catch (err: any) {
