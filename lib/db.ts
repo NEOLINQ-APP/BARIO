@@ -1870,6 +1870,14 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_invoice_items ADD COLUMN IF NOT EXISTS product_id TEXT REFERENCES bo_products(id)` // NULL = free-text line, unchanged behavior
   await sql`ALTER TABLE bo_invoice_items ADD COLUMN IF NOT EXISTS unit_cost_cents INTEGER NOT NULL DEFAULT 0`
 
+  // Document theme picker — org-wide (picked once, applies to every future
+  // estimate/quote/invoice/work order), not per-document. invoice_theme_key
+  // is validated app-side against the small fixed registry in
+  // lib/barioOneInvoiceThemes.ts, not a DB constraint, matching how
+  // status/discount_type are validated elsewhere in this file.
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS invoice_theme_key TEXT NOT NULL DEFAULT 'classic'`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS invoice_field_toggles_json TEXT NOT NULL DEFAULT '{}'`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_suppliers (
       id TEXT PRIMARY KEY,
@@ -2681,6 +2689,8 @@ export type BoOrganization = {
   business_phone: string | null
   business_email: string | null
   tax_number: string | null
+  invoice_theme_key: string
+  invoice_field_toggles_json: string
   enabled_modules_json: string
   stripe_connect_account_id: string | null
   stripe_connect_status: 'none' | 'onboarding' | 'active' | 'restricted'
