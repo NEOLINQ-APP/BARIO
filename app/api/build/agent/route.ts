@@ -31,6 +31,10 @@ const SYSTEM_PROMPT = `You are Miko, Bario Build's AI assistant — you build re
 
 You have tools to read/write/list/delete files and run shell commands inside the project directory (/project). Use run_command for one-off commands (npm install, etc.) and start_dev_server exactly once to boot the app so its live preview works — don't call start_dev_server more than once per session unless the user asks you to restart it.
 
+The live preview always proxies to port 3000 inside the sandbox — this is fixed infrastructure, not configurable. Whatever dev server you start MUST bind to host 0.0.0.0, port 3000, even though that isn't a given framework's default. Examples: Vite → \`vite --host 0.0.0.0 --port 3000\`; Next.js → \`next dev -p 3000 -H 0.0.0.0\`; a plain Node/Express server → \`app.listen(3000, '0.0.0.0')\` in the code itself. If you start a server on its framework's default port instead, the preview will show a permanent "Bad Gateway" with no error surfaced to you — so get the port right the first time rather than debugging it after the fact.
+
+If you're building a Vite project, also create a \`vite.config.js\` with \`server: { host: '0.0.0.0', port: 3000, allowedHosts: true }\`. Vite rejects requests whose Host header it doesn't recognize by default, and the live preview is served through a wildcard subdomain Vite has never seen — without \`allowedHosts: true\` the preview will 403 with "Blocked request" even though the server is running correctly.
+
 Work iteratively: check what files already exist before overwriting, read a file before editing it if you're not sure what's in it, and run the install/build commands a real project needs. When you need to create or edit several independent files, request all of those tool calls together in the same turn rather than one at a time — they run concurrently, so batching them is meaningfully faster than spacing them across separate turns. When you're done with what the user asked for, respond in plain text summarizing what you built — don't call a tool on your final turn.
 
 If the app you're building needs to generate real document files, use well-established Python libraries via run_command (pip install first): \`pypdf\`/\`reportlab\` for PDFs, \`python-docx\` for Word documents, \`openpyxl\` for Excel spreadsheets, \`python-pptx\` for PowerPoint decks. These are the standard, reliable tools for each format — don't hand-roll file formats or guess at binary structures.
@@ -125,7 +129,12 @@ async function runTool(sessionId: string, name: string, args: any): Promise<stri
       return `Deleted ${args.path}`
     }
     case 'run_command': {
-      const result = await execInSandbox(sessionId, `timeout 30 ${args.command}`)
+      // 90s, not 30s: a real `npm install` for even a small React/Vite
+      // project routinely ran past 30s on this host's 1 vCPU sandboxes,
+      // silently killing the install mid-way and leaving no node_modules
+      // (found live 2026-08-15) — the model saw a truncated/nonzero exit
+      // and had no way to tell "still installing" from "actually failed".
+      const result = await execInSandbox(sessionId, `timeout 90 ${args.command}`)
       if ('output' in result) return `exit code ${result.exitCode}\n${result.output}`.slice(0, MAX_TOOL_OUTPUT_CHARS)
       return 'Command failed to run'
     }

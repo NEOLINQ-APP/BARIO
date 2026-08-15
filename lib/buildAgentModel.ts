@@ -130,9 +130,57 @@ function parseOpenAIStyleChoice(msg: { content?: string | null; tool_calls?: any
     .map((c) => {
       let args: any = {}
       try { args = JSON.parse(c.function.arguments || '{}') } catch {}
-      return { id: c.id, name: c.function.name, args }
+      return { id: c.id, name: c.function.name, args: repairDoubleEscapedArgs(args) }
     })
   return { content: msg.content?.trim() || null, toolCalls }
+}
+
+// Real bug hit live 2026-08-01 (gpt-5.6-luna, this route's primary
+// provider): the model occasionally JSON-encodes a tool argument's string
+// value (almost always write_file's `content`) a second time before
+// embedding it in `function.arguments` — as if it built the file text,
+// JSON.stringify'd it, and pasted that stringified result into the
+// argument rather than the raw text. Our single JSON.parse above only
+// undoes the outer layer, so files land on disk with literal `\"` / `\n`
+// baked into them as text — e.g. `<div id=\"root\">` instead of
+// `<div id="root">` — which breaks npm install, JSX, everything.
+//
+// Fix: for each string value, try unwrapping one more layer of JSON-string
+// escaping. This only succeeds when the string is *actually* over-escaped
+// — legitimately-correct content almost always contains a raw quote,
+// newline, or backslash sequence that isn't valid to re-wrap as a JSON
+// string body, so JSON.parse throws and we keep the original untouched.
+// That asymmetry is what makes this safe to apply unconditionally rather
+// than needing a fragile "does this look corrupted" heuristic. Known
+// residual edge case: a file that uses single quotes exclusively (so no
+// raw `"` breaks the re-wrap) and also contains a literal `\n`/`\t`/`\\`
+// sequence that's coincidentally valid JSON escape syntax (e.g. a regex
+// like /\n/) could misfire. Rare enough in practice, and strictly better
+// than the guaranteed corruption this replaces.
+function repairDoubleEscapedArgs(args: any): any {
+  if (typeof args !== 'object' || args === null) return args
+  const out: any = Array.isArray(args) ? [] : {}
+  for (const key of Object.keys(args)) {
+    const val = args[key]
+    if (typeof val === 'string') {
+      out[key] = unwrapIfDoubleEscaped(val)
+    } else if (typeof val === 'object' && val !== null) {
+      out[key] = repairDoubleEscapedArgs(val)
+    } else {
+      out[key] = val
+    }
+  }
+  return out
+}
+
+function unwrapIfDoubleEscaped(value: string): string {
+  if (!value.includes('\\"') && !value.includes('\\n') && !value.includes('\\\\')) return value
+  try {
+    const unwrapped = JSON.parse(`"${value}"`)
+    return typeof unwrapped === 'string' ? unwrapped : value
+  } catch {
+    return value
+  }
 }
 
 async function callClaude(messages: ChatMessage[], tools: ToolDef[]): Promise<ModelResult> {

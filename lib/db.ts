@@ -767,6 +767,21 @@ async function ensureSchema() {
     )
   `
 
+  // Enforces one active (starting/running) sandbox session per project at
+  // the DB level. Without this, two requests that both see "no session
+  // yet" (e.g. the editor's on-mount session-warmup call racing the first
+  // chat message) each stand up a real, separate sandbox container for the
+  // same project — confirmed live 2026-08-15: two containers created in
+  // the same second, and the browser ended up pointed at whichever one
+  // didn't have the AI's files, showing a permanent Bad Gateway. The
+  // ON CONFLICT clause in ensureSandboxSession (lib/buildSession.ts) must
+  // match this predicate exactly for Postgres to use it as the arbiter.
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS build_sandbox_sessions_active_project_idx
+      ON build_sandbox_sessions (project_id)
+      WHERE status IN ('starting', 'running')
+  `
+
   // Long-lived hosting for a "published" project — the sites-table analog
   // for Bario Build. Reuses lib/cloudflare.ts's per-domain zone pattern for
   // custom_domain/domain_status, same as sites.custom_domain does today.
@@ -1821,6 +1836,18 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_products_barcode_idx ON bo_products (organization_id, barcode)`
   await sql`CREATE INDEX IF NOT EXISTS bo_products_sku_idx ON bo_products (organization_id, sku)`
 
+  // Bario Invoice — product/service catalog for invoicing. bo_products stays
+  // ONE shared table between POS/Inventory and Invoicing rather than a
+  // duplicate catalog; item_type lets a service business ignore
+  // stock_quantity/barcode entirely. unit_cost_cents on bo_invoice_items is a
+  // COST SNAPSHOT at invoice-create time (bo_products.cost_cents can change
+  // later — historical invoices must not silently re-price, same reasoning
+  // as bo_pay_stubs snapshotting pay rates).
+  await sql`ALTER TABLE bo_products ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'product'` // 'product' | 'service'
+  await sql`ALTER TABLE bo_products ADD COLUMN IF NOT EXISTS description TEXT`
+  await sql`ALTER TABLE bo_invoice_items ADD COLUMN IF NOT EXISTS product_id TEXT REFERENCES bo_products(id)` // NULL = free-text line, unchanged behavior
+  await sql`ALTER TABLE bo_invoice_items ADD COLUMN IF NOT EXISTS unit_cost_cents INTEGER NOT NULL DEFAULT 0`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_suppliers (
       id TEXT PRIMARY KEY,
@@ -2806,6 +2833,8 @@ export type BoInvoiceItem = {
   quantity: number
   unit_price_cents: number
   sort_order: number
+  product_id: string | null
+  unit_cost_cents: number
 }
 
 export type BoEmployee = {
@@ -2913,6 +2942,8 @@ export type BoProduct = {
   stock_quantity: number
   low_stock_threshold: number
   status: 'active' | 'inactive'
+  item_type: 'product' | 'service'
+  description: string | null
   created_at: string
   updated_at: string
 }
