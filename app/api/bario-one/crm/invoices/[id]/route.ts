@@ -39,7 +39,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (existing.length === 0) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     if (existing[0].status === 'void') return NextResponse.json({ error: 'This document has been voided and can no longer be edited' }, { status: 400 })
 
-    const { items, taxPercent, taxLabel, discountType, discountValue, notes, dueDate } = await req.json()
+    const { items, taxPercent, taxLabel, discountType, discountValue, notes, dueDate, scheduledDate, jobSiteAddress, assignedEmployeeId } = await req.json()
+
+    let assignedEmployeeIdSafe: string | null = null
+    if (typeof assignedEmployeeId === 'string' && assignedEmployeeId.trim()) {
+      const empRows = (await sql`SELECT id FROM bo_employees WHERE id = ${assignedEmployeeId} AND organization_id = ${org.id}`) as unknown[]
+      if (empRows.length > 0) assignedEmployeeIdSafe = assignedEmployeeId
+    }
 
     await sql.begin(async (tx: any) => {
       await tx`
@@ -50,6 +56,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           discount_value = COALESCE(${Number.isFinite(discountValue) ? discountValue : null}, discount_value),
           notes = COALESCE(${notes ?? null}, notes),
           due_date = COALESCE(${dueDate || null}, due_date),
+          scheduled_date = COALESCE(${scheduledDate || null}, scheduled_date),
+          job_site_address = COALESCE(${jobSiteAddress || null}, job_site_address),
+          assigned_employee_id = COALESCE(${assignedEmployeeIdSafe}, assigned_employee_id),
           updated_at = now()
         WHERE id = ${params.id} AND organization_id = ${org.id}
       `

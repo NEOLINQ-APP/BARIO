@@ -6,7 +6,7 @@ import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import type { BoInvoice, BoInvoiceType } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
-const VALID_TYPES: BoInvoiceType[] = ['estimate', 'quote', 'invoice']
+const VALID_TYPES: BoInvoiceType[] = ['estimate', 'quote', 'invoice', 'work_order']
 const VALID_INTERVALS = ['weekly', 'monthly', 'yearly']
 
 export async function GET() {
@@ -46,6 +46,9 @@ export async function POST(req: Request) {
       dueDate,
       isRecurring,
       recurringInterval,
+      scheduledDate,
+      jobSiteAddress,
+      assignedEmployeeId,
     } = await req.json()
 
     if (typeof customerId !== 'string' || !customerId.trim()) {
@@ -77,6 +80,15 @@ export async function POST(req: Request) {
     const customerRows = (await sql`SELECT id FROM bo_customers WHERE id = ${customerId} AND organization_id = ${org.id}`) as unknown[]
     if (customerRows.length === 0) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
 
+    // assigned_employee_id is optional even when supplied — an org without
+    // the 'employees' module enabled has no bo_employees rows to assign, so
+    // this quietly resolves to null rather than 400ing the whole request.
+    let assignedEmployeeIdSafe: string | null = null
+    if (docType === 'work_order' && typeof assignedEmployeeId === 'string' && assignedEmployeeId.trim()) {
+      const empRows = (await sql`SELECT id FROM bo_employees WHERE id = ${assignedEmployeeId} AND organization_id = ${org.id}`) as unknown[]
+      if (empRows.length > 0) assignedEmployeeIdSafe = assignedEmployeeId
+    }
+
     const id = randomUUID()
     const number = await nextBoInvoiceNumber(sql, org.id, docType)
     const publicToken = newPublicToken()
@@ -88,7 +100,8 @@ export async function POST(req: Request) {
         INSERT INTO bo_invoices (
           id, organization_id, customer_id, type, number, public_token,
           tax_percent, tax_label, discount_type, discount_value, notes, due_date,
-          is_recurring, recurring_interval, next_recurrence_date, created_by_user_id
+          is_recurring, recurring_interval, next_recurrence_date, created_by_user_id,
+          scheduled_date, job_site_address, assigned_employee_id
         )
         VALUES (
           ${id}, ${org.id}, ${customerId}, ${docType}, ${number}, ${publicToken},
@@ -96,7 +109,10 @@ export async function POST(req: Request) {
           ${['none', 'percent', 'fixed'].includes(discountType) ? discountType : 'none'}, ${Number.isFinite(discountValue) ? discountValue : 0},
           ${notes || null}, ${dueDate || null},
           ${recurring}, ${recurring ? recurringInterval : null}, ${nextRecurrenceDate},
-          ${user.id}
+          ${user.id},
+          ${docType === 'work_order' ? scheduledDate || null : null},
+          ${docType === 'work_order' ? jobSiteAddress || null : null},
+          ${assignedEmployeeIdSafe}
         )
       `
       let sortOrder = 0
