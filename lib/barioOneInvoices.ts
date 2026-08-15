@@ -12,8 +12,8 @@ export { computeTotals }
 // platform-wide counter. Fine for the same reason the original comment
 // gives: low-volume, one-at-a-time creation, not a high-concurrency ticket
 // counter.
-export async function nextBoInvoiceNumber(sql: any, organizationId: string, type: 'estimate' | 'quote' | 'invoice'): Promise<string> {
-  const prefix = type === 'estimate' ? 'EST' : type === 'quote' ? 'QUO' : 'INV'
+export async function nextBoInvoiceNumber(sql: any, organizationId: string, type: 'estimate' | 'quote' | 'invoice' | 'work_order'): Promise<string> {
+  const prefix = type === 'estimate' ? 'EST' : type === 'quote' ? 'QUO' : type === 'work_order' ? 'WO' : 'INV'
   const rows = (await sql`
     SELECT number FROM bo_invoices WHERE organization_id = ${organizationId} AND type = ${type}
   `) as unknown as { number: string }[]
@@ -42,6 +42,10 @@ function toLineItemInputs(items: BoInvoiceItem[]): LineItemInput[] {
 
 function money(cents: number, currency: string) {
   return `${(cents / 100).toFixed(2)} ${currency}`
+}
+
+export function docTypeLabel(type: string): string {
+  return type === 'work_order' ? 'WORK ORDER' : type.toUpperCase()
 }
 
 // Same layout/logic as lib/invoices.ts's generateInvoicePdf, adapted for a
@@ -104,7 +108,7 @@ export async function generateBoInvoicePdf(
 
   const nameX = centered ? 612 / 2 - (org.name.length * nameSize * 0.28) : margin + logoWidth
   draw(org.name, nameX, nameSize, bold, headerTextColor)
-  draw(invoice.type.toUpperCase(), 612 - margin - 100, 20, bold, theme.headerStyle === 'band' ? rgb(1, 1, 1) : rgb(0.1, 0.1, 0.1))
+  draw(docTypeLabel(invoice.type), 612 - margin - 100, 20, bold, theme.headerStyle === 'band' ? rgb(1, 1, 1) : rgb(0.1, 0.1, 0.1))
   y -= 18
   const infoX = centered ? margin : margin + logoWidth
   if (toggles.showBusinessAddress && org.business_address) {

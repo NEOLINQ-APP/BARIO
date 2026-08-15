@@ -123,7 +123,7 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
             </div>
           </div>
           <div className={isCentered ? 'text-center' : 'text-right'}>
-            <p className="text-lg font-bold uppercase">{invoice.type}</p>
+            <p className="text-lg font-bold uppercase">{invoice.type.replace('_', ' ')}</p>
             <p className={`text-sm ${isBand ? 'text-white/80' : 'text-slate-500 dark:text-zinc-500'}`}>{invoice.number}</p>
           </div>
         </div>
@@ -135,7 +135,7 @@ export default function BarioOnePublicInvoice({ token }: { token: string }) {
         )}
         {invoice.status === 'void' && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-500 dark:text-red-400 font-semibold">
-            This {invoice.type} has been voided.
+            This {invoice.type.replace('_', ' ')} has been voided.
           </div>
         )}
 
