@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getActiveOrgForUser, listOrgMembers } from '@/lib/barioOne'
 import { BO_PLANS } from '@/lib/barioOneTiers'
 import { ensureModulesForOrg, getEnabledModules, seatLimitForModules } from '@/lib/barioOneModules'
+import { parseFieldToggles } from '@/lib/barioOneInvoiceThemes'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
@@ -39,6 +40,8 @@ export async function GET() {
         businessPhone: org.business_phone,
         businessEmail: org.business_email,
         taxNumber: org.tax_number,
+        invoiceThemeKey: org.invoice_theme_key,
+        invoiceFieldToggles: parseFieldToggles(org.invoice_field_toggles_json),
       },
       myRole: membership.role,
       members: members.map((m) => ({

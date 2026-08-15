@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import BarioOneInvoiceThemePicker from './BarioOneInvoiceThemePicker'
 
 type OrgInfo = {
   brandingLogoUrl: string | null
@@ -167,6 +168,14 @@ export default function BarioOneCompanySettings() {
             </div>
           )}
         </form>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-bold">Document design</h2>
+        <p className="text-sm text-slate-500 dark:text-zinc-400">
+          Applies to every estimate, quote, invoice, and work order you send from now on.
+        </p>
+        <BarioOneInvoiceThemePicker />
       </section>
     </div>
   )
