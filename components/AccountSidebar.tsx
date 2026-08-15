@@ -87,9 +87,10 @@ export default function AccountSidebar({ email, isAdmin, clientCompanyLabel }: {
             type="button"
             aria-label="Open menu"
             onClick={() => setMobileOpen(true)}
-            className="flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 text-lg"
+            className="flex items-center gap-2 h-10 px-4 rounded-lg border-2 border-cyan-600 dark:border-cyan-400 text-cyan-700 dark:text-cyan-300 font-bold text-sm bg-cyan-50 dark:bg-cyan-950/40"
           >
-            ☰
+            <span className="text-lg leading-none">☰</span>
+            MENU
           </button>
         </div>
       </div>
