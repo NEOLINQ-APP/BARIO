@@ -4,6 +4,7 @@ import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
 import AccountSidebar from '@/components/AccountSidebar'
 import PromoPopup from '@/components/PromoPopup'
+import IdleLogout from '@/components/IdleLogout'
 
 // Shared persistent-sidebar shell for every logged-in account page (Home,
 // Websites, X-Drive, Billing, Account) — a route group so the URLs stay
@@ -29,6 +30,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
       <AccountSidebar email={user.email} isAdmin={user.is_admin} clientCompanyLabel={clientCompanyLabel} />
       <div className="flex-1 min-w-0">{children}</div>
       <PromoPopup isPaid={hasPaidPlan(user)} />
+      <IdleLogout />
     </div>
   )
 }

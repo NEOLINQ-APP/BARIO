@@ -10,6 +10,7 @@ export default function LoginForm() {
   const plan = params.get('plan')
   const promoCode = params.get('promo')
   const next = params.get('next')
+  const idle = params.get('idle')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +38,7 @@ export default function LoginForm() {
     <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-xl dark:shadow-none p-8">
       <h1 className="text-2xl font-bold mb-1">Log in</h1>
       {plan && <p className="text-sm text-slate-500 dark:text-zinc-400 mb-6">Continuing with the {plan} plan</p>}
+      {idle && <p className="text-sm text-amber-600 dark:text-amber-400 mb-6">You were logged out after 10 minutes of inactivity. Log back in to continue.</p>}
       <label className="block text-sm text-slate-500 dark:text-zinc-400 mt-4">Email</label>
       <input
         type="email"
