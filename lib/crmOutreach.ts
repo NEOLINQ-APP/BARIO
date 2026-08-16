@@ -313,7 +313,7 @@ export async function fetchPriorCallContext(crm: CrmConfig, phoneE164: string): 
 
     const notesData = await crmGraphQL(
       crm,
-      `query($id: UUID!) { noteTargets(filter: { personId: { eq: $id } }, first: 5, orderBy: { note: { createdAt: DescNullsLast } }) { edges { node { note { title bodyV2 { markdown } } } } } }`,
+      `query($id: UUID!) { noteTargets(filter: { targetPersonId: { eq: $id } }, first: 5, orderBy: { note: { createdAt: DescNullsLast } }) { edges { node { note { title bodyV2 { markdown } } } } } }`,
       { id: personId }
     )
     const noteEdges: any[] = notesData?.noteTargets?.edges ?? []
