@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react'
 
 type CustomerOption = { id: string; contact_name: string; company_name: string | null }
 type ProductOption = { id: string; name: string; description: string | null; price_cents: number; item_type: 'product' | 'service' }
+type EmployeeOption = { id: string; name: string }
 type Row = { description: string; quantity: string; unitPriceDollars: string; productId: string | null }
+type DocType = 'estimate' | 'quote' | 'invoice' | 'work_order'
 
 export default function BarioOneInvoiceCreate() {
   const [customers, setCustomers] = useState<CustomerOption[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
+  const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [customerId, setCustomerId] = useState('')
-  const [type, setType] = useState<'estimate' | 'quote' | 'invoice'>('invoice')
+  const [type, setType] = useState<DocType>('invoice')
   const [rows, setRows] = useState<Row[]>([{ description: '', quantity: '1', unitPriceDollars: '', productId: null }])
   const [taxPercent, setTaxPercent] = useState('0')
   const [taxLabel, setTaxLabel] = useState('GST/HST')
@@ -19,6 +22,9 @@ export default function BarioOneInvoiceCreate() {
   const [notes, setNotes] = useState('')
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurringInterval, setRecurringInterval] = useState<'weekly' | 'monthly' | 'yearly'>('monthly')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [jobSiteAddress, setJobSiteAddress] = useState('')
+  const [assignedEmployeeId, setAssignedEmployeeId] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,6 +35,12 @@ export default function BarioOneInvoiceCreate() {
     fetch('/api/bario-one/crm/invoices/products')
       .then((r) => r.json())
       .then((data) => setProducts(data.products ?? []))
+    // 'employees' is a separately-gated module — a 403 here just means no
+    // picker is offered, work orders remain fully creatable without it.
+    fetch('/api/bario-one/hr/employees')
+      .then((r) => (r.ok ? r.json() : { employees: [] }))
+      .then((data) => setEmployees(data.employees ?? []))
+      .catch(() => setEmployees([]))
   }, [])
 
   function updateRow(i: number, patch: Partial<Row>) {
@@ -84,6 +96,9 @@ export default function BarioOneInvoiceCreate() {
           notes: notes || undefined,
           isRecurring,
           recurringInterval,
+          scheduledDate: type === 'work_order' ? scheduledDate || undefined : undefined,
+          jobSiteAddress: type === 'work_order' ? jobSiteAddress || undefined : undefined,
+          assignedEmployeeId: type === 'work_order' ? assignedEmployeeId || undefined : undefined,
         }),
       })
       const data = await res.json()
@@ -104,12 +119,37 @@ export default function BarioOneInvoiceCreate() {
             <option key={c.id} value={c.id}>{c.contact_name}{c.company_name ? ` — ${c.company_name}` : ''}</option>
           ))}
         </select>
-        <select value={type} onChange={(e) => setType(e.target.value as any)} className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm">
+        <select value={type} onChange={(e) => setType(e.target.value as DocType)} className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm">
           <option value="estimate">Estimate</option>
           <option value="quote">Quote</option>
           <option value="invoice">Invoice</option>
+          <option value="work_order">Work order</option>
         </select>
       </div>
+
+      {type === 'work_order' && (
+        <div className="grid sm:grid-cols-3 gap-3 rounded-xl border border-slate-200 dark:border-zinc-800 p-3">
+          <div>
+            <label className="text-xs text-slate-500 dark:text-zinc-400 block mb-1">Scheduled date</label>
+            <input value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} type="date" className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 dark:text-zinc-400 block mb-1">Job site address</label>
+            <input value={jobSiteAddress} onChange={(e) => setJobSiteAddress(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
+          </div>
+          {employees.length > 0 && (
+            <div>
+              <label className="text-xs text-slate-500 dark:text-zinc-400 block mb-1">Assigned to</label>
+              <select value={assignedEmployeeId} onChange={(e) => setAssignedEmployeeId(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm">
+                <option value="">Unassigned</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -186,7 +226,7 @@ export default function BarioOneInvoiceCreate() {
 
       {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
       <button type="submit" disabled={busy || !customerId} className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2">
-        {busy ? 'Saving…' : `Create ${type}`}
+        {busy ? 'Saving…' : `Create ${type === 'work_order' ? 'work order' : type}`}
       </button>
     </form>
   )

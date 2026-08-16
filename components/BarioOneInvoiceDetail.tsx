@@ -5,12 +5,13 @@ import { useEffect, useState } from 'react'
 type Data = {
   invoice: {
     id: string
-    type: 'estimate' | 'quote' | 'invoice'
+    type: 'estimate' | 'quote' | 'invoice' | 'work_order'
     number: string
     status: string
     currency: string
     public_token: string
     due_date: string | null
+    converted_to_invoice_id: string | null
   }
   items: { description: string; quantity: number; unit_price_cents: number }[]
   customer: { contact_name: string; company_name: string | null; email: string | null } | null
@@ -55,6 +56,20 @@ export default function BarioOneInvoiceDetail({ invoiceId }: { invoiceId: string
     }
   }
 
+  async function handleConvert() {
+    setBusy(true)
+    setNotice(null)
+    try {
+      const res = await fetch(`/api/bario-one/crm/invoices/${invoiceId}/convert`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Something went wrong')
+      window.location.href = `/dashboard/bario-one/crm/invoices/${json.id}`
+    } catch (err: any) {
+      setNotice(err.message)
+      setBusy(false)
+    }
+  }
+
   if (data === undefined) return <p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>
   if (!data) return <p className="text-sm text-red-500 dark:text-red-400">Not found.</p>
 
@@ -93,6 +108,16 @@ export default function BarioOneInvoiceDetail({ invoiceId }: { invoiceId: string
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {(invoice.type === 'estimate' || invoice.type === 'quote') && !invoice.converted_to_invoice_id && invoice.status !== 'void' && (
+          <button disabled={busy} onClick={handleConvert} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2">
+            Convert to invoice
+          </button>
+        )}
+        {invoice.converted_to_invoice_id && (
+          <a href={`/dashboard/bario-one/crm/invoices/${invoice.converted_to_invoice_id}`} className="rounded-lg border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-sm font-medium px-4 py-2">
+            View converted invoice →
+          </a>
+        )}
         {invoice.status === 'draft' && (
           <button disabled={busy} onClick={() => runAction(`/api/bario-one/crm/invoices/${invoiceId}/send`, 'Sent to customer')} className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2">
             Send to customer

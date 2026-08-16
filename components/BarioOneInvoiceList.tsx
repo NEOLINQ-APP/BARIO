@@ -4,13 +4,20 @@ import { useEffect, useState } from 'react'
 
 type Invoice = {
   id: string
-  type: 'estimate' | 'quote' | 'invoice'
+  type: 'estimate' | 'quote' | 'invoice' | 'work_order'
   number: string
   status: string
   contact_name: string
   company_name: string | null
   due_date: string | null
   created_at: string
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  estimate: 'Estimate', quote: 'Quote', invoice: 'Invoice', work_order: 'Work order',
+}
+const TYPE_FILTER_LABELS: Record<string, string> = {
+  all: 'All', estimate: 'Estimates', quote: 'Quotes', invoice: 'Invoices', work_order: 'Work orders',
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -24,7 +31,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function BarioOneInvoiceList() {
   const [invoices, setInvoices] = useState<Invoice[] | null>(null)
-  const [filter, setFilter] = useState<'all' | 'estimate' | 'quote' | 'invoice'>('all')
+  const [filter, setFilter] = useState<'all' | 'estimate' | 'quote' | 'invoice' | 'work_order'>('all')
 
   useEffect(() => {
     fetch('/api/bario-one/crm/invoices')
@@ -40,13 +47,13 @@ export default function BarioOneInvoiceList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
-          {(['all', 'estimate', 'quote', 'invoice'] as const).map((f) => (
+          {(['all', 'estimate', 'quote', 'invoice', 'work_order'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`text-sm font-medium px-3 py-1.5 rounded-lg capitalize ${filter === f ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}
+              className={`text-sm font-medium px-3 py-1.5 rounded-lg ${filter === f ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-zinc-800'}`}
             >
-              {f === 'all' ? 'All' : `${f}s`}
+              {TYPE_FILTER_LABELS[f]}
             </button>
           ))}
         </div>
@@ -62,7 +69,7 @@ export default function BarioOneInvoiceList() {
           {filtered.map((inv) => (
             <a key={inv.id} href={`/dashboard/bario-one/crm/invoices/${inv.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-zinc-900">
               <div>
-                <p className="font-semibold text-sm">{inv.number} <span className="text-xs text-slate-400 capitalize">({inv.type})</span></p>
+                <p className="font-semibold text-sm">{inv.number} <span className="text-xs text-slate-400">({TYPE_LABELS[inv.type] ?? inv.type})</span></p>
                 <p className="text-xs text-slate-500 dark:text-zinc-400">{inv.contact_name}{inv.company_name ? ` — ${inv.company_name}` : ''}</p>
               </div>
               <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLOR[inv.status] ?? ''}`}>{inv.status}</span>
