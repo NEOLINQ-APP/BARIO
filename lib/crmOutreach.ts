@@ -49,6 +49,34 @@ export const OUTREACH_CRMS: CrmConfig[] = [
     forwardToNumber: '+14164572224',
     twimlAppSid: 'APe0558e2920449e49a09ded2f992dac81',
   },
+  {
+    key: 'unique',
+    businessName: 'Unique Group Inc.',
+    graphqlUrl: 'https://unique.crm.bario.ca/graphql',
+    apiKeyEnvVar: 'UNIQUE_CRM_API_KEY',
+    // No outreach campaigns run for Bario's own house businesses today —
+    // these two fields exist only because CrmConfig requires them. Real
+    // env vars, just unset; lib/crmOutreach.ts's send path already throws
+    // a clear "not configured" error rather than crashing if ever hit.
+    fromAddress: '"Unique Group Inc." <hello@bario.ca>',
+    smtpUserEnvVar: 'UNIQUE_OUTREACH_SMTP_USER',
+    smtpPassEnvVar: 'UNIQUE_OUTREACH_SMTP_PASS',
+    twilioNumber: '+12367070808',
+    forwardToNumber: '+17802410880',
+    twimlAppSid: 'AP5f6f10b5122ffb7deb4863ba747197ea',
+  },
+  {
+    key: 'bario',
+    businessName: 'Bario.ca',
+    graphqlUrl: 'https://bario.crm.bario.ca/graphql',
+    apiKeyEnvVar: 'BARIO_CRM_API_KEY',
+    fromAddress: '"Bario.ca" <hello@bario.ca>',
+    smtpUserEnvVar: 'BARIO_OUTREACH_SMTP_USER',
+    smtpPassEnvVar: 'BARIO_OUTREACH_SMTP_PASS',
+    twilioNumber: '+12365004678',
+    forwardToNumber: '+18259639988',
+    twimlAppSid: 'AP3987c6b53d478f20f20da8e7956a4057',
+  },
 ]
 
 export function findCrm(key: string): CrmConfig | undefined {
@@ -216,13 +244,36 @@ export async function findOrCreatePersonByPhone(crm: CrmConfig, phoneE164: strin
   return (created?.createPerson?.id as string) ?? null
 }
 
+// Best-effort — only touches email since that's a standard Person field
+// with a well-established shape elsewhere in this file (create-contact
+// route). Never overwrites an existing email with a blank/different one
+// mid-call by mistake — only sets it when the record doesn't have one yet,
+// since Victoria doesn't have a way to confirm "is this a correction or a
+// mishearing" over the phone.
+export async function setPersonEmailIfMissing(crm: CrmConfig, personId: string, email: string): Promise<void> {
+  const target = email.trim().toLowerCase()
+  if (!target) return
+  const existing = await crmGraphQL(crm, `query($id: UUID!) { person(filter: { id: { eq: $id } }) { emails { primaryEmail } } }`, { id: personId }).catch(() => null)
+  if (existing?.person?.emails?.primaryEmail) return
+  await crmGraphQL(
+    crm,
+    `mutation($id: ID!, $data: PersonUpdateInput!) { updatePerson(id: $id, data: $data) { id } }`,
+    { id: personId, data: { emails: { primaryEmail: target, additionalEmails: [] } } }
+  ).catch((err) => console.error('setPersonEmailIfMissing failed', err))
+}
+
 // Logs one completed Victoria call as a Note on the matched Person —
 // mirrors the exact createNote/createNoteTarget shape already proven out
-// in app/api/cron/crm-leadgen/route.ts.
-export async function logCallNote(crm: CrmConfig, personId: string, direction: string, summary: string | null, durationSeconds: number) {
+// in app/api/cron/crm-leadgen/route.ts. personalNotes is free text (e.g.
+// mailing address given verbally, personality/attitude read) appended
+// under the summary — kept as plain note content rather than forced into
+// a structured Person field neither of us has verified actually exists on
+// this schema.
+export async function logCallNote(crm: CrmConfig, personId: string, direction: string, summary: string | null, durationSeconds: number, personalNotes?: string | null) {
   const when = new Date().toLocaleString('en-CA', { timeZone: 'America/Edmonton', dateStyle: 'medium', timeStyle: 'short' })
   const title = `Victoria call (${direction}) — ${when}`
-  const body = summary?.trim() || `${direction === 'inbound' ? 'Inbound' : 'Outbound'} call, ${durationSeconds}s. No summary captured.`
+  const summaryText = summary?.trim() || `${direction === 'inbound' ? 'Inbound' : 'Outbound'} call, ${durationSeconds}s. No summary captured.`
+  const body = personalNotes?.trim() ? `${summaryText}\n\n${personalNotes.trim()}` : summaryText
 
   const noteData = await crmGraphQL(
     crm,
@@ -237,6 +288,47 @@ export async function logCallNote(crm: CrmConfig, personId: string, direction: s
     `mutation($data: NoteTargetCreateInput!){ createNoteTarget(data: $data) { id } }`,
     { data: { noteId, targetPersonId: personId } }
   )
+}
+
+// Pulls prior call Notes for a matched Person so Victoria can be briefed
+// at the START of a new call ("you've spoken with this caller before") —
+// the missing half of the existing log-call-at-hangup flow, which only
+// ever wrote memory, never read it back. Returns null on no match/no
+// notes/any failure — caller must treat that as "nothing known," never as
+// an error worth surfacing to the caller on the phone.
+export async function fetchPriorCallContext(crm: CrmConfig, phoneE164: string): Promise<{ personId: string; firstName: string | null; notesSummary: string } | null> {
+  const target = last10Digits(phoneE164)
+  if (!target) return null
+  try {
+    const peopleData = await crmGraphQL(
+      crm,
+      `query { people(first: 1000) { edges { node { id name { firstName } phones { primaryPhoneNumber } } } } }`,
+      {}
+    )
+    const edges: any[] = peopleData?.people?.edges ?? []
+    const match = edges.find((e) => last10Digits(e?.node?.phones?.primaryPhoneNumber ?? '') === target)
+    if (!match) return null
+    const personId = match.node.id as string
+    const firstName = (match.node.name?.firstName as string) || null
+
+    const notesData = await crmGraphQL(
+      crm,
+      `query($id: UUID!) { noteTargets(filter: { personId: { eq: $id } }, first: 5, orderBy: { note: { createdAt: DescNullsLast } }) { edges { node { note { title bodyV2 { markdown } } } } } }`,
+      { id: personId }
+    )
+    const noteEdges: any[] = notesData?.noteTargets?.edges ?? []
+    if (noteEdges.length === 0) return null
+    const notesSummary = noteEdges
+      .map((e) => e?.node?.note?.bodyV2?.markdown as string | undefined)
+      .filter(Boolean)
+      .slice(0, 5)
+      .join('\n---\n')
+    if (!notesSummary.trim()) return null
+    return { personId, firstName, notesSummary }
+  } catch (err) {
+    console.error('fetchPriorCallContext failed', err)
+    return null
+  }
 }
 
 // Used by the public site-lead route so a real visitor's estimate/contact
