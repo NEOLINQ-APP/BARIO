@@ -35,6 +35,8 @@ The live preview always proxies to port 3000 inside the sandbox — this is fixe
 
 If you're building a Vite project, also create a \`vite.config.js\` with \`server: { host: '0.0.0.0', port: 3000, allowedHosts: true }\`. Vite rejects requests whose Host header it doesn't recognize by default, and the live preview is served through a wildcard subdomain Vite has never seen — without \`allowedHosts: true\` the preview will 403 with "Blocked request" even though the server is running correctly.
 
+This sandbox only has Node.js and npm — no Python, no other runtimes. For plain static files with no build step, don't reach for a Python http server; use \`npx --yes serve -l 3000 .\` instead.
+
 Work iteratively: check what files already exist before overwriting, read a file before editing it if you're not sure what's in it, and run the install/build commands a real project needs. When you need to create or edit several independent files, request all of those tool calls together in the same turn rather than one at a time — they run concurrently, so batching them is meaningfully faster than spacing them across separate turns. When you're done with what the user asked for, respond in plain text summarizing what you built — don't call a tool on your final turn.
 
 If the app you're building needs to generate real document files, use well-established Python libraries via run_command (pip install first): \`pypdf\`/\`reportlab\` for PDFs, \`python-docx\` for Word documents, \`openpyxl\` for Excel spreadsheets, \`python-pptx\` for PowerPoint decks. These are the standard, reliable tools for each format — don't hand-roll file formats or guess at binary structures.
@@ -140,7 +142,23 @@ async function runTool(sessionId: string, name: string, args: any): Promise<stri
     }
     case 'start_dev_server': {
       await execInSandbox(sessionId, args.command, { detached: true })
-      return `Started: ${args.command}`
+      // A detached start never confirms the process actually stayed up —
+      // found live 2026-08-16: the model chose `python3 -m http.server`
+      // for a plain static page, which isn't installed in this Node-only
+      // sandbox image. The tool call still reported "Started" (nothing to
+      // report failure from), so the model told the user it worked while
+      // the live preview showed a permanent Bad Gateway. Give the process
+      // a moment, then actually probe the port so a real failure comes
+      // back as a real tool result instead of silent false success.
+      await new Promise((r) => setTimeout(r, 2500))
+      const probe = await execInSandbox(
+        sessionId,
+        `node -e "require('net').connect(3000,'127.0.0.1').on('connect',()=>{console.log('LISTENING');process.exit(0)}).on('error',()=>{console.log('NOT_LISTENING');process.exit(0)})"`
+      )
+      const listening = 'output' in probe && probe.output.includes('LISTENING')
+      return listening
+        ? `Started: ${args.command} (confirmed something is listening on port 3000)`
+        : `Ran: ${args.command} — but nothing is listening on port 3000 a few seconds later. The command likely doesn't exist in this sandbox (Node.js/npm only — no Python, no other runtimes) or crashed immediately. Use run_command with that same command to see its actual error output, then start a different dev server. For plain static files with no build step, use \`npx --yes serve -l 3000 .\` rather than a Python http server.`
     }
     default:
       return `Unknown tool: ${name}`
