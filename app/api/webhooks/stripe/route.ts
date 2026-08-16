@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getStripe, moduleKeyForPriceId, tierKeyForPriceId } from '@/lib/stripe'
 import { BO_PLANS } from '@/lib/barioOneTiers'
+import type { BoModuleKey } from '@/lib/barioOneModules'
 import { db, type VpsInstance } from '@/lib/db'
 import { creditsForPlan } from '@/lib/credits'
 import { isStorageTierKey } from '@/lib/storageTiers'
@@ -364,7 +365,7 @@ export async function POST(req: Request) {
           .map((item) => tierKeyForPriceId(item.price.id))
           .filter((key): key is NonNullable<typeof key> => Boolean(key))
         const tierPlan = tierMatches[0] // a subscription only ever carries one tier price at a time
-        const tierModules = tierPlan ? BO_PLANS[tierPlan].modules : []
+        const tierModules: BoModuleKey[] = tierPlan ? BO_PLANS[tierPlan].modules : []
 
         const addOnModules = sub.items.data
           .map((item) => moduleKeyForPriceId(item.price.id))

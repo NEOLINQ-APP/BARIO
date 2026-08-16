@@ -79,3 +79,13 @@ export const BO_MODULE_PRICE_IDS: Record<BoModuleKey, string | undefined> = Obje
 export function moduleKeyForPriceId(priceId: string): BoModuleKey | undefined {
   return BO_MODULE_KEYS.find((key) => BO_MODULE_PRICE_IDS[key] === priceId)
 }
+
+// Same reverse-lookup shape as moduleKeyForPriceId above, for the legacy
+// flat-tier prices (BO_PLAN_PRICE_IDS) — was referenced by the Stripe
+// webhook but never actually defined, a pre-existing build-breaking gap
+// found while deploying an unrelated change.
+export function tierKeyForPriceId(priceId: string): keyof typeof BO_PLAN_PRICE_IDS | undefined {
+  return (Object.keys(BO_PLAN_PRICE_IDS) as (keyof typeof BO_PLAN_PRICE_IDS)[]).find(
+    (key) => BO_PLAN_PRICE_IDS[key] === priceId
+  )
+}
