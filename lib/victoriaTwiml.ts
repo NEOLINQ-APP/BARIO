@@ -28,7 +28,13 @@ export const VICTORIA_GREETINGS: Record<string, string> = {
 // the same ID used for the "Lindsay" persona in
 // app/api/twilio/victoria-app-call/route.ts, independently confirmed
 // female via its own real test call.
-export function buildVictoriaConnectTwiml(greeting: string): string {
+export const DEFAULT_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL'
+
+// voice param added 2026-08-15 (Layla persona for Unique Group's own line)
+// — defaults to the same confirmed-female ID every existing caller of this
+// function already relied on implicitly, so nothing changes for AFC/
+// Sunbuilt/Bario.ca unless a different id is explicitly passed in.
+export function buildVictoriaConnectTwiml(greeting: string, voiceId: string = DEFAULT_VOICE_ID): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect action="https://www.bario.ca/api/twilio/victoria-handoff">
@@ -36,7 +42,7 @@ export function buildVictoriaConnectTwiml(greeting: string): string {
       url="wss://miko-voice.bario.ca/"
       welcomeGreeting="${greeting}"
       ttsProvider="ElevenLabs"
-      voice="EXAVITQu4vr4xnSDxMaL"
+      voice="${voiceId}"
     />
   </Connect>
 </Response>`
