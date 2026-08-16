@@ -21,6 +21,7 @@ type OrgInfo = {
 const MODULES = [
   { icon: '🧑‍💼', name: 'CRM', href: '/dashboard/bario-one/crm', key: 'crm' },
   { icon: '🧾', name: 'Invoicing', href: '/dashboard/bario-one/crm/invoices', key: 'invoicing' },
+  { icon: '💸', name: 'Expenses', href: '/dashboard/bario-one/expenses', key: 'invoicing' },
   { icon: '💳', name: 'Payments', href: '/dashboard/bario-one/payments', key: 'payments' },
   { icon: '👥', name: 'Employees', href: '/dashboard/bario-one/hr', key: 'employees' },
   { icon: '🇨🇦', name: 'Payroll', href: '/dashboard/bario-one/payroll', key: 'payroll' },
