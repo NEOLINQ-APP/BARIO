@@ -9,10 +9,14 @@ type Msg = { role: 'user' | 'assistant'; content: string; attachments?: Attachme
 type ToolLogEntry = { tool: string; args: unknown; result: unknown }
 type CallState = 'idle' | 'requesting' | 'ringing' | 'in-call' | 'ended'
 
-const GREETING: Msg = {
-  role: 'assistant',
-  content: "Hi — I'm Victoria. Ask me to create an invoice, generate an image, draft a social post, send an email, or read over a document/image you attach. What do you need?",
+function greetingFor(name: string): Msg {
+  return {
+    role: 'assistant',
+    content: `Hi — I'm ${name}. Ask me to create an invoice, generate an image, draft a social post, send an email, or read over a document/image you attach. What do you need?`,
+  }
 }
+
+const GREETING: Msg = greetingFor('Victoria')
 
 // Real, tested/reasonable ElevenLabs voices — mirrors
 // app/api/twilio/victoria-app-call/route.ts's PERSONA_VOICES exactly (that
@@ -53,6 +57,7 @@ export default function VictoriaAppChat() {
   const recognitionRef = useRef<any>(null)
 
   const [personaKey, setPersonaKey] = useState('victoria')
+  const currentPersona = PERSONAS.find((p) => p.key === personaKey) ?? PERSONAS[0]
   const [callState, setCallState] = useState<CallState>('idle')
   const [callMuted, setCallMuted] = useState(false)
   const [callError, setCallError] = useState<string | null>(null)
@@ -79,6 +84,14 @@ export default function VictoriaAppChat() {
       })
       .catch(() => {})
   }, [])
+
+  // Reflect the picked persona in the greeting — only while the chat is
+  // still at its untouched default (real conversation history, once
+  // loaded/started, is never rewritten out from under the user).
+  useEffect(() => {
+    setMessages((prev) => (prev.length === 1 && prev[0].role === 'assistant' ? [greetingFor(currentPersona.name)] : prev))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaKey])
 
   useEffect(() => {
     if (callState !== 'in-call') return
@@ -263,9 +276,9 @@ export default function VictoriaAppChat() {
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/victoria-avatar-192.png" alt="Victoria" className="h-10 w-10 rounded-full" />
+            <img src="/victoria-avatar-192.png" alt={currentPersona.name} className="h-10 w-10 rounded-full" />
             <div>
-              <h1 className="text-xl font-bold leading-tight">Victoria</h1>
+              <h1 className="text-xl font-bold leading-tight">{currentPersona.name}</h1>
               <p className="text-xs text-slate-500 dark:text-zinc-400">Your assistant, always on</p>
             </div>
           </div>
@@ -290,7 +303,7 @@ export default function VictoriaAppChat() {
                 onClick={startCall}
                 className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-semibold flex items-center gap-2"
               >
-                📞 Call {PERSONAS.find((p) => p.key === personaKey)?.name}
+                📞 Call {currentPersona.name}
               </button>
             </div>
           ) : (
@@ -299,7 +312,7 @@ export default function VictoriaAppChat() {
                 <div className="text-sm font-semibold">
                   {callState === 'requesting' && 'Calling…'}
                   {callState === 'ringing' && 'Ringing…'}
-                  {callState === 'in-call' && `On the line with ${PERSONAS.find((p) => p.key === personaKey)?.name}`}
+                  {callState === 'in-call' && `On the line with ${currentPersona.name}`}
                   {callState === 'ended' && 'Call ended'}
                 </div>
                 {callState === 'in-call' && (
@@ -425,7 +438,7 @@ export default function VictoriaAppChat() {
                   if (speakReplies) window.speechSynthesis.cancel()
                   setSpeakReplies((v) => !v)
                 }}
-                title={speakReplies ? 'Victoria will stop speaking her replies' : 'Victoria will speak her replies out loud'}
+                title={speakReplies ? `${currentPersona.name} will stop speaking her replies` : `${currentPersona.name} will speak her replies out loud`}
                 className={`shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
                   speakReplies ? 'border-cyan-400 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
                 }`}
@@ -436,7 +449,7 @@ export default function VictoriaAppChat() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Victoria anything…"
+              placeholder={`Ask ${currentPersona.name} anything…`}
               disabled={busy}
               className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500"
             />
