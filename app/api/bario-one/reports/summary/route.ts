@@ -8,6 +8,15 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
+// created_at comes back from the Neon driver as a Date object (not a
+// string) in this query shape, so a plain String(value).slice(0, 7) grabs
+// the first 7 chars of a Date's toString() (e.g. "Sun Aug") instead of
+// year-month — confirmed live during verification. Format explicitly.
+function yearMonth(d: string | Date): string {
+  const date = new Date(d)
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
 // Revenue = real invoices only (estimates/quotes/work orders aren't
 // revenue), excluding void ones, anchored on created_at. COGS comes from
 // bo_invoice_items.unit_cost_cents (Phase B's cost snapshot) — never
@@ -66,7 +75,7 @@ export async function GET(req: Request) {
       const invCogs = invItems.reduce((sum, i) => sum + Number(i.quantity) * i.unit_cost_cents, 0)
       cogsCents += invCogs
 
-      const month = String(inv.created_at).slice(0, 7)
+      const month = yearMonth(inv.created_at)
       const bucket = byMonth.get(month) ?? { revenueCents: 0, cogsCents: 0 }
       bucket.revenueCents += totals.subtotalCents
       bucket.cogsCents += invCogs
