@@ -239,6 +239,60 @@ export async function logCallNote(crm: CrmConfig, personId: string, direction: s
   )
 }
 
+// Used by the public site-lead route so a real visitor's estimate/contact
+// form submission on a client's own site (sunbuiltgroup.com, afclogistics.ca)
+// reaches that business's real Twenty CRM — mirrors findOrCreatePersonByPhone
+// above, matched on email instead of phone since a web form always has an
+// email but not always a phone.
+export async function findOrCreatePersonByEmail(crm: CrmConfig, email: string, displayName: string | null, phoneE164: string | null): Promise<string | null> {
+  const target = email.trim().toLowerCase()
+  if (!target) return null
+
+  const peopleData = await crmGraphQL(
+    crm,
+    `query { people(first: 1000) { edges { node { id emails { primaryEmail } } } } }`,
+    {}
+  )
+  const edges: any[] = peopleData?.people?.edges ?? []
+  const match = edges.find((e) => (e?.node?.emails?.primaryEmail ?? '').trim().toLowerCase() === target)
+  if (match) return match.node.id as string
+
+  const firstName = displayName?.trim() || 'Website Lead'
+  const created = await crmGraphQL(
+    crm,
+    `mutation($data: PersonCreateInput!) { createPerson(data: $data) { id } }`,
+    {
+      data: {
+        name: { firstName, lastName: '' },
+        emails: { primaryEmail: target },
+        ...(phoneE164 ? { phones: { primaryPhoneNumber: phoneE164, primaryPhoneCallingCode: '' } } : {}),
+      },
+    }
+  )
+  return (created?.createPerson?.id as string) ?? null
+}
+
+// Logs one web-form lead submission as a Note on the matched Person —
+// same createNote/createNoteTarget shape as logCallNote above.
+export async function logWebLeadNote(crm: CrmConfig, personId: string, source: string, body: string) {
+  const when = new Date().toLocaleString('en-CA', { timeZone: 'America/Edmonton', dateStyle: 'medium', timeStyle: 'short' })
+  const title = `Website lead (${source}) — ${when}`
+
+  const noteData = await crmGraphQL(
+    crm,
+    `mutation($data: NoteCreateInput!){ createNote(data: $data) { id } }`,
+    { data: { title, bodyV2: { markdown: body } } }
+  )
+  const noteId = noteData?.createNote?.id
+  if (!noteId) return
+
+  await crmGraphQL(
+    crm,
+    `mutation($data: NoteTargetCreateInput!){ createNoteTarget(data: $data) { id } }`,
+    { data: { noteId, targetPersonId: personId } }
+  )
+}
+
 export async function crmGraphQL(crm: CrmConfig, query: string, variables: Record<string, unknown>) {
   const apiKey = process.env[crm.apiKeyEnvVar]
   if (!apiKey) throw new Error(`${crm.apiKeyEnvVar} is not set`)

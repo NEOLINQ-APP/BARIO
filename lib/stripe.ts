@@ -54,6 +54,15 @@ export const VOICE_AGENT_PRICE_ID = process.env.STRIPE_PRICE_VOICE_AGENT
 // single-subscription shape as Voice Agent above.
 export const WP_SHARED_PRICE_ID = process.env.STRIPE_PRICE_WP_SHARED
 
+// Bario One payroll module add-on — base + per-employee Stripe Price
+// objects. Both undefined until real prices are created in Stripe (see
+// PAYROLL_BASE_CENTS_CAD/PAYROLL_PER_EMPLOYEE_CENTS_CAD in barioOneTiers.ts
+// for the placeholder cents values these need to match once created) —
+// barioOneModuleLineItems.ts and barioOnePayrollBilling.ts already guard
+// against either being unset, so this is safe to leave unconfigured.
+export const BO_PAYROLL_BASE_PRICE_ID = process.env.STRIPE_PRICE_BO_PAYROLL_BASE
+export const BO_PAYROLL_PER_EMPLOYEE_PRICE_ID = process.env.STRIPE_PRICE_BO_PAYROLL_PER_EMPLOYEE
+
 // Bario One — Starter/Professional/Business flat monthly tiers. Enterprise
 // is deliberately absent (contact-sales, no self-serve Stripe checkout).
 // Superseded by BO_MODULE_PRICE_IDS below for new billing — left in place

@@ -70,3 +70,12 @@ export const BO_PLANS: Record<BoPlan, BoPlanConfig> = {
 export function isBoPlan(value: string): value is BoPlan {
   return (BO_PLAN_KEYS as readonly string[]).includes(value)
 }
+
+// Payroll module add-on pricing, used by BarioOneRoiCalculator.tsx and the
+// module-billing line-item builders. Placeholder pending real sign-off —
+// same open item already tracked in TODO.md for VPS/domain/module pricing
+// (that doc's flat "$39/mo" payroll figure predates this base+per-employee
+// structure; $15 base + $5/employee lands close to that reference point for
+// a mid-sized team, but neither number is final).
+export const PAYROLL_BASE_CENTS_CAD = 1500
+export const PAYROLL_PER_EMPLOYEE_CENTS_CAD = 500

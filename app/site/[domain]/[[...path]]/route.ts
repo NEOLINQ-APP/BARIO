@@ -3,16 +3,28 @@ import { buildSiteHtml, injectSeoIntoHtml, injectBadgeIntoHtml, parsePagesJson, 
 import { hasPaidPlan } from '@/lib/access'
 
 // Route Handlers are statically cached by default in the App Router. Without
-// this, the first successful render of a given hostname gets cached
-// indefinitely, so unpublishing, editing, or disconnecting a domain would
-// silently have no effect on what's actually served. The explicit
-// Cache-Control: no-store header below is a second, independent guarantee —
-// this route is reached via a middleware rewrite (one hostname per site),
-// and Vercel's rewrite-caching layer can cache the response at the edge
-// regardless of what Next.js's own `dynamic` export says.
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+// something here, the first successful render of a given hostname gets
+// cached indefinitely, so unpublishing, editing, or disconnecting a domain
+// would silently have no effect on what's actually served. This used to be
+// `force-dynamic` + `revalidate: 0` (no caching at all, anywhere) — that
+// meant every single visitor to every hosted site re-fetched the full site
+// row from Postgres, including `raw_html`/`sections_json` blobs that run
+// well past 1MB on real sites. With real traffic across ~25 hosted domains,
+// that was the single largest driver of the project's Supabase egress
+// (394% over the free-tier quota in one billing cycle, confirmed via
+// Postgres logs before this fix).
+//
+// Fix: a short 30s TTL instead of no caching. Edits still show up within
+// well under a minute (vs. previously "instantly" but at the cost of never
+// caching a single request), while repeat visitors within that window are
+// served from cache instead of hitting the database again. Error/state-
+// change responses (404, maintenance lockout) intentionally keep the old
+// no-store behavior below — those need to reflect a state flip (site just
+// published, lockout just cleared) faster than 30s, and they're much
+// cheaper to regenerate than a full page render anyway.
+export const revalidate = 30
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, must-revalidate' }
+const CACHED_HEADERS = { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60' }
 
 // [[...path]] is an OPTIONAL catch-all — params.path is undefined at the
 // site root (middleware forwards '' there) and a string[] for any deeper
@@ -123,7 +135,7 @@ export async function GET(req: Request, { params }: { params: { domain: string; 
 
   return new Response(html, {
     status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8', ...NO_STORE_HEADERS },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', ...CACHED_HEADERS },
   })
 }
 
