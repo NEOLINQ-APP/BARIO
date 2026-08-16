@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getStripe, BO_MODULE_PRICE_IDS } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getActiveOrgForUser } from '@/lib/barioOne'
 import { BO_MODULE_KEYS, resolveModuleDependencies, type BoModuleKey } from '@/lib/barioOneModules'
+import { buildModuleLineItems } from '@/lib/barioOneModuleLineItems'
 import { errorResponse } from '@/lib/errors'
 
 // Converts a trialing-with-no-live-subscription org into a real, multi-item
@@ -41,12 +42,9 @@ export async function POST(req: Request) {
     }
 
     const resolvedKeys = resolveModuleDependencies(moduleKeys as BoModuleKey[])
-    const lineItems: { price: string; quantity: number }[] = []
-    for (const key of resolvedKeys) {
-      const priceId = BO_MODULE_PRICE_IDS[key]
-      if (!priceId) return NextResponse.json({ error: `The ${key} module isn't available for purchase right now` }, { status: 400 })
-      lineItems.push({ price: priceId, quantity: 1 })
-    }
+    const lineItemsResult = await buildModuleLineItems(sql, org.id, resolvedKeys)
+    if ('error' in lineItemsResult) return NextResponse.json({ error: lineItemsResult.error }, { status: 400 })
+    const lineItems = lineItemsResult.lineItems
 
     const trialDaysRemaining = org.trial_ends_at
       ? Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))

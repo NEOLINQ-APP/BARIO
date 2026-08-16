@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getStripe, BO_MODULE_PRICE_IDS } from '@/lib/stripe'
+import { getStripe, BO_MODULE_PRICE_IDS, BO_PAYROLL_BASE_PRICE_ID, BO_PAYROLL_PER_EMPLOYEE_PRICE_ID } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getActiveOrgForUser } from '@/lib/barioOne'
 import { BO_MODULE_KEYS, resolveModuleDependencies, type BoModuleKey } from '@/lib/barioOneModules'
+import { buildModuleLineItems, moduleKeysCurrentlyBilled } from '@/lib/barioOneModuleLineItems'
 import { errorResponse } from '@/lib/errors'
 
 // Self-serve add/remove modules on an ALREADY-active subscription — direct
@@ -47,22 +48,26 @@ export async function POST(req: Request) {
     const stripe = getStripe()
     const items = await stripe.subscriptionItems.list({ subscription: org.stripe_subscription_id, limit: 100 })
     const currentPriceIdToItemId = new Map(items.data.map((i) => [i.price.id, i.id]))
-    const currentModuleKeys = BO_MODULE_KEYS.filter((k) => {
-      const priceId = BO_MODULE_PRICE_IDS[k]
-      return priceId && currentPriceIdToItemId.has(priceId)
-    })
+    const currentModuleKeys = moduleKeysCurrentlyBilled(new Set(currentPriceIdToItemId.keys()), BO_MODULE_KEYS as BoModuleKey[])
 
     const toAdd = desiredKeys.filter((k) => !currentModuleKeys.includes(k))
-    const toRemove = currentModuleKeys.filter((k) => !desiredKeys.includes(k))
+    const toRemove = currentModuleKeys.filter((k) => !desiredKeys.includes(k) && k !== 'payments')
 
-    for (const key of toAdd) {
-      const priceId = BO_MODULE_PRICE_IDS[key]
-      if (!priceId) return NextResponse.json({ error: `The ${key} module isn't available for purchase right now` }, { status: 400 })
-      await stripe.subscriptionItems.create({ subscription: org.stripe_subscription_id, price: priceId })
+    if (toAdd.length > 0) {
+      const lineItemsResult = await buildModuleLineItems(sql, org.id, toAdd)
+      if ('error' in lineItemsResult) return NextResponse.json({ error: lineItemsResult.error }, { status: 400 })
+      for (const item of lineItemsResult.lineItems) {
+        await stripe.subscriptionItems.create({ subscription: org.stripe_subscription_id, price: item.price, quantity: item.quantity })
+      }
     }
     for (const key of toRemove) {
-      const itemId = currentPriceIdToItemId.get(BO_MODULE_PRICE_IDS[key]!)
-      if (itemId) await stripe.subscriptionItems.del(itemId)
+      // Payroll bills two separate prices (base + per-employee) that must be
+      // removed together — everything else is a single price/item.
+      const priceIds = key === 'payroll' ? [BO_PAYROLL_BASE_PRICE_ID, BO_PAYROLL_PER_EMPLOYEE_PRICE_ID] : [BO_MODULE_PRICE_IDS[key]]
+      for (const priceId of priceIds) {
+        const itemId = priceId ? currentPriceIdToItemId.get(priceId) : undefined
+        if (itemId) await stripe.subscriptionItems.del(itemId)
+      }
     }
 
     const json = JSON.stringify(desiredKeys)

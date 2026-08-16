@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoModule } from '@/lib/barioOne'
 import type { BoEmployee } from '@/lib/db'
+import { syncPayrollQuantity } from '@/lib/barioOnePayrollBilling'
 import { errorResponse } from '@/lib/errors'
 
 export async function GET() {
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
         ${resolvedPayType === 'hourly' && Number.isFinite(hourlyRateCents) ? Math.round(hourlyRateCents) : null}
       )
     `
+    await syncPayrollQuantity(sql, org)
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     return errorResponse(err)

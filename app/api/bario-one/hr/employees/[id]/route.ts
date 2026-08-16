@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireBoModule } from '@/lib/barioOne'
 import { PROVINCE_KEYS } from '@/lib/barioOnePayroll'
+import { syncPayrollQuantity } from '@/lib/barioOnePayrollBilling'
 import type { BoEmployee, BoTimeEntry, BoShift, BoVacationRequest, BoEmployeeNote } from '@/lib/db'
 import type { ProvinceKey } from '@/lib/payrollTaxTables2026'
 import { errorResponse } from '@/lib/errors'
@@ -92,6 +93,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     await sql`DELETE FROM bo_shifts WHERE employee_id = ${params.id} AND organization_id = ${org.id}`
     await sql`DELETE FROM bo_time_entries WHERE employee_id = ${params.id} AND organization_id = ${org.id}`
     await sql`DELETE FROM bo_employees WHERE id = ${params.id} AND organization_id = ${org.id}`
+    await syncPayrollQuantity(sql, org)
 
     return NextResponse.json({ ok: true })
   } catch (err: any) {
