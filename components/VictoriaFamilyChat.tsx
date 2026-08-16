@@ -36,8 +36,54 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
   const [callMuted, setCallMuted] = useState(false)
   const [callError, setCallError] = useState<string | null>(null)
   const [callSeconds, setCallSeconds] = useState(0)
+  // Live speaker toggle, added 2026-08-16 — this app previously had no
+  // speaker/earpiece control at all, only mute. Persisted per member
+  // (matches the storageKey pattern above) so it stays how they left it
+  // rather than reverting to earpiece on every new call.
+  const SPEAKER_PREF_KEY = `bario_victoria_family_speaker_${memberKey}`
+  const [speakerOn, setSpeakerOn] = useState(false)
+  const [speakerSupported, setSpeakerSupported] = useState(true)
   const deviceRef = useRef<DeviceType | null>(null)
   const callRef = useRef<CallType | null>(null)
+
+  useEffect(() => {
+    setSpeakerOn(window.localStorage.getItem(SPEAKER_PREF_KEY) === 'true')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function applySpeakerPreference(device: DeviceType, on: boolean): Promise<boolean> {
+    if (!device?.audio?.isOutputSelectionSupported) return false
+    try {
+      if (on) {
+        const devices = Array.from(device.audio.availableOutputDevices.values())
+        const speaker = devices.find((d: any) => /speaker/i.test(d.label))
+        await device.audio.speakerDevices.set(speaker ? speaker.deviceId : 'default')
+      } else {
+        await device.audio.speakerDevices.set('default')
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function toggleSpeaker() {
+    const device = deviceRef.current
+    if (!device?.audio?.isOutputSelectionSupported) {
+      setSpeakerSupported(false)
+      setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
+      return
+    }
+    const next = !speakerOn
+    const ok = await applySpeakerPreference(device, next)
+    if (!ok) {
+      setSpeakerSupported(false)
+      setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
+      return
+    }
+    setSpeakerOn(next)
+    window.localStorage.setItem(SPEAKER_PREF_KEY, String(next))
+  }
 
   const [locationSharing, setLocationSharing] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
@@ -134,7 +180,10 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
       const call = await device.connect({ params: { member: memberKey } })
       callRef.current = call
       call.on('ringing', () => setCallState('ringing'))
-      call.on('accept', () => setCallState('in-call'))
+      call.on('accept', () => {
+        setCallState('in-call')
+        if (speakerOn) applySpeakerPreference(device, true)
+      })
       call.on('disconnect', () => endCall())
       call.on('cancel', () => endCall())
       call.on('reject', () => endCall())
@@ -361,6 +410,17 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
                       }`}
                     >
                       {callMuted ? '🔇' : '🎤'}
+                    </button>
+                  )}
+                  {callState === 'in-call' && speakerSupported && (
+                    <button
+                      onClick={toggleSpeaker}
+                      title="Speaker"
+                      className={`h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
+                        speakerOn ? 'border-cyan-400 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+                      }`}
+                    >
+                      {speakerOn ? '🔊' : '🔈'}
                     </button>
                   )}
                   <button onClick={endCall} className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-semibold">

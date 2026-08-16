@@ -62,10 +62,37 @@ export default function VictoriaAppChat() {
   const [callMuted, setCallMuted] = useState(false)
   const [callError, setCallError] = useState<string | null>(null)
   const [callSeconds, setCallSeconds] = useState(0)
+  // Persisted (not just component state) — real user complaint: speaker
+  // mode was reverting to earpiece on every new call, forcing a re-tap
+  // each time. Twilio's speakerDevices selection lives on the Device/Call
+  // pairing, not something that survives a fresh device.connect() call on
+  // its own, so this needs to be explicitly re-applied per call (see
+  // startCall below), not just remembered as a UI checkbox.
+  const SPEAKER_PREF_KEY = 'victoria-app-speaker-on'
   const [speakerOn, setSpeakerOn] = useState(false)
   const [speakerSupported, setSpeakerSupported] = useState(true)
   const deviceRef = useRef<DeviceType | null>(null)
   const callRef = useRef<CallType | null>(null)
+
+  useEffect(() => {
+    setSpeakerOn(window.localStorage.getItem(SPEAKER_PREF_KEY) === 'true')
+  }, [])
+
+  async function applySpeakerPreference(device: DeviceType, on: boolean): Promise<boolean> {
+    if (!device?.audio?.isOutputSelectionSupported) return false
+    try {
+      if (on) {
+        const devices = Array.from(device.audio.availableOutputDevices.values())
+        const speaker = devices.find((d: any) => /speaker/i.test(d.label))
+        await device.audio.speakerDevices.set(speaker ? speaker.deviceId : 'default')
+      } else {
+        await device.audio.speakerDevices.set('default')
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -132,7 +159,14 @@ export default function VictoriaAppChat() {
       const call = await device.connect({ params: { persona: personaKey } })
       callRef.current = call
       call.on('ringing', () => setCallState('ringing'))
-      call.on('accept', () => setCallState('in-call'))
+      call.on('accept', () => {
+        setCallState('in-call')
+        // Re-apply the persisted speaker preference for THIS call — the
+        // whole reason it kept "turning off": each new call needs this
+        // re-applied, it doesn't carry over from a previous one even on
+        // the same cached Device.
+        if (speakerOn) applySpeakerPreference(device, true)
+      })
       call.on('disconnect', () => endCall())
       call.on('cancel', () => endCall())
       call.on('reject', () => endCall())
@@ -166,20 +200,15 @@ export default function VictoriaAppChat() {
       setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
       return
     }
-    try {
-      const next = !speakerOn
-      if (next) {
-        const devices = Array.from(device.audio.availableOutputDevices.values())
-        const speaker = devices.find((d: any) => /speaker/i.test(d.label))
-        await device.audio.speakerDevices.set(speaker ? speaker.deviceId : 'default')
-      } else {
-        await device.audio.speakerDevices.set('default')
-      }
-      setSpeakerOn(next)
-    } catch {
+    const next = !speakerOn
+    const ok = await applySpeakerPreference(device, next)
+    if (!ok) {
       setSpeakerSupported(false)
       setCallError('Speaker switching isn’t supported in this browser — use your phone’s own call audio button instead.')
+      return
     }
+    setSpeakerOn(next)
+    window.localStorage.setItem(SPEAKER_PREF_KEY, String(next))
   }
 
   useEffect(() => {
