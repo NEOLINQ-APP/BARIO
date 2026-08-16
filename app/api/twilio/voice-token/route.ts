@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import twilio from 'twilio'
 import { requireAdmin } from '@/lib/admin'
 import { findDialerBusiness } from '@/lib/dialerBusinesses'
+import { verifyDialerPasscode } from '@/lib/dialerAccess'
 
 // Short-lived Access Token for the Bario Dialer PWA's Twilio Voice SDK
 // (client-side @twilio/voice-sdk). Scoped to one business's TwiML
@@ -9,14 +10,21 @@ import { findDialerBusiness } from '@/lib/dialerBusinesses'
 // calls "as" the business this token was issued for, so a staff member
 // picks the business first, gets a token for it, then dials.
 export async function POST(req: Request) {
-  const adminOrRes = await requireAdmin(req)
-  if (adminOrRes instanceof NextResponse) return adminOrRes
+  const body = await req.json().catch(() => ({}))
+  const businessKey = typeof body?.businessKey === 'string' ? body.businessKey : null
+  if (!businessKey) return NextResponse.json({ error: 'businessKey is required' }, { status: 400 })
+
+  // Same passcode-or-admin-session auth split as every other client-Dialer
+  // route (lib/dialerAccess.ts) — this route was missing it, meaning the
+  // self-serve /dialer/<key> passcode gate could never actually get a
+  // working Voice SDK token (requireAdmin alone 401s a passcode-only
+  // client). Found while wiring up Bario.ca's own dialer for Erick.
+  if (!verifyDialerPasscode(req, businessKey)) {
+    const adminOrRes = await requireAdmin(req)
+    if (adminOrRes instanceof NextResponse) return adminOrRes
+  }
 
   try {
-    const body = await req.json().catch(() => ({}))
-    const businessKey = typeof body?.businessKey === 'string' ? body.businessKey : null
-    if (!businessKey) return NextResponse.json({ error: 'businessKey is required' }, { status: 400 })
-
     const business = findDialerBusiness(businessKey)
     if (!business) return NextResponse.json({ error: 'Unknown businessKey' }, { status: 400 })
 

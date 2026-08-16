@@ -8,6 +8,7 @@ export const VICTORIA_GREETINGS: Record<string, string> = {
   afc: 'Hi, thank you for calling AFC Logistics! This is Victoria, how may I help you today?',
   sunbuilt: 'Hi, thank you for calling Sunbuilt Group! This is Victoria, how may I help you today?',
   unique: 'Hi, thank you for calling Unique Group! This is Victoria, how may I help you today?',
+  bario: 'Hi, thank you for calling Bario.ca! This is Victoria, how may I help you today?',
 }
 
 // Reverted to a single flat voice (no nested <Language> tags) as an

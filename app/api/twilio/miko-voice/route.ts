@@ -17,7 +17,17 @@ import { db, type VoiceAgentConfig } from '@/lib/db'
 // still does for Unique Group's own line. See
 // app/api/twilio/miko-voice/dial-fallback/route.ts for the second half of
 // that flow (what happens once the <Dial> below resolves).
-const FORWARD_FIRST_KEYS = new Set(['afc', 'sunbuilt'])
+const FORWARD_FIRST_KEYS = new Set(['afc', 'sunbuilt', 'bario'])
+
+// Bario.ca-only: also ring the Bario Dialer PWA's browser Client in
+// parallel with the real cell, so if Erick has the app open he gets a
+// visual incoming-call screen showing the real caller's number (Twilio
+// passes the actual PSTN From on a <Client> leg, same as an Internal call —
+// see components/BarioDialer.tsx's device.on('incoming') handler) instead
+// of only the whisper-audio announcement on his phone. Deliberately NOT
+// applied to AFC/Sunbuilt — their forward-first behavior is already
+// verified live and this wasn't asked for there.
+const ALSO_RING_APP_KEYS = new Set(['bario'])
 
 // How long the owner's real cell rings before Victoria takes over. No
 // stated requirement from the business — 20s is a reasonable "give a real
@@ -51,10 +61,11 @@ export async function POST(req: Request) {
     // error (Twilio error 12100), not just a cosmetic issue: it broke every
     // real forwarded call until caught via Twilio's own error log.
     const whisperUrl = `https://www.bario.ca/api/twilio/miko-voice/whisper?business=${business.key}&amp;from=${encodeURIComponent(from)}`
+    const appLeg = ALSO_RING_APP_KEYS.has(business.key) ? `\n    <Client>admin-${business.key}</Client>` : ''
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${business.twilioNumber}" timeout="${FORWARD_RING_SECONDS}" action="${fallbackUrl}">
-    <Number url="${whisperUrl}">${business.forwardToNumber}</Number>
+    <Number url="${whisperUrl}">${business.forwardToNumber}</Number>${appLeg}
   </Dial>
 </Response>`
     return new NextResponse(twiml, { headers: { 'Content-Type': 'text/xml' } })

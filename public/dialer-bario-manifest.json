@@ -1,0 +1,15 @@
+{
+  "name": "Bario.ca Dialer",
+  "short_name": "Bario Dialer",
+  "description": "Make calls as Bario.ca.",
+  "start_url": "/admin/dialer/bario",
+  "scope": "/admin/dialer/bario",
+  "display": "standalone",
+  "background_color": "#0b111c",
+  "theme_color": "#0b111c",
+  "icons": [
+    { "src": "/bario-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/bario-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/bario-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

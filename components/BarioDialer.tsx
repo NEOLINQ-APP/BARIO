@@ -7,6 +7,7 @@ const BUSINESSES = [
   { key: 'afc', label: 'AFC Logistics' },
   { key: 'sunbuilt', label: 'Sunbuilt Group' },
   { key: 'unique', label: 'Unique Group Inc.' },
+  { key: 'bario', label: 'Bario.ca' },
 ]
 
 type CallState = 'idle' | 'requesting' | 'ringing' | 'incoming' | 'in-call' | 'ended'
