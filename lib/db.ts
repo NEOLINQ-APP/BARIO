@@ -1895,6 +1895,35 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS converted_to_invoice_id TEXT REFERENCES bo_invoices(id)`
   await sql`ALTER TABLE bo_invoices ADD COLUMN IF NOT EXISTS converted_from_id TEXT REFERENCES bo_invoices(id)`
 
+  // Expenses — fully new, gated under the existing 'invoicing' module (no
+  // new priced BoModuleKey; expenses/reporting are invoicing-adjacent, and
+  // a new module would need real Stripe billing plumbing that wasn't asked
+  // for). status='needs_review' is the lightweight analog of
+  // invoice_change_requests' AI-proposes/human-approves shape — since this
+  // is a single-tenant writing its own data (not Amber's cross-client AI
+  // writes), a full separate staging table would be overkill; the report
+  // query just excludes non-'confirmed' rows by default.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_expenses (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      vendor TEXT,
+      category TEXT NOT NULL DEFAULT 'uncategorized',
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      tax_cents INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'CAD',
+      expense_date DATE,
+      notes TEXT,
+      receipt_image_url TEXT,
+      ocr_raw_json TEXT,
+      status TEXT NOT NULL DEFAULT 'confirmed',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_expenses_org_idx ON bo_expenses (organization_id, expense_date)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_suppliers (
       id TEXT PRIMARY KEY,
@@ -2998,6 +3027,24 @@ export type BoProduct = {
   status: 'active' | 'inactive'
   item_type: 'product' | 'service'
   description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoExpense = {
+  id: string
+  organization_id: string
+  vendor: string | null
+  category: string
+  amount_cents: number
+  tax_cents: number
+  currency: string
+  expense_date: string | null
+  notes: string | null
+  receipt_image_url: string | null
+  ocr_raw_json: string | null
+  status: 'needs_review' | 'confirmed'
+  created_by_user_id: string | null
   created_at: string
   updated_at: string
 }
