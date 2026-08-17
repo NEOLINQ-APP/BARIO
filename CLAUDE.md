@@ -91,16 +91,73 @@ check both independently if unsure.
 ## Infrastructure this project touches
 
 - **Main VPS** (`2.25.139.207`, key `~/.ssh/bario_vps`): runs the Twenty CRM
-  reseller stack, client sites migrated off it onto Bario
-  (afclogistics.ca, sunbuiltgroup.com), n8n, and `code.bario.ca` (a
+  reseller stack, AFC Logistics' and Sunbuilt Group's own dedicated Twenty
+  CRM stacks (`afc-crm-stack`, `sunbuilt-crm-stack`), client sites migrated
+  off it onto Bario (afclogistics.ca, sunbuiltgroup.com), n8n, `miko-voice`
+  (Victoria's voice AI backend — see below), and `code.bario.ca` (a
   code-server instance for phone/browser-based Claude Code access, set up
   2026-07-27 — nginx + certbot in front of it, password-protected).
+  **This box runs genuinely close to its memory limit already** (8GB RAM,
+  multiple Twenty CRM stacks + everything else) — real OOM/thrashing
+  incident 2026-08-16 from adding 2 more CRM stacks here (load average 74,
+  swap maxed, every service degraded until they were removed). **Do not add
+  another heavy service here** (another Twenty CRM stack, another
+  Docker-Compose app) without checking `free -h`/`uptime` first — put new
+  heavy services on the Hetzner replacement box instead (next bullet).
+- **Hetzner replacement VPS** (`46.224.28.213`, key `~/.ssh/bario_vps2`,
+  8vCPU/16GB, plenty of headroom): the intended eventual replacement for the
+  main VPS above (see `TODO.md`/memory for the full Hostinger→Hetzner
+  migration plan — most services haven't moved yet). Already running for
+  real as of 2026-08-16: Unique Group Inc.'s and Bario.ca's own dedicated
+  Twenty CRM stacks (`unique-crm-stack`, `bario-crm-stack` — same
+  docker-compose/nginx/certbot pattern as `afc-crm-stack` on the main VPS,
+  bind-mounted `./pgdata` so `docker compose down -v` does **not** wipe the
+  DB, only `rm -rf pgdata` after `down` actually does).
 - **Mail reseller VPS** (`148.230.94.192`, key `~/.ssh/bario_mail_vps`,
   hostname `reseller.bario.ca`): cPanel/WHM installed 2026-07-27. Still needs
   license application, first-time WHM setup wizard, and white-labeling before
   it's a real product — not done yet as of this writing.
 - **Cloudflare**: used for per-custom-domain zone creation (`lib/cloudflare.ts`),
   API token has write access (Zone:Edit, Account:Zone:Edit).
+
+## Victoria — the voice AI receptionist/personal-assistant (miko-voice)
+
+Answers 4 real phone lines (AFC Logistics, Sunbuilt Group, Unique Group
+Inc., Bario.ca) via Twilio ConversationRelay, and is also Sherwin Mendoza's
+own personal AI assistant (`bario.ca/victoria-app`) and his daughters Mya's
+and Julianna's (`bario.ca/victoria-family/[member]`).
+
+- **The actual brain, `server.js`, is NOT in this git repo.** It lives at
+  `/var/www/miko-voice/server.js` on the **main** VPS (`2.25.139.207`),
+  PM2-managed (`pm2 reload miko-voice`, not `restart`), reachable at
+  `wss://miko-voice.bario.ca`. A session that only reads this repo will see
+  none of Victoria's tool-calling logic, system prompts, or the
+  `COMPANY_LINES`/`FULL_ACCESS_PERSON_KEYS` maps — you have to SSH in and
+  read/edit that file directly. Safe-edit procedure: `scp` it down, edit
+  locally with real tooling (not blind remote `sed`), `node --check` both
+  locally and after re-uploading, back up the live file with a timestamp
+  suffix first, `pm2 reload` (zero-downtime), then check
+  `pm2 logs miko-voice --lines 15` for a clean restart with no new errors.
+- **Live-turn model is `claude-haiku-4-5`, not Sonnet** — deliberately, for
+  response speed on a real-time call. Any Anthropic-hosted server tool
+  (`web_search`) needs `allowed_callers: ['direct']` set explicitly or Haiku
+  400s — Sonnet doesn't need this, so don't "fix" this back out if the model
+  ever changes again without re-checking.
+- **Full personal-assistant access** (remember_note/contact,
+  create_appointment, call_contact, send_sms-to-anyone, check_call_log) is
+  restricted to exactly Sherwin + his two daughters Mya and Julianna
+  (`FULL_ACCESS_PERSON_KEYS` in server.js) — explicitly narrower than the
+  wider family/friends circle (`FAMILY_NUMBERS`/`KNOWN_CONTACTS`), which
+  only gets a warm greeting + web_search. Each of the three has their own
+  private notes/contacts/appointments namespace in `personal.json` — never
+  merge them or let one person's data surface on another's call.
+- **Cross-call CRM memory, all 4 business lines**: every call gets logged to
+  that business's own Twenty CRM (contact + note) via
+  `app/api/admin/victoria/log-call` (called from server.js at hangup), and a
+  returning caller is briefed from their prior notes at call-setup time via
+  `app/api/internal/victoria/caller-context`. AFC's and Sunbuilt's CRMs live
+  on the main VPS; Unique's and Bario.ca's live on the Hetzner box (see
+  above) — `lib/crmOutreach.ts`'s `OUTREACH_CRMS` has all 4.
 
 ## Working conventions specific to this project
 
