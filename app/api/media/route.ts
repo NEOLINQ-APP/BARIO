@@ -119,9 +119,10 @@ export async function POST(req: Request) {
     const contentType = encrypted && typeof contentTypeOverride === 'string' ? contentTypeOverride : file.type
 
     const id = randomUUID()
+    const ivValue = encrypted && typeof iv === 'string' ? iv : null
     await sql`
       INSERT INTO media_assets (id, user_id, folder, filename, url, content_type, size_bytes, encrypted, iv, content_hash)
-      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${contentType}, ${file.size}, ${encrypted}, ${encrypted ? iv : null}, ${contentHash})
+      VALUES (${id}, ${user.id}, ${folder}, ${file.name}, ${blob.url}, ${contentType}, ${file.size}, ${encrypted}, ${ivValue}, ${contentHash})
     `
 
     return NextResponse.json({ ok: true, id, url: blob.url })

@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasPaidPlan } from '@/lib/access'
 import AccountSidebar from '@/components/AccountSidebar'
-import PromoPopup from '@/components/PromoPopup'
 import IdleLogout from '@/components/IdleLogout'
 
 // Shared persistent-sidebar shell for every logged-in account page (Home,
@@ -18,7 +16,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
   if (!session) redirect('/login')
 
   const sql = await db()
-  const rows = (await sql`SELECT email, is_admin, subscription_status FROM users WHERE id = ${session.userId}`) as unknown as Pick<User, 'email' | 'is_admin' | 'subscription_status'>[]
+  const rows = (await sql`SELECT email, is_admin FROM users WHERE id = ${session.userId}`) as unknown as Pick<User, 'email' | 'is_admin'>[]
   const user = rows[0]
   if (!user) redirect('/login')
 
@@ -29,7 +27,6 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <div className="min-h-screen bg-white dark:bg-[#0b111c] flex flex-col md:flex-row">
       <AccountSidebar email={user.email} isAdmin={user.is_admin} clientCompanyLabel={clientCompanyLabel} />
       <div className="flex-1 min-w-0">{children}</div>
-      <PromoPopup isPaid={hasPaidPlan(user)} />
       <IdleLogout />
     </div>
   )
