@@ -8,9 +8,13 @@ export type BoLineItem = { price: string; quantity: number }
 // the checkout and update routes so the payroll/payments special-casing
 // only lives in one place. 'payments' is free (see the comment on
 // BO_MODULES.payments in lib/barioOneModules.ts) and never gets a line
-// item. 'payroll' needs two line items (flat base + per-employee, quantity
-// = current headcount) since Stripe has no single "flat fee + per-unit"
-// recurring price.
+// item. 'crm' is also free whenever 'invoicing' is in the same resolved
+// set — it's only there as invoicing's dependency (see the comment on
+// BO_MODULES.invoicing), never billed as a separate product in that
+// context, but a customer who picks CRM on its own (no invoicing) still
+// pays the normal price for it. 'payroll' needs two line items (flat base
+// + per-employee, quantity = current headcount) since Stripe has no single
+// "flat fee + per-unit" recurring price.
 export async function buildModuleLineItems(
   sql: any,
   orgId: string,
@@ -19,6 +23,7 @@ export async function buildModuleLineItems(
   const lineItems: BoLineItem[] = []
   for (const key of resolvedKeys) {
     if (key === 'payments') continue
+    if (key === 'crm' && resolvedKeys.includes('invoicing')) continue
     if (key === 'payroll') {
       if (!BO_PAYROLL_BASE_PRICE_ID || !BO_PAYROLL_PER_EMPLOYEE_PRICE_ID) {
         return { error: 'The payroll module isn\'t available for purchase right now' }
@@ -42,6 +47,7 @@ export async function buildModuleLineItems(
 export function moduleKeysCurrentlyBilled(currentPriceIds: Set<string>, candidateKeys: BoModuleKey[]): BoModuleKey[] {
   return candidateKeys.filter((key) => {
     if (key === 'payments') return true // always considered "current" — never billed, never needs adding/removing
+    if (key === 'crm' && candidateKeys.includes('invoicing')) return true // free ride on invoicing, never its own line item
     if (key === 'payroll') {
       return Boolean(
         (BO_PAYROLL_BASE_PRICE_ID && currentPriceIds.has(BO_PAYROLL_BASE_PRICE_ID)) ||

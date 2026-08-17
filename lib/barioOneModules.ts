@@ -20,7 +20,13 @@ export const BO_MODULES: Record<BoModuleKey, BoModuleConfig> = {
   },
   invoicing: {
     key: 'invoicing', name: 'Invoicing', description: 'Estimates, quotes, invoices, recurring billing',
-    priceCentsCad: 1900, requires: [], stripePriceEnvVar: 'STRIPE_PRICE_BO_MODULE_INVOICING',
+    // requires 'crm' because invoices attach to bo_customers, which lives
+    // behind the crm module gate — but CRM is never billed as its own line
+    // item when it's only here as invoicing's dependency (see
+    // buildModuleLineItems/moduleKeysCurrentlyBilled in
+    // lib/barioOneModuleLineItems.ts) — it's bundled in free, only sold on
+    // its own otherwise.
+    priceCentsCad: 1900, requires: ['crm'], stripePriceEnvVar: 'STRIPE_PRICE_BO_MODULE_INVOICING',
   },
   payments: {
     key: 'payments', name: 'Payments', description: 'Accept card payments directly on your invoices',
