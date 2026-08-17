@@ -1,6 +1,7 @@
 import { db, type Site, type SitePage } from '@/lib/db'
 import { buildSiteHtml, injectSeoIntoHtml, injectBadgeIntoHtml, parsePagesJson, esc } from '@/lib/renderSite'
 import { hasPaidPlan } from '@/lib/access'
+import { buildRobotsTxt, buildSitemapXml, getSiteSlugs } from '@/lib/siteSitemap'
 
 // Route Handlers are statically cached by default in the App Router. Without
 // something here, the first successful render of a given hostname gets
@@ -87,6 +88,26 @@ export async function GET(req: Request, { params }: { params: { domain: string; 
   // multi-page imports, e.g. a migrated WordPress export). A site with zero
   // rows here is unaffected regardless of content_mode.
   const pageRows = (await sql`SELECT * FROM site_pages WHERE site_id = ${site.id}`) as unknown as SitePage[]
+
+  // Every hosted site gets a real sitemap.xml/robots.txt generated from its
+  // actual pages -- there was no platform-level generation before this (a
+  // site with no manually-imported page at these exact slugs just fell
+  // through to its own catch-all/homepage, silently serving HTML where a
+  // crawler expected XML/plain text). Intercepted here, before any
+  // per-page lookup, so these two paths can never collide with a real page.
+  if (slug === 'sitemap.xml') {
+    const slugs = getSiteSlugs(site, pageRows)
+    return new Response(buildSitemapXml(site, slugs), {
+      status: 200,
+      headers: { 'Content-Type': 'application/xml; charset=utf-8', ...CACHED_HEADERS },
+    })
+  }
+  if (slug === 'robots.txt') {
+    return new Response(buildRobotsTxt(site), {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CACHED_HEADERS },
+    })
+  }
 
   let rawHtml: string | null = null
   let notFound = false
