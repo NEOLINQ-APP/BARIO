@@ -1327,6 +1327,40 @@ async function ensureSchema() {
   `
 
   // Simple key/value store for platform-wide settings that don't need
+  // Real CRA TD1/TD1-province record on file for each staff member — legally
+  // required for payroll. Admin sends a token-gated link (no Bario login
+  // needed, since a brand-new hire has no account); the employee downloads
+  // the real fillable federal + provincial TD1 PDFs, fills/signs them in
+  // their own PDF reader, and uploads both back. Typed full legal name +
+  // timestamp + IP is the e-signature attestation for THIS submission (the
+  // PDFs themselves may also carry a wet/typed signature CRA's own form
+  // captures — this table's signature fields are Bario's own record of who
+  // submitted it and when, a separate concern). Deliberately does not add a
+  // SIN column here — the SIN lives inside the stored PDF itself (which is
+  // literally what the government form requires), not duplicated into a
+  // second plaintext column, matching the `staff` table's existing
+  // no-SIN-unless-necessary posture.
+  await sql`
+    CREATE TABLE IF NOT EXISTS staff_td1_records (
+      id TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+      token TEXT UNIQUE NOT NULL,
+      province TEXT NOT NULL,
+      tax_year INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'completed' | 'expired'
+      federal_pdf_url TEXT,
+      provincial_pdf_url TEXT,
+      federal_total_claim_cents INTEGER,
+      provincial_total_claim_cents INTEGER,
+      signature_name TEXT,
+      signed_at TIMESTAMPTZ,
+      signed_ip TEXT,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS staff_td1_records_staff_idx ON staff_td1_records (staff_id, created_at DESC)`
+
   // their own table — currently: the custom logo shown on invoices/
   // paystubs (falls back to Bario's own logo if unset), and employer
   // details required on a compliant paystub (legal name, address, CRA
@@ -2242,6 +2276,24 @@ export type Paystub = {
   ytd_insurable_cents: number
   ytd_deductions_cents: number
   ytd_net_cents: number
+  created_at: string
+}
+
+export type StaffTd1Record = {
+  id: string
+  staff_id: string
+  token: string
+  province: string
+  tax_year: number
+  status: 'pending' | 'completed' | 'expired'
+  federal_pdf_url: string | null
+  provincial_pdf_url: string | null
+  federal_total_claim_cents: number | null
+  provincial_total_claim_cents: number | null
+  signature_name: string | null
+  signed_at: string | null
+  signed_ip: string | null
+  expires_at: string
   created_at: string
 }
 

@@ -11,6 +11,12 @@ type Paystub = {
   id: string; pay_period_start: string; pay_period_end: string; pay_date: string
   gross_pay_cents: number; net_pay_cents: number; ytd_gross_cents: number; ytd_net_cents: number
 }
+type Td1Record = {
+  id: string; status: 'pending' | 'completed' | 'expired'; tax_year: number
+  federal_pdf_url: string | null; provincial_pdf_url: string | null
+  federal_total_claim_cents: number | null; provincial_total_claim_cents: number | null
+  signature_name: string | null; signed_at: string | null; expires_at: string; created_at: string
+}
 type LineItem = { label: string; amountCents: number }
 
 function money(cents: number) {
@@ -23,6 +29,11 @@ export default function AdminStaffDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  const [td1Records, setTd1Records] = useState<Td1Record[]>([])
+  const [sendingTd1, setSendingTd1] = useState(false)
+  const [td1Error, setTd1Error] = useState<string | null>(null)
+  const [td1Link, setTd1Link] = useState<string | null>(null)
 
   const [payPeriodStart, setPayPeriodStart] = useState('')
   const [payPeriodEnd, setPayPeriodEnd] = useState('')
@@ -42,6 +53,29 @@ export default function AdminStaffDetail({ id }: { id: string }) {
       .catch((err) => setError(err.message))
   }
   useEffect(load, [id])
+
+  function loadTd1() {
+    fetch(`/api/admin/staff/${id}/td1`)
+      .then((r) => r.json())
+      .then((data) => data.ok && setTd1Records(data.records))
+  }
+  useEffect(loadTd1, [id])
+
+  async function sendTd1() {
+    setSendingTd1(true)
+    setTd1Error(null)
+    setTd1Link(null)
+    try {
+      const res = await fetch(`/api/admin/staff/${id}/td1`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Could not create the TD1 link')
+      setTd1Link(data.link)
+      loadTd1()
+    } catch (err: any) {
+      setTd1Error(err.message)
+    }
+    setSendingTd1(false)
+  }
 
   async function createPaystub(e: React.FormEvent) {
     e.preventDefault()
@@ -82,6 +116,43 @@ export default function AdminStaffDetail({ id }: { id: string }) {
             <a href="/admin/payroll" className="text-xs text-cyan-600 dark:text-cyan-400 hover:underline">← Payroll</a>
           </div>
           <ThemeToggle />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 p-4 space-y-3">
+          <p className="font-semibold text-sm">TD1 tax forms on file</p>
+          {td1Records.length === 0 && <p className="text-xs text-slate-500 dark:text-zinc-500">None sent yet.</p>}
+          {td1Records.map((r) => (
+            <div key={r.id} className="rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-3 text-xs space-y-1">
+              <p>
+                {r.status === 'completed' ? '✅ Completed' : new Date(r.expires_at).getTime() < Date.now() ? '⌛ Expired' : '⏳ Pending'}
+                {' · '}Tax year {r.tax_year}
+              </p>
+              {r.status === 'completed' && (
+                <>
+                  <p className="text-slate-500 dark:text-zinc-500">
+                    Signed by {r.signature_name} on {r.signed_at ? new Date(r.signed_at).toLocaleString() : ''}
+                  </p>
+                  <p className="text-slate-500 dark:text-zinc-500">
+                    Federal claim {r.federal_total_claim_cents != null ? money(r.federal_total_claim_cents) : '—'} · Provincial claim {r.provincial_total_claim_cents != null ? money(r.provincial_total_claim_cents) : '—'}
+                  </p>
+                  <div className="flex gap-3">
+                    {r.federal_pdf_url && <a href={r.federal_pdf_url} target="_blank" rel="noopener noreferrer" className="text-cyan-600 dark:text-cyan-400">Federal PDF →</a>}
+                    {r.provincial_pdf_url && <a href={r.provincial_pdf_url} target="_blank" rel="noopener noreferrer" className="text-cyan-600 dark:text-cyan-400">Provincial PDF →</a>}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          <button onClick={sendTd1} disabled={sendingTd1} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-600 disabled:opacity-50 text-xs font-semibold">
+            {sendingTd1 ? 'Creating link…' : 'Send TD1 form'}
+          </button>
+          {td1Link && (
+            <div className="text-xs">
+              <p className="text-slate-500 dark:text-zinc-500 mb-1">Link ready{staff.email ? ' (also emailed to them)' : ' — no email on file, send this manually:'}</p>
+              <code className="block break-all px-2 py-1.5 rounded bg-slate-100 dark:bg-zinc-900">{td1Link}</code>
+            </div>
+          )}
+          {td1Error && <p className="text-xs text-red-500 dark:text-red-400">{td1Error}</p>}
         </div>
 
         <form onSubmit={createPaystub} className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-5 space-y-3">
