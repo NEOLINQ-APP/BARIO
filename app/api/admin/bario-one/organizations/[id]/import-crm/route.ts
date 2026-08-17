@@ -6,6 +6,24 @@ import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 import type { BoOrganization } from '@/lib/db'
 
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const auth = await requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
+  const { sql } = auth
+
+  const customers = await sql`
+    SELECT c.id, c.company_name, c.contact_name, c.email, c.phone, count(n.id)::int AS note_count
+    FROM bo_customers c
+    LEFT JOIN bo_notes n ON n.customer_id = c.id
+    WHERE c.organization_id = ${params.id}
+    GROUP BY c.id
+    ORDER BY c.created_at DESC
+    LIMIT 5
+  `
+  const totalRows = (await sql`SELECT count(*)::int AS c FROM bo_customers WHERE organization_id = ${params.id}`) as unknown as { c: number }[]
+  return NextResponse.json({ ok: true, sample: customers, total: totalRows[0]?.c ?? 0 })
+}
+
 // One-time (safe to re-run — skips people already imported by email/name)
 // migration of a Twenty CRM instance's People + their Notes into a Bario
 // One organization's own bo_customers/bo_notes. Deliberately does NOT touch
