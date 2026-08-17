@@ -1539,6 +1539,17 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_deals_org_idx ON bo_deals (organization_id)`
   await sql`CREATE INDEX IF NOT EXISTS bo_deals_customer_idx ON bo_deals (customer_id)`
 
+  // Bario One CRM — record-level permissions (2026-08-17). An employee
+  // (as opposed to owner/admin, who always see everything) is scoped to
+  // only the customers/deals assigned to them; an unassigned record stays
+  // visible to everyone so nothing existing silently disappears from an
+  // employee's view on rollout. See isRecordVisibleToMember() in
+  // lib/barioOne.ts for the read-side check this backs.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS assigned_to_user_id TEXT REFERENCES users(id)`
+  await sql`ALTER TABLE bo_deals ADD COLUMN IF NOT EXISTS assigned_to_user_id TEXT REFERENCES users(id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_customers_assigned_idx ON bo_customers (assigned_to_user_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_deals_assigned_idx ON bo_deals (assigned_to_user_id)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_tasks (
       id TEXT PRIMARY KEY,
@@ -1569,6 +1580,36 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_notes_customer_idx ON bo_notes (customer_id, created_at)`
+
+  // Bario One CRM — comments/@mentions (2026-08-17). kind = 'comment' is a
+  // new value on the existing free-text kind column (no schema change
+  // needed for that); mentioned_user_ids_json records who was @mentioned
+  // so a notification only fires once per resolved mention, not per
+  // '@'-looking substring. See lib/barioOneMentions.ts.
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS mentioned_user_ids_json TEXT NOT NULL DEFAULT '[]'`
+
+  // Bario One CRM — two-way email sync (2026-08-17). Each org can have a
+  // real mailbox (its own domain, e.g. crm@afclogistics.ca -- either
+  // already existing and just recorded here, or auto-provisioned via
+  // lib/mailcow.ts for an org with none yet) used for BOTH sending CRM
+  // emails and polling replies via IMAP, so a customer's reply naturally
+  // lands back in the same mailbox app/api/cron/crm-email-sync polls.
+  // Password stored encrypted via lib/vpsPassword.ts's existing AES-256-GCM
+  // helper (reused, not a new encryption scheme).
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_email TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_imap_host TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_imap_port INTEGER`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_smtp_host TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_smtp_port INTEGER`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_password_ciphertext TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS crm_mailbox_password_iv TEXT`
+
+  // Threading/dedup for inbound mail, and enough to tell an inbound reply
+  // apart from an outbound send in the shared history feed.
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS message_id TEXT`
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS direction TEXT`
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS from_email TEXT`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_notes_message_id_idx ON bo_notes (message_id) WHERE message_id IS NOT NULL`
 
   // Bario One — CRM custom fields (per-org field definitions, attachable to
   // customers and/or deals). Values live as a JSON map on the entity row
@@ -2792,6 +2833,13 @@ export type BoOrganization = {
   enabled_modules_json: string
   stripe_connect_account_id: string | null
   stripe_connect_status: 'none' | 'onboarding' | 'active' | 'restricted'
+  crm_mailbox_email: string | null
+  crm_mailbox_imap_host: string | null
+  crm_mailbox_imap_port: number | null
+  crm_mailbox_smtp_host: string | null
+  crm_mailbox_smtp_port: number | null
+  crm_mailbox_password_ciphertext: string | null
+  crm_mailbox_password_iv: string | null
   created_at: string
   updated_at: string
 }
@@ -2819,6 +2867,7 @@ export type BoCustomer = {
   tags_json: string
   loyalty_points: number
   custom_fields_json: string
+  assigned_to_user_id: string | null
   created_by_user_id: string | null
   created_at: string
   updated_at: string
@@ -2837,6 +2886,7 @@ export type BoDeal = {
   notes: string | null
   custom_fields_json: string
   pipeline_id: string | null
+  assigned_to_user_id: string | null
   created_by_user_id: string | null
   created_at: string
   updated_at: string
@@ -2922,8 +2972,12 @@ export type BoNote = {
   organization_id: string
   customer_id: string
   author_user_id: string | null
-  kind: 'note' | 'email' | 'sms'
+  kind: 'note' | 'email' | 'sms' | 'comment'
   body: string
+  mentioned_user_ids_json: string
+  message_id: string | null
+  direction: 'outbound' | 'inbound' | null
+  from_email: string | null
   created_at: string
 }
 

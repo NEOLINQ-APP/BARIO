@@ -107,6 +107,15 @@ export async function listOrgMembers(sql: any, organizationId: string): Promise<
   `) as unknown as (BoMembership & { email: string | null })[]
 }
 
+// Record-level permissions (2026-08-17): an employee only sees customers/
+// deals assigned to them; owners/admins always see everything regardless
+// of assignment. An unassigned record stays visible to everyone so nothing
+// pre-existing silently disappears from an employee's view on rollout.
+export function isRecordVisibleToMember(membership: BoMembership, assignedToUserId: string | null): boolean {
+  if (membership.role !== 'employee') return true
+  return assignedToUserId === null || assignedToUserId === membership.user_id
+}
+
 function seatCount(org: BoOrganization): number | null {
   return seatLimitForModules(getEnabledModules(org))
 }

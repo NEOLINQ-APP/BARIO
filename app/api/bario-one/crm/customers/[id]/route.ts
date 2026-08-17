@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireBoModule } from '@/lib/barioOne'
+import { isRecordVisibleToMember, requireBoModule } from '@/lib/barioOne'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import type { BoCustomer, BoCustomField, BoDeal, BoTask, BoNote } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
@@ -8,13 +8,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   try {
     const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
-    const { sql, org } = auth
+    const { sql, org, membership } = auth
 
     const rows = (await sql`
       SELECT * FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}
     `) as unknown as BoCustomer[]
     const customer = rows[0]
-    if (!customer) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    // Same 404 (not 403) for "doesn't exist" and "exists but not assigned
+    // to you" -- an employee scoped away from a record shouldn't learn it
+    // exists at all.
+    if (!customer || !isRecordVisibleToMember(membership, customer.assigned_to_user_id)) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    }
 
     const deals = (await sql`
       SELECT * FROM bo_deals WHERE customer_id = ${customer.id} AND organization_id = ${org.id} ORDER BY created_at DESC
@@ -49,13 +54,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   try {
     const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
-    const { sql, org } = auth
+    const { sql, org, membership } = auth
 
-    const { companyName, contactName, phone, email, address, tags, customFields } = await req.json()
-    const existing = (await sql`SELECT id, custom_fields_json FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown as { id: string; custom_fields_json: string }[]
-    if (existing.length === 0) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    const { companyName, contactName, phone, email, address, tags, customFields, assignedToUserId } = await req.json()
+    const existing = (await sql`SELECT id, custom_fields_json, assigned_to_user_id FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown as { id: string; custom_fields_json: string; assigned_to_user_id: string | null }[]
+    if (existing.length === 0 || !isRecordVisibleToMember(membership, existing[0].assigned_to_user_id)) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+    }
 
     const customFieldsJson = await mergeCustomFieldValues(sql, org.id, 'customer', existing[0].custom_fields_json, customFields)
+
+    // Reassignment is owner/admin only -- an employee can't hand their own
+    // leads to themselves or take someone else's. `undefined` (field not
+    // sent) leaves assignment untouched; explicit `null` unassigns. Can't
+    // express that with COALESCE (a SQL NULL would just fall through to
+    // the old value), so resolve the final value in JS instead.
+    const nextAssignedToUserId =
+      membership.role !== 'employee' && assignedToUserId !== undefined
+        ? assignedToUserId || null
+        : existing[0].assigned_to_user_id
 
     await sql`
       UPDATE bo_customers SET
@@ -66,6 +83,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         address = ${address ?? null},
         tags_json = ${JSON.stringify(Array.isArray(tags) ? tags.filter((t: any) => typeof t === 'string') : [])},
         custom_fields_json = ${customFieldsJson},
+        assigned_to_user_id = ${nextAssignedToUserId},
         updated_at = now()
       WHERE id = ${params.id} AND organization_id = ${org.id}
     `

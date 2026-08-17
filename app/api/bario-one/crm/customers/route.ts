@@ -11,17 +11,28 @@ export async function GET(req: Request) {
   try {
     const auth = await requireBoModule('crm')
     if (auth instanceof NextResponse) return auth
-    const { sql, org } = auth
+    const { sql, org, membership } = auth
 
+    // Employees only see unassigned records + their own assignments;
+    // owners/admins always see everything (isRecordVisibleToMember's rule,
+    // applied here as a SQL predicate rather than a per-row filter so it
+    // scales with the table instead of over-fetching).
+    const employeeScope = membership.role === 'employee'
     const q = new URL(req.url).searchParams.get('q')?.trim()
     const rows = q
       ? ((await sql`
           SELECT * FROM bo_customers
           WHERE organization_id = ${org.id}
             AND (contact_name ILIKE ${'%' + q + '%'} OR company_name ILIKE ${'%' + q + '%'} OR email ILIKE ${'%' + q + '%'})
+            AND (NOT ${employeeScope} OR assigned_to_user_id IS NULL OR assigned_to_user_id = ${membership.user_id})
           ORDER BY created_at DESC
         `) as unknown as BoCustomer[])
-      : ((await sql`SELECT * FROM bo_customers WHERE organization_id = ${org.id} ORDER BY created_at DESC`) as unknown as BoCustomer[])
+      : ((await sql`
+          SELECT * FROM bo_customers
+          WHERE organization_id = ${org.id}
+            AND (NOT ${employeeScope} OR assigned_to_user_id IS NULL OR assigned_to_user_id = ${membership.user_id})
+          ORDER BY created_at DESC
+        `) as unknown as BoCustomer[])
 
     return NextResponse.json({
       customers: rows.map((c) => ({ ...c, tags: JSON.parse(c.tags_json), customFields: JSON.parse(c.custom_fields_json) })),

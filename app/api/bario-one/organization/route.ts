@@ -46,6 +46,7 @@ export async function GET() {
       myRole: membership.role,
       members: members.map((m) => ({
         id: m.id,
+        userId: m.user_id,
         email: m.email ?? m.invited_email,
         role: m.role,
         status: m.status,

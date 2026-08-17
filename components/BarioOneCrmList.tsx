@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type Customer = {
   id: string
@@ -77,6 +77,76 @@ function AddCustomerForm({ onAdded }: { onAdded: () => void }) {
   )
 }
 
+type ImportResult = { imported: number; updated: number; skipped: number; errors: { row: number; reason: string }[] }
+
+function ImportExportButtons({ onImported }: { onImported: () => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file name after a failed attempt
+    if (!file) return
+    setError(null)
+    setResult(null)
+    setBusy(true)
+    try {
+      const csv = await file.text()
+      const res = await fetch('/api/bario-one/crm/customers/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ csv }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Import failed')
+      setResult(data)
+      onImported()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex gap-2">
+        <a
+          href="/api/bario-one/export/customers"
+          className="text-sm font-medium px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800"
+        >
+          Export CSV
+        </a>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={busy}
+          className="text-sm font-medium px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 disabled:opacity-50"
+        >
+          {busy ? 'Importing…' : 'Import CSV'}
+        </button>
+        <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleFile} className="hidden" />
+      </div>
+      {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+      {result && (
+        <p className="text-xs text-slate-500 dark:text-zinc-400">
+          {result.imported} imported, {result.updated} updated
+          {result.skipped > 0 && `, ${result.skipped} skipped`}
+          {result.errors.length > 0 && (
+            <>
+              {' — '}
+              {result.errors.slice(0, 3).map((e) => `row ${e.row}: ${e.reason}`).join('; ')}
+              {result.errors.length > 3 && ` (+${result.errors.length - 3} more)`}
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function BarioOneCrmList() {
   const [customers, setCustomers] = useState<Customer[] | null>(null)
   const [q, setQ] = useState('')
@@ -117,10 +187,16 @@ export default function BarioOneCrmList() {
           <a href="/dashboard/bario-one/crm/automations" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline self-center">
             Automations →
           </a>
+          <a href="/dashboard/bario-one/crm/reports" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline self-center">
+            Reports →
+          </a>
         </div>
       </div>
 
-      <AddCustomerForm onAdded={() => load(q)} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <AddCustomerForm onAdded={() => load(q)} />
+        <ImportExportButtons onImported={() => load(q)} />
+      </div>
 
       {customers === null ? (
         <p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>
