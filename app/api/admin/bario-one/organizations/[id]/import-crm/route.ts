@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         title
         bodyV2 { markdown }
         createdAt
-        noteTargets { edges { node { personId } } }
+        noteTargets { edges { node { targetPersonId } } }
       } } } }`,
       {}
     )
@@ -55,7 +55,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const notesByPersonId = new Map<string, { title: string; body: string; createdAt: string }[]>()
     for (const note of notes) {
-      const targets: string[] = (note.noteTargets?.edges ?? []).map((e: any) => e.node?.personId).filter(Boolean)
+      const targets: string[] = (note.noteTargets?.edges ?? []).map((e: any) => e.node?.targetPersonId).filter(Boolean)
       for (const personId of targets) {
         const list = notesByPersonId.get(personId) ?? []
         list.push({ title: note.title ?? '', body: note.bodyV2?.markdown ?? '', createdAt: note.createdAt })
@@ -63,8 +63,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     }
 
-    const existingRows = (await sql`SELECT contact_name, email FROM bo_customers WHERE organization_id = ${org.id}`) as unknown as { contact_name: string; email: string | null }[]
-    const existingKeys = new Set(existingRows.map((r) => `${r.contact_name.trim().toLowerCase()}|${(r.email ?? '').trim().toLowerCase()}`))
+    const existingRows = (await sql`SELECT id, contact_name, email FROM bo_customers WHERE organization_id = ${org.id}`) as unknown as { id: string; contact_name: string; email: string | null }[]
+    const existingByKey = new Map(existingRows.map((r) => [`${r.contact_name.trim().toLowerCase()}|${(r.email ?? '').trim().toLowerCase()}`, r.id]))
+    const noteCountRows = (await sql`
+      SELECT customer_id, count(*)::int AS c FROM bo_notes WHERE organization_id = ${org.id} GROUP BY customer_id
+    `) as unknown as { customer_id: string; c: number }[]
+    const hasNotes = new Set(noteCountRows.filter((r) => r.c > 0).map((r) => r.customer_id))
 
     let imported = 0
     let skipped = 0
@@ -76,27 +80,32 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const contactName = `${firstName} ${lastName}`.trim() || 'Unknown'
       const email = person.emails?.primaryEmail?.trim() || null
       const key = `${contactName.toLowerCase()}|${(email ?? '').toLowerCase()}`
-      if (existingKeys.has(key)) {
+
+      let customerId = existingByKey.get(key)
+      if (customerId) {
         skipped++
-        continue
+      } else {
+        customerId = randomUUID()
+        await sql`
+          INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_at)
+          VALUES (
+            ${customerId}, ${org.id},
+            ${person.company?.name || null},
+            ${contactName},
+            ${person.phones?.primaryPhoneNumber || null},
+            ${email},
+            ${JSON.stringify(['migrated-from-twenty'])},
+            now()
+          )
+        `
+        imported++
+        existingByKey.set(key, customerId)
       }
 
-      const customerId = randomUUID()
-      await sql`
-        INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_at)
-        VALUES (
-          ${customerId}, ${org.id},
-          ${person.company?.name || null},
-          ${contactName},
-          ${person.phones?.primaryPhoneNumber || null},
-          ${email},
-          ${JSON.stringify(['migrated-from-twenty'])},
-          now()
-        )
-      `
-      imported++
-      existingKeys.add(key)
-
+      // Backfill notes even for a customer that already existed (e.g. a
+      // prior run before note-target field mapping was fixed) — but only
+      // if they don't already have any, so re-running this never duplicates.
+      if (hasNotes.has(customerId)) continue
       const personNotes = notesByPersonId.get(person.id) ?? []
       for (const note of personNotes) {
         const body = note.title ? `${note.title}\n\n${note.body}` : note.body
@@ -107,6 +116,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         `
         notesImported++
       }
+      if (personNotes.length > 0) hasNotes.add(customerId)
     }
 
     await logAdminAction(sql, {
