@@ -16,7 +16,7 @@ export const ACCOUNT_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/email', label: 'Email', icon: '📧' },
   { href: '/media', label: 'X-Drive', icon: '📁' },
   { href: '/dashboard/studio', label: 'Studio', icon: '🎬' },
-  { href: '/build/apps', label: 'Build (beta)', icon: '⚡' },
+  { href: 'https://build.bario.ca', label: 'Build (beta)', icon: '⚡' },
   { href: '/dashboard/servers', label: 'Servers', icon: '🖥️' },
   { href: '/dashboard/wp-hosting', label: 'WordPress Hosting', icon: '📝' },
   { href: '/dashboard/billing', label: 'Billing', icon: '💳' },
