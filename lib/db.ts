@@ -2231,6 +2231,26 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS client_quick_links_company_idx ON client_quick_links (company_key, sort_order)`
+
+  // Refund/financial-adjustment requests Aria (app/api/assistant/*) files
+  // on a customer's behalf — never a refund itself, just a durable record +
+  // trigger for a human to review. user_id is nullable because the
+  // pre-login assistant can file one too (no session to attach it to), in
+  // which case account_email/user_name come from what the visitor typed.
+  await sql`
+    CREATE TABLE IF NOT EXISTS refund_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id),
+      user_name TEXT,
+      account_email TEXT NOT NULL,
+      service_name TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      attachment_url TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_review',
+      sms_alert_sent BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
 }
 
 export async function db() {
