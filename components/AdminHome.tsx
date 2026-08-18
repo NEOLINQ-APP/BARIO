@@ -37,6 +37,10 @@ export default function AdminHome() {
             <div className="font-semibold">Assistant</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">General-purpose AI that can also fix low-risk account issues on its own.</p>
           </a>
+          <a href="/admin/neo" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">NEO 🛰️</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Automated health checks every 15 min — endpoints, hosting nodes, Stripe. Auto-fixes only a pre-approved safe list; everything else waits for review.</p>
+          </a>
           <a href="/admin/crm-outreach" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">CRM Outreach</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>

@@ -399,6 +399,40 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // NEO — automated health-check detection + narrow, pre-approved auto-fix
+  // log. `status` starts 'detected'; a registered safe action (see
+  // lib/neoActions.ts) flips it straight to 'auto_fixed' with what it did;
+  // anything without a registered safe action stays 'needs_review' for a
+  // human, on purpose — NEO never invents a remediation for a pattern it
+  // wasn't explicitly given permission to act on. Mirrors
+  // admin_actions_log's shape deliberately so both audit trails read the
+  // same way in the admin panel.
+  await sql`
+    CREATE TABLE IF NOT EXISTS neo_incidents (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      category TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'info',
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'detected',
+      action_taken TEXT,
+      details_json TEXT NOT NULL DEFAULT '{}',
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  // Prevents the same still-open problem from spamming a fresh row every
+  // 15 minutes — a health check re-detecting the same category+description
+  // combo updates the existing open incident's timestamp instead of
+  // creating a duplicate. Partial (only over open incidents) so a
+  // recurring issue that gets resolved and comes back later legitimately
+  // gets a new row, not silently merged into the old resolved one.
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS neo_incidents_open_dedupe_idx
+      ON neo_incidents (source, category, description)
+      WHERE status IN ('detected', 'needs_review')
+  `
   // Optional multi-page content for a site, additive to the single
   // sites.raw_html column above. A site with zero rows here is unaffected —
   // /site/[domain] keeps rendering exactly as before (sections_json or
