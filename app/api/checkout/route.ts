@@ -26,6 +26,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Account not found' }, { status: 401 })
     }
 
+    if (user.comp_protected_until && new Date(user.comp_protected_until).getTime() > Date.now()) {
+      return NextResponse.json(
+        { error: `This account has a billing hold on file until ${new Date(user.comp_protected_until).toLocaleDateString()} — contact Bario directly to add real billing before then.` },
+        { status: 403 }
+      )
+    }
+
     const origin = req.headers.get('origin') ?? 'https://bario.ca'
 
     // Admin bypass: no reason the account owner should ever hand Stripe a

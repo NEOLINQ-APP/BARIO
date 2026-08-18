@@ -35,6 +35,12 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+    if (user.comp_protected_until && new Date(user.comp_protected_until).getTime() > Date.now()) {
+      return NextResponse.json(
+        { error: `This account has a billing hold on file until ${new Date(user.comp_protected_until).toLocaleDateString()} — contact Bario directly to add real billing before then.` },
+        { status: 403 }
+      )
+    }
 
     const { moduleKeys } = await req.json()
     if (!Array.isArray(moduleKeys) || moduleKeys.length === 0 || !moduleKeys.every((k) => (BO_MODULE_KEYS as string[]).includes(k))) {

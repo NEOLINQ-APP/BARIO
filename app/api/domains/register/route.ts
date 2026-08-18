@@ -45,6 +45,12 @@ export async function POST(req: Request) {
     if (!user || !hasPaidPlan(user)) {
       return NextResponse.json({ error: 'Upgrade to a paid plan to register a domain' }, { status: 403 })
     }
+    if (user.comp_protected_until && new Date(user.comp_protected_until).getTime() > Date.now()) {
+      return NextResponse.json(
+        { error: `This account has a billing hold on file until ${new Date(user.comp_protected_until).toLocaleDateString()} — contact Bario directly to register a domain before then.` },
+        { status: 403 }
+      )
+    }
 
     const body = await req.json().catch(() => ({}))
     const domain = String(body?.domain ?? '').trim().toLowerCase()

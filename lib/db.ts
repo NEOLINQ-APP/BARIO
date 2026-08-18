@@ -69,6 +69,16 @@ async function ensureSchema() {
   // error). Suspending also bumps session_version as a second, independent
   // layer — belt and suspenders, not redundant with the getSession() check.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ`
+  // A billing hold, not a discount — while in the future, this account must
+  // never be auto-charged for hosting (app/api/checkout), any Bario One
+  // module (app/api/bario-one/modules/checkout|update, keyed off the org
+  // owner's user id), or a domain registration (app/api/domains/register).
+  // Deliberately ONE shared date across all three rather than three
+  // separate ones: extending it extends hosting+CRM+domains together by
+  // construction, which is exactly what was asked for, not something that
+  // needs remembering to keep in sync. NULL/past = no hold, normal billing
+  // applies. Set via POST /api/admin/users/billing-protection.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS comp_protected_until TIMESTAMPTZ`
   // Personal media-library storage (separate product from the site plan —
   // a user can be on any site plan and independently subscribe for more
   // storage, same as Google One stacking on a free Google account).
@@ -2244,6 +2254,7 @@ export type User = {
   session_version: number
   admin_note: string | null
   suspended_at: string | null
+  comp_protected_until: string | null
   storage_tier: string
   storage_subscription_status: string
   stripe_storage_subscription_id: string | null
