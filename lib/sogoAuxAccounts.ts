@@ -12,10 +12,10 @@
 // already uses) rather than browser automation, which would be far more
 // fragile against any future SOGo UI change.
 import { Client } from 'ssh2'
-import { restartSogo } from './mailcow'
 
 const MAILCOW_VPS_HOST = '148.230.94.192'
 const MYSQL_CONTAINER = 'mailcowdockerized-mysql-mailcow-1'
+const MEMCACHED_CONTAINER = 'mailcowdockerized-memcached-mailcow-1'
 
 function mysqlEscape(str: string): string {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
@@ -81,6 +81,21 @@ EOSQL
   return runMailVpsSsh(script)
 }
 
+// SOGo caches user profiles in Mailcow's memcached container -- confirmed
+// live (2026-08-18) that a direct MySQL write to c_defaults is NOT
+// reflected in the webmail UI until this cache is cleared, and that
+// restarting sogo-mailcow itself (the fix an *different*, already-existing
+// staleness bug uses -- see restartSogoForNewDomain()) does NOT clear it,
+// since memcached is a separate, independently-running container. A flush
+// is near-instant and doesn't drop other users' active sessions, unlike a
+// full sogo-mailcow restart, so it's used here instead of that heavier
+// fix, not in addition to it.
+async function flushSogoCache(): Promise<void> {
+  await runMailVpsSsh(
+    `docker exec ${MEMCACHED_CONTAINER} sh -c 'printf "flush_all\\r\\nquit\\r\\n" | nc -w1 localhost 11211'`
+  )
+}
+
 type AuxAccountInput = {
   label: string
   email: string
@@ -143,13 +158,7 @@ export async function addAuxiliaryMailAccount(sogoUid: string, account: AuxAccou
   })
   defaults.AuxiliaryMailAccounts = existing
   await writeDefaults(sogoUid, defaults)
-  // Confirmed live (2026-08-18): SOGo doesn't reliably pick up a direct
-  // MySQL write to c_defaults without this -- same underlying staleness
-  // restartSogoForNewDomain() already exists to fix for a different
-  // trigger (a brand-new Mailcow domain). Real repro: added an account,
-  // it showed up correctly; removed it via direct SQL, the webmail UI
-  // kept showing the deleted entry until sogo-mailcow was restarted.
-  await restartSogo()
+  await flushSogoCache()
   return nextId
 }
 
@@ -158,5 +167,5 @@ export async function removeAuxiliaryMailAccount(sogoUid: string, accountId: num
   const existing: any[] = Array.isArray(defaults.AuxiliaryMailAccounts) ? defaults.AuxiliaryMailAccounts : []
   defaults.AuxiliaryMailAccounts = existing.filter((a) => Number(a.id) !== accountId)
   await writeDefaults(sogoUid, defaults)
-  await restartSogo()
+  await flushSogoCache()
 }
