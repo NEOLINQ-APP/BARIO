@@ -330,7 +330,7 @@ export async function researchLeads(query: string, count: number): Promise<Resea
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 2000,
+      max_tokens: 8000,
       tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_callers: ['direct'] }],
       system:
         'You research real, currently-operating businesses on the web for B2B sales prospecting. Only return businesses you actually found via search — never invent one. After searching, respond with ONLY a raw JSON array (no markdown fences, no prose) of objects shaped exactly like: {"companyName": string|null, "contactName": string|null, "phone": string|null, "email": string|null, "reason": string} — reason is one short sentence on why this business is a good fit for the query. Omit phone/email as null if you could not find a real one — never invent contact details.',
@@ -369,7 +369,7 @@ export async function researchLeadsDebug(query: string, count: number): Promise<
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-5',
-    max_tokens: 2000,
+    max_tokens: 8000,
     tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_callers: ['direct'] }],
     system:
       'You research real, currently-operating businesses on the web for B2B sales prospecting. Only return businesses you actually found via search — never invent one. After searching, respond with ONLY a raw JSON array (no markdown fences, no prose) of objects shaped exactly like: {"companyName": string|null, "contactName": string|null, "phone": string|null, "email": string|null, "reason": string} — reason is one short sentence on why this business is a good fit for the query. Omit phone/email as null if you could not find a real one — never invent contact details.',
