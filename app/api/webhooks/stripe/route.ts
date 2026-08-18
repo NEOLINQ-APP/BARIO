@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { getStripe, moduleKeyForPriceId, tierKeyForPriceId } from '@/lib/stripe'
+import { sendSms } from '@/lib/twilio'
+import { recordIncident } from '@/lib/neoIncidents'
 import { BO_PLANS } from '@/lib/barioOneTiers'
 import type { BoModuleKey } from '@/lib/barioOneModules'
 import { db, type VpsInstance } from '@/lib/db'
@@ -43,6 +45,34 @@ export async function POST(req: Request) {
           INSERT INTO template_licenses (id, user_id, template_id, license_key, status, stripe_payment_intent)
           VALUES (${randomUUID()}, ${userId}, ${templateId}, ${randomUUID()}, 'active', ${String(session.payment_intent)})
         `
+        break
+      }
+
+      // One-off Bario Voice reconnection payments (app/api/admin/bario-voice/
+      // create-payment-link) — not a real bo_invoices/subscription record,
+      // just a flat one-time amount. The only thing to do here is tell a
+      // human immediately: SMS (same EXEC_ALERT_PHONE_NUMBER pipeline as
+      // Aria's refund escalation) plus a durable NEO incident so it shows
+      // up in /admin/neo even if the text is missed.
+      if (session.mode === 'payment' && session.metadata?.purpose === 'bario_voice_reconnection') {
+        const company = session.metadata?.company ?? 'Unknown company'
+        const amount = session.amount_total != null ? `$${(session.amount_total / 100).toFixed(2)} ${(session.currency ?? 'cad').toUpperCase()}` : 'an unknown amount'
+        try {
+          const alertNumber = process.env.EXEC_ALERT_PHONE_NUMBER
+          if (alertNumber) {
+            await sendSms(alertNumber, `Bario Voice: ${company} just paid ${amount} to reconnect. Restore their account + phone line when ready.`)
+          }
+        } catch (err) {
+          console.error('Failed to send Bario Voice payment SMS alert:', err)
+          Sentry.captureException(err)
+        }
+        await recordIncident(sql, {
+          source: 'stripe_webhook',
+          category: 'bario_voice_payment_received',
+          severity: 'info',
+          description: `${company} paid ${amount} to reconnect Bario Voice service.`,
+          details: { sessionId: session.id, company, amountTotal: session.amount_total },
+        })
         break
       }
 
