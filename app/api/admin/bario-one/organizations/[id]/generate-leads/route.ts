@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { researchLeads, addLeadsToOrg } from '@/lib/barioOneAssistantTools'
+import { researchLeads, researchLeadsDebug, addLeadsToOrg } from '@/lib/barioOneAssistantTools'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
 
@@ -19,10 +19,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { sql } = auth
 
   try {
-    const { query, count } = await req.json()
+    const { query, count, debug } = await req.json()
     const trimmedQuery = String(query || '').trim()
     if (!trimmedQuery) return NextResponse.json({ error: 'query is required' }, { status: 400 })
     const resolvedCount = Number.isFinite(count) ? Math.min(Math.max(Math.round(count), 1), 10) : 5
+
+    if (debug) {
+      try {
+        const leads = await researchLeadsDebug(trimmedQuery, resolvedCount)
+        return NextResponse.json({ ok: true, debug: true, leads })
+      } catch (err: any) {
+        return NextResponse.json({ ok: false, debug: true, error: err?.message || String(err) }, { status: 500 })
+      }
+    }
 
     const leads = await researchLeads(trimmedQuery, resolvedCount)
     if (leads.length === 0) {

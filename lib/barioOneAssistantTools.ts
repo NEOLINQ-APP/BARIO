@@ -358,3 +358,38 @@ export async function researchLeads(query: string, count: number): Promise<Resea
     return []
   }
 }
+
+// Debug-only variant for the admin route — rethrows instead of swallowing,
+// so a real API/parsing failure surfaces in the HTTP response instead of a
+// generic "found nothing" that looks identical to a genuine empty result.
+export async function researchLeadsDebug(query: string, count: number): Promise<ResearchedLead[]> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set')
+  const anthropic = new Anthropic({ apiKey })
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 2000,
+    tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_callers: ['direct'] }],
+    system:
+      'You research real, currently-operating businesses on the web for B2B sales prospecting. Only return businesses you actually found via search — never invent one. After searching, respond with ONLY a raw JSON array (no markdown fences, no prose) of objects shaped exactly like: {"companyName": string|null, "contactName": string|null, "phone": string|null, "email": string|null, "reason": string} — reason is one short sentence on why this business is a good fit for the query. Omit phone/email as null if you could not find a real one — never invent contact details.',
+    messages: [{ role: 'user', content: `Find ${count} real businesses matching: ${query}` }],
+  })
+
+  const textBlock = response.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('\n')
+  const jsonMatch = textBlock.match(/\[[\s\S]*\]/)
+  if (!jsonMatch) throw new Error(`No JSON array found in response. Stop reason: ${response.stop_reason}. Text: ${textBlock.slice(0, 500)}`)
+  const parsed = JSON.parse(jsonMatch[0])
+  if (!Array.isArray(parsed)) throw new Error('Parsed JSON was not an array')
+
+  return parsed
+    .filter((r: any) => r && (r.companyName || r.contactName))
+    .slice(0, count)
+    .map((r: any) => ({
+      companyName: typeof r.companyName === 'string' ? r.companyName.slice(0, 200) : null,
+      contactName: typeof r.contactName === 'string' ? r.contactName.slice(0, 200) : null,
+      phone: typeof r.phone === 'string' ? r.phone.slice(0, 40) : null,
+      email: typeof r.email === 'string' ? r.email.slice(0, 200) : null,
+      reason: typeof r.reason === 'string' ? r.reason.slice(0, 500) : null,
+    }))
+}
