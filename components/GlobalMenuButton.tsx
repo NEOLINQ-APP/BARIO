@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
-import { ACCOUNT_NAV_ITEMS, ACCOUNT_CHROME_PREFIXES, withClientRequestsLink } from '@/lib/accountNav'
+import { ACCOUNT_NAV_ITEMS, ACCOUNT_CHROME_PREFIXES, ACCOUNT_CHROME_EXACT_PATHS, withClientRequestsLink } from '@/lib/accountNav'
 
 type MeResponse =
   | { loggedIn: false }
@@ -19,7 +19,8 @@ export default function GlobalMenuButton() {
   const [open, setOpen] = useState(false)
   const [me, setMe] = useState<MeResponse | null>(null)
 
-  const alreadyHasChrome = ACCOUNT_CHROME_PREFIXES.some((p) => pathname?.startsWith(p))
+  const alreadyHasChrome =
+    ACCOUNT_CHROME_PREFIXES.some((p) => pathname?.startsWith(p)) || ACCOUNT_CHROME_EXACT_PATHS.some((p) => pathname === p)
 
   useEffect(() => {
     if (alreadyHasChrome) return
