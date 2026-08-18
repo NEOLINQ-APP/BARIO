@@ -78,7 +78,7 @@ export default function BarioOneModules() {
     <div className="max-w-2xl space-y-4">
       <p className="text-sm text-slate-500 dark:text-zinc-400">
         Turn on exactly what your business needs — pricing is per module, and you can add or remove any time.
-        {!org.hasLiveBilling && ' Your first activation starts real billing (no more free trial for the modules you keep).'}
+        {!org.hasLiveBilling && ' Adding a card here extends your free trial to 30 days total before your first real charge.'}
       </p>
 
       <div className="space-y-2">

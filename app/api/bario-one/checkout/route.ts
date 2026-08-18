@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStripe, BO_PLAN_PRICE_IDS } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { getActiveOrgForUser } from '@/lib/barioOne'
+import { getActiveOrgForUser, CARD_ON_FILE_TRIAL_DAYS } from '@/lib/barioOne'
 import { errorResponse } from '@/lib/errors'
 
 // Converts a trialing-with-no-live-subscription org (created by
@@ -38,10 +38,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'This plan is not available for purchase right now' }, { status: 400 })
     }
 
-    const trialDaysRemaining = org.trial_ends_at
-      ? Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-      : 0
-
     const origin = req.headers.get('origin') ?? 'https://bario.ca'
 
     const checkoutSession = await getStripe().checkout.sessions.create({
@@ -50,7 +46,7 @@ export async function POST(req: Request) {
       client_reference_id: user.id,
       metadata: { boOrgId: org.id, userId: user.id },
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: trialDaysRemaining > 0 ? { trial_period_days: trialDaysRemaining } : undefined,
+      subscription_data: { trial_period_days: CARD_ON_FILE_TRIAL_DAYS },
       success_url: `${origin}/dashboard/bario-one?checkout=success`,
       cancel_url: `${origin}/dashboard/bario-one/modules`,
       allow_promotion_codes: true,

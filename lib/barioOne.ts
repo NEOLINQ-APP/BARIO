@@ -5,6 +5,15 @@ import { db, type User, type BoOrganization, type BoMembership } from '@/lib/db'
 import { BO_MODULES, ensureModulesForOrg, getEnabledModules, hasModule, resolveModuleDependencies, seatLimitForModules, type BoModuleKey } from '@/lib/barioOneModules'
 import { sendEmail } from '@/lib/email'
 
+// Trial policy (2026-08-18): 14 days with no card required at all (the
+// signup default below); adding billing at any point during or after that
+// window buys a full 30-day Stripe trial from the moment the card goes on
+// file — not just whatever's left of the original 14 — since putting a card
+// down is the thing being rewarded with runway. Both checkout routes
+// (bundled-tier and a-la-carte) use this same constant so the two paths to
+// "add billing" behave identically.
+export const CARD_ON_FILE_TRIAL_DAYS = 30
+
 function slugify(name: string): string {
   return name
     .toLowerCase()

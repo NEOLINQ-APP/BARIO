@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { getActiveOrgForUser } from '@/lib/barioOne'
+import { getActiveOrgForUser, CARD_ON_FILE_TRIAL_DAYS } from '@/lib/barioOne'
 import { BO_MODULE_KEYS, resolveModuleDependencies, type BoModuleKey } from '@/lib/barioOneModules'
 import { buildModuleLineItems } from '@/lib/barioOneModuleLineItems'
 import { errorResponse } from '@/lib/errors'
@@ -52,10 +52,6 @@ export async function POST(req: Request) {
     if ('error' in lineItemsResult) return NextResponse.json({ error: lineItemsResult.error }, { status: 400 })
     const lineItems = lineItemsResult.lineItems
 
-    const trialDaysRemaining = org.trial_ends_at
-      ? Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-      : 0
-
     const origin = req.headers.get('origin') ?? 'https://bario.ca'
 
     const checkoutSession = await getStripe().checkout.sessions.create({
@@ -64,7 +60,7 @@ export async function POST(req: Request) {
       client_reference_id: user.id,
       metadata: { boOrgId: org.id, userId: user.id, moduleKeys: JSON.stringify(resolvedKeys) },
       line_items: lineItems,
-      subscription_data: trialDaysRemaining > 0 ? { trial_period_days: trialDaysRemaining } : undefined,
+      subscription_data: { trial_period_days: CARD_ON_FILE_TRIAL_DAYS },
       success_url: `${origin}/dashboard/bario-one?checkout=success`,
       cancel_url: `${origin}/dashboard/bario-one/modules`,
       allow_promotion_codes: true,
