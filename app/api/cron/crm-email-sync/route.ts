@@ -63,10 +63,16 @@ async function syncOrgMailbox(org: BoOrganization, sql: any) {
 
         if (customerId) {
           const bodyText = parsed.text ?? ''
+          // bo_notes_message_id_idx is a PARTIAL unique index (WHERE
+          // message_id IS NOT NULL) -- Postgres only matches an ON CONFLICT
+          // target against a partial index if the same predicate is
+          // repeated here too, confirmed live: without it, this throws
+          // "no unique or exclusion constraint matching the ON CONFLICT
+          // specification" on every single insert attempt.
           await sql`
             INSERT INTO bo_notes (id, organization_id, customer_id, author_user_id, kind, body, direction, from_email, message_id)
             VALUES (${randomUUID()}, ${org.id}, ${customerId}, NULL, 'email', ${`Subject: ${parsed.subject ?? ''}\n\n${bodyText}`}, 'inbound', ${fromEmail}, ${messageId})
-            ON CONFLICT (message_id) DO NOTHING
+            ON CONFLICT (message_id) WHERE message_id IS NOT NULL DO NOTHING
           `
           synced++
         }
