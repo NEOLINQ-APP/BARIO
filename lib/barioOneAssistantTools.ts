@@ -276,22 +276,7 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       const leads = await researchLeads(query, count)
       if (leads.length === 0) return { error: 'Could not find any real leads matching that — try a broader or more specific search.' }
 
-      const pipeline = await ensureDefaultPipeline(sql, org.id)
-      const added: { customer: string; dealId: string }[] = []
-      for (const lead of leads) {
-        if (!lead.companyName && !lead.contactName) continue
-        const customerId = randomUUID()
-        await sql`
-          INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_by_user_id)
-          VALUES (${customerId}, ${org.id}, ${lead.companyName || null}, ${lead.contactName || lead.companyName}, ${lead.phone || null}, ${lead.email || null}, '["lead"]', NULL)
-        `
-        const dealId = randomUUID()
-        await sql`
-          INSERT INTO bo_deals (id, organization_id, customer_id, pipeline_id, title, stage, notes)
-          VALUES (${dealId}, ${org.id}, ${customerId}, ${pipeline.id}, ${`New lead — ${lead.companyName || lead.contactName}`}, 'lead', ${lead.reason || null})
-        `
-        added.push({ customer: (lead.companyName || lead.contactName) as string, dealId })
-      }
+      const added = await addLeadsToOrg(sql, org.id, leads)
       return { ok: true, addedCount: added.length, leads: added.map((a) => a.customer) }
     }
     default:
@@ -307,13 +292,37 @@ type ResearchedLead = {
   reason: string | null
 }
 
+// Shared by the customer-facing find_new_leads tool and the admin
+// generate-leads route (app/api/admin/bario-one/organizations/[id]/
+// generate-leads) — same insert shape (a customer + a Leads-stage deal per
+// result) regardless of which caller triggered the research.
+export async function addLeadsToOrg(sql: any, orgId: string, leads: ResearchedLead[]): Promise<{ customer: string; dealId: string }[]> {
+  const pipeline = await ensureDefaultPipeline(sql, orgId)
+  const added: { customer: string; dealId: string }[] = []
+  for (const lead of leads) {
+    if (!lead.companyName && !lead.contactName) continue
+    const customerId = randomUUID()
+    await sql`
+      INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_by_user_id)
+      VALUES (${customerId}, ${orgId}, ${lead.companyName || null}, ${lead.contactName || lead.companyName}, ${lead.phone || null}, ${lead.email || null}, '["lead"]', NULL)
+    `
+    const dealId = randomUUID()
+    await sql`
+      INSERT INTO bo_deals (id, organization_id, customer_id, pipeline_id, title, stage, notes)
+      VALUES (${dealId}, ${orgId}, ${customerId}, ${pipeline.id}, ${`New lead — ${lead.companyName || lead.contactName}`}, 'lead', ${lead.reason || null})
+    `
+    added.push({ customer: (lead.companyName || lead.contactName) as string, dealId })
+  }
+  return added
+}
+
 // Uses Claude's own hosted web_search tool (real, live search — not a
 // guess) to research actual businesses matching the query, since neither
 // OpenAI's chat.completions API (what the rest of this assistant runs on)
 // nor this codebase has a working web-search path on that provider yet.
 // Returns [] on any failure — a research miss should surface as "found
 // nothing," never a thrown error the chat loop has to handle specially.
-async function researchLeads(query: string, count: number): Promise<ResearchedLead[]> {
+export async function researchLeads(query: string, count: number): Promise<ResearchedLead[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return []
   const anthropic = new Anthropic({ apiKey })
