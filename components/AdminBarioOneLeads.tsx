@@ -127,6 +127,18 @@ export default function AdminBarioOneLeads() {
 
   const leadsWithEmail = leads?.filter((l) => l.email) ?? []
 
+  async function cancelCampaign(campaignId: string) {
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/bario-one/organizations/${orgId}/campaigns/${campaignId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Could not cancel campaign')
+      await loadCampaigns()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
   async function submitCampaign() {
     if (!campaignName.trim() || !campaignSubject.trim() || !campaignBody.trim()) {
       setError('Name, subject, and body are all required.')
@@ -245,6 +257,7 @@ export default function AdminBarioOneLeads() {
                   <th className="py-1 pr-3">Scheduled / Sent</th>
                   <th className="py-1 pr-3">Sent</th>
                   <th className="py-1 pr-3">Via</th>
+                  <th className="py-1 pr-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -255,6 +268,11 @@ export default function AdminBarioOneLeads() {
                     <td className="py-1.5 pr-3 text-slate-500 dark:text-zinc-400">{c.status === 'scheduled' ? fmt(c.scheduled_at) : fmt(c.sent_at)}</td>
                     <td className="py-1.5 pr-3 text-slate-500 dark:text-zinc-400">{c.sent_count}/{c.recipient_count}{c.failed_count ? ` (${c.failed_count} failed)` : ''}</td>
                     <td className="py-1.5 pr-3 text-slate-500 dark:text-zinc-400">{c.created_via === 'ai_assistant' ? 'Miko' : 'Admin'}</td>
+                    <td className="py-1.5">
+                      {c.status === 'scheduled' && (
+                        <button onClick={() => cancelCampaign(c.id)} className="text-red-500 hover:text-red-400 text-[11px]">Cancel</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
