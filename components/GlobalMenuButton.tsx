@@ -3,34 +3,38 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
-import { ACCOUNT_NAV_ITEMS, ACCOUNT_CHROME_PREFIXES, ACCOUNT_CHROME_EXACT_PATHS, withClientRequestsLink } from '@/lib/accountNav'
+import { ACCOUNT_NAV_ITEMS, APP_FALLBACK_NAV_PREFIXES, withClientRequestsLink } from '@/lib/accountNav'
 
 type MeResponse =
   | { loggedIn: false }
   | { loggedIn: true; email: string; isAdmin: boolean; clientCompanyLabel: string | null }
 
-// Fallback nav for logged-in users on any page that ISN'T already wrapped by
-// app/(account)/layout.tsx's AccountSidebar (which has its own MENU button)
-// — the AI Builder (/build), the admin panel (/admin), and any public
-// marketing page a logged-in user happens to land on. Without this, those
-// pages had zero way back to the dashboard except the browser back button.
+// Fallback nav for logged-in users on in-app pages that don't have their
+// own way back to the dashboard yet (currently: /admin, /build/templates —
+// see APP_FALLBACK_NAV_PREFIXES). Deliberately an allowlist, not "show
+// everywhere except X" — that inverted version used to appear on the public
+// marketing pages, and even on `/site/[domain]/...` (every customer's own
+// hosted website, since a `*.bario.ca` subdomain shares the session cookie)
+// whenever the viewer happened to be logged in. This button is only for
+// navigating *our* app, so it only ever renders on pages explicitly opted
+// in. Placed top-right (not a floating bottom-left pill) so it never
+// overlaps a page's own bottom-anchored controls like a chat input.
 export default function GlobalMenuButton() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [me, setMe] = useState<MeResponse | null>(null)
 
-  const alreadyHasChrome =
-    ACCOUNT_CHROME_PREFIXES.some((p) => pathname?.startsWith(p)) || ACCOUNT_CHROME_EXACT_PATHS.some((p) => pathname === p)
+  const eligiblePage = APP_FALLBACK_NAV_PREFIXES.some((p) => pathname?.startsWith(p))
 
   useEffect(() => {
-    if (alreadyHasChrome) return
+    if (!eligiblePage) return
     fetch('/api/auth/me')
       .then((res) => res.json())
       .then((data: MeResponse) => setMe(data))
       .catch(() => setMe({ loggedIn: false }))
-  }, [alreadyHasChrome])
+  }, [eligiblePage])
 
-  if (alreadyHasChrome || !me?.loggedIn) return null
+  if (!eligiblePage || !me?.loggedIn) return null
 
   const navItems = withClientRequestsLink(ACCOUNT_NAV_ITEMS, me.clientCompanyLabel)
 
@@ -40,15 +44,16 @@ export default function GlobalMenuButton() {
         type="button"
         aria-label="Open Bario menu"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 h-11 px-4 rounded-full border-2 border-cyan-600 dark:border-cyan-400 text-cyan-700 dark:text-cyan-300 font-bold text-sm bg-white dark:bg-[#0b111c] shadow-lg"
+        className="fixed top-4 right-4 z-[70] flex items-center gap-2 h-10 px-3.5 rounded-full border-2 border-cyan-600 dark:border-cyan-400 text-cyan-700 dark:text-cyan-300 font-bold text-sm bg-white dark:bg-[#0b111c] shadow-lg"
       >
         <span className="text-lg leading-none">☰</span>
-        MENU
+        Menu
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[80] flex">
-          <div className="w-72 max-w-[82vw] h-full bg-white dark:bg-[#0b111c] border-r border-slate-200 dark:border-zinc-800 px-4 py-5 flex flex-col overflow-y-auto">
+        <div className="fixed inset-0 z-[80] flex justify-end">
+          <div className="flex-1 bg-black/40" onClick={() => setOpen(false)} />
+          <div className="w-72 max-w-[82vw] h-full bg-white dark:bg-[#0b111c] border-l border-slate-200 dark:border-zinc-800 px-4 py-5 flex flex-col overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <a href="/" className="flex items-center gap-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,7 +101,6 @@ export default function GlobalMenuButton() {
               </div>
             </div>
           </div>
-          <div className="flex-1 bg-black/40" onClick={() => setOpen(false)} />
         </div>
       )}
     </>

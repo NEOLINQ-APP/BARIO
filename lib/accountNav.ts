@@ -1,9 +1,9 @@
 export type NavItem = { href: string; label: string; icon: string }
 
-// Shared with GlobalMenuButton (the fallback nav available on pages outside
-// the (account) dashboard chrome, e.g. /build, /admin, marketing pages) so
-// both stay in sync automatically — add a new dashboard section here once,
-// not in two places.
+// Shared with GlobalMenuButton (the fallback nav for in-app pages that have
+// no nav of their own yet — see APP_FALLBACK_NAV_PREFIXES below) so both
+// stay in sync automatically — add a new dashboard section here once, not
+// in two places.
 export const ACCOUNT_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Home', icon: '🏠' },
   { href: '/dashboard/websites', label: 'Websites', icon: '🌐' },
@@ -23,22 +23,23 @@ export const ACCOUNT_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/account', label: 'Account', icon: '⚙️' },
 ]
 
-// Pages that already render AccountSidebar (which has its own MENU button
-// and drawer) — GlobalMenuButton skips these to avoid showing two menu
-// triggers on the same page. Keep in sync with app/(account)'s route group.
-export const ACCOUNT_CHROME_PREFIXES = ['/dashboard', '/media', '/victoria-app']
-
-// Exact-path-only exclusions (not prefixes) — for a page that has its own
-// complete nav (a way back to the dashboard + an account/logout menu) but
-// whose sibling routes don't. `/build` (Sky, components/Builder.tsx) has
-// its own "← Dashboard" link plus a ProfileMenu avatar dropdown (account
-// settings/admin panel/logout) already in its top-right corner — found
-// live 2026-08-18: GlobalMenuButton's floating bottom-left "MENU" button
-// was pure redundant clutter there, overlapping Sky's own chat input. Its
-// sibling `/build/templates` has no such nav of its own and still needs
-// GlobalMenuButton, so this can't just be a `/build` prefix — it has to
-// match `/build` exactly.
-export const ACCOUNT_CHROME_EXACT_PATHS = ['/build']
+// Allowlist, not a blocklist — GlobalMenuButton only ever renders on a
+// prefix listed here. Originally this was inverted (show everywhere logged
+// in *except* pages known to already have their own chrome), which meant
+// it silently showed up anywhere new: the public marketing landing page for
+// a logged-in visitor, and worse, on `/site/[domain]/...` — the SAME app
+// that renders every customer's own hosted website — since a `*.bario.ca`
+// subdomain shares the bario.ca session cookie, so a logged-in admin
+// browsing a customer's live site would see Bario's own internal nav
+// overlaid on it. Found + fixed 2026-08-18. This button's whole purpose is
+// helping a logged-in user navigate *our* app; it has no business anywhere
+// else, so only add a prefix here when a specific in-app page genuinely has
+// no nav of its own yet:
+// - `/admin` — the admin panel has no nav of its own at all.
+// - `/build/templates` — Sky's template gallery has no nav of its own
+//   (unlike plain `/build`, which has its own Dashboard link + ProfileMenu
+//   avatar dropdown already — deliberately NOT listed here).
+export const APP_FALLBACK_NAV_PREFIXES = ['/admin', '/build/templates']
 
 export function withClientRequestsLink(navItems: NavItem[], clientCompanyLabel: string | null): NavItem[] {
   if (!clientCompanyLabel) return navItems
