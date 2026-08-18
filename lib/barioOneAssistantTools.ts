@@ -5,6 +5,12 @@ import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
+// Kill switch for find_new_leads, off on purpose as of 2026-08-18 — see
+// the comment at that tool's case below for why. Flip to true once the
+// real per-tier lead quota (part of the not-yet-live pricing update) is
+// actually wired in.
+const LEAD_GEN_LIVE = false
+
 function invoiceTotalCents(invoice: BoInvoice, items: BoInvoiceItem[]): number {
   return computeTotals(
     items.map((i) => ({ description: i.description, quantity: Number(i.quantity), unitPriceCents: i.unit_price_cents })),
@@ -252,6 +258,17 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       return { ok: true, employee: employee.name, startsAt: args.startsAt, endsAt: args.endsAt }
     }
     case 'find_new_leads': {
+      // Deliberately held off 2026-08-18, on request — this was shipped
+      // with no usage cap beyond a per-call max of 10, but the real plan
+      // is a per-tier monthly lead quota (Starter/Professional/Business
+      // each get a different amount) as part of the pricing update, which
+      // isn't defined or live on the pricing page yet. Don't let this
+      // start spending real Anthropic/web-search cost for free ahead of
+      // that. Remove this early-return (not the tool itself) once pricing
+      // is live and the actual per-tier quota is wired in below it.
+      if (!LEAD_GEN_LIVE) {
+        return { error: "Lead generation isn't turned on yet — it's launching soon with real pricing tiers. Let the user know it's coming." }
+      }
       const query = String(args.query || '').trim()
       if (!query) return { error: 'query is required — describe what kind of leads to find' }
       const count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
