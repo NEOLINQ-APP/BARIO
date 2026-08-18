@@ -1,6 +1,8 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { randomUUID } from 'node:crypto'
 import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioOneInvoices'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
+import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 function invoiceTotalCents(invoice: BoInvoice, items: BoInvoiceItem[]): number {
@@ -97,6 +99,21 @@ export const BARIO_ONE_ASSISTANT_TOOLS = [
           endsAt: { type: 'string', description: 'ISO 8601 datetime for shift end' },
         },
         required: ['employeeName', 'startsAt', 'endsAt'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_new_leads',
+      description: 'Research the real web for new potential customers matching what the business asked for, and add each one to the CRM as a new lead (a customer record + a deal in the Leads stage). Use this whenever they ask to find leads, prospects, or new customers — e.g. "find me some HVAC contractors in Calgary".',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What kind of leads to find — industry, location, and any other criteria, in the user’s own words' },
+          count: { type: 'number', description: 'How many leads to find, default 5, max 10' },
+        },
+        required: ['query'],
       },
     },
   },
@@ -234,7 +251,84 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       await triggerWebhooks(sql, org.id, 'shift.scheduled', { shiftId, employeeId: employee.id, startsAt: args.startsAt, endsAt: args.endsAt })
       return { ok: true, employee: employee.name, startsAt: args.startsAt, endsAt: args.endsAt }
     }
+    case 'find_new_leads': {
+      const query = String(args.query || '').trim()
+      if (!query) return { error: 'query is required — describe what kind of leads to find' }
+      const count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
+
+      const leads = await researchLeads(query, count)
+      if (leads.length === 0) return { error: 'Could not find any real leads matching that — try a broader or more specific search.' }
+
+      const pipeline = await ensureDefaultPipeline(sql, org.id)
+      const added: { customer: string; dealId: string }[] = []
+      for (const lead of leads) {
+        if (!lead.companyName && !lead.contactName) continue
+        const customerId = randomUUID()
+        await sql`
+          INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_by_user_id)
+          VALUES (${customerId}, ${org.id}, ${lead.companyName || null}, ${lead.contactName || lead.companyName}, ${lead.phone || null}, ${lead.email || null}, '["lead"]', NULL)
+        `
+        const dealId = randomUUID()
+        await sql`
+          INSERT INTO bo_deals (id, organization_id, customer_id, pipeline_id, title, stage, notes)
+          VALUES (${dealId}, ${org.id}, ${customerId}, ${pipeline.id}, ${`New lead — ${lead.companyName || lead.contactName}`}, 'lead', ${lead.reason || null})
+        `
+        added.push({ customer: (lead.companyName || lead.contactName) as string, dealId })
+      }
+      return { ok: true, addedCount: added.length, leads: added.map((a) => a.customer) }
+    }
     default:
       return { error: `Unknown tool: ${name}` }
+  }
+}
+
+type ResearchedLead = {
+  companyName: string | null
+  contactName: string | null
+  phone: string | null
+  email: string | null
+  reason: string | null
+}
+
+// Uses Claude's own hosted web_search tool (real, live search — not a
+// guess) to research actual businesses matching the query, since neither
+// OpenAI's chat.completions API (what the rest of this assistant runs on)
+// nor this codebase has a working web-search path on that provider yet.
+// Returns [] on any failure — a research miss should surface as "found
+// nothing," never a thrown error the chat loop has to handle specially.
+async function researchLeads(query: string, count: number): Promise<ResearchedLead[]> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return []
+  const anthropic = new Anthropic({ apiKey })
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 2000,
+      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, allowed_callers: ['direct'] }],
+      system:
+        'You research real, currently-operating businesses on the web for B2B sales prospecting. Only return businesses you actually found via search — never invent one. After searching, respond with ONLY a raw JSON array (no markdown fences, no prose) of objects shaped exactly like: {"companyName": string|null, "contactName": string|null, "phone": string|null, "email": string|null, "reason": string} — reason is one short sentence on why this business is a good fit for the query. Omit phone/email as null if you could not find a real one — never invent contact details.',
+      messages: [{ role: 'user', content: `Find ${count} real businesses matching: ${query}` }],
+    })
+
+    const textBlock = response.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('\n')
+    const jsonMatch = textBlock.match(/\[[\s\S]*\]/)
+    if (!jsonMatch) return []
+    const parsed = JSON.parse(jsonMatch[0])
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .filter((r: any) => r && (r.companyName || r.contactName))
+      .slice(0, count)
+      .map((r: any) => ({
+        companyName: typeof r.companyName === 'string' ? r.companyName.slice(0, 200) : null,
+        contactName: typeof r.contactName === 'string' ? r.contactName.slice(0, 200) : null,
+        phone: typeof r.phone === 'string' ? r.phone.slice(0, 40) : null,
+        email: typeof r.email === 'string' ? r.email.slice(0, 200) : null,
+        reason: typeof r.reason === 'string' ? r.reason.slice(0, 500) : null,
+      }))
+  } catch (err) {
+    console.error('researchLeads failed', err)
+    return []
   }
 }

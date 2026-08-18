@@ -4,6 +4,40 @@ import { createOrganizationWithOwner } from '@/lib/barioOne'
 import { BO_MODULE_KEYS, type BoModuleKey } from '@/lib/barioOneModules'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
+import type { BoOrganization } from '@/lib/db'
+
+// Every Bario One organization, with just enough to see at a glance which
+// ones have the CRM module and whether a two-way email mailbox is
+// provisioned — backs the admin CRM-mailbox management page.
+export async function GET(req: Request) {
+  const auth = await requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
+  const { sql } = auth
+
+  try {
+    const rows = (await sql`
+      SELECT o.*, u.email AS owner_email FROM bo_organizations o
+      JOIN users u ON u.id = o.owner_user_id
+      ORDER BY o.created_at DESC
+    `) as unknown as (BoOrganization & { owner_email: string })[]
+
+    const orgs = rows.map((o) => ({
+      id: o.id,
+      name: o.name,
+      slug: o.slug,
+      ownerEmail: o.owner_email,
+      plan: o.plan,
+      subscriptionStatus: o.subscription_status,
+      enabledModules: JSON.parse(o.enabled_modules_json || '[]') as string[],
+      crmMailboxEmail: o.crm_mailbox_email,
+      createdAt: o.created_at,
+    }))
+
+    return NextResponse.json({ ok: true, orgs })
+  } catch (err) {
+    return errorResponse(err)
+  }
+}
 
 // Admin equivalent of POST /api/bario-one/signup's org-creation half — for
 // an EXISTING Bario account (no new user/password/session involved), e.g.

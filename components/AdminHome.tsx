@@ -93,6 +93,10 @@ export default function AdminHome() {
             <div className="font-semibold">Client CRMs 🔑</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every Twenty CRM workspace provisioned for a client — open it directly or reveal its login, no digging for credentials.</p>
           </a>
+          <a href="/admin/bario-one-mailboxes" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Bario One Mailboxes 📧</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Set up each Bario One CRM's real two-way email — auto-provision on Bario's Mailcow, or connect a mailbox they already own.</p>
+          </a>
           <a href="/admin/users" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">All Users 👥</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every account signed up on bario.ca — search, upgrade a plan, suspend, or delete.</p>
