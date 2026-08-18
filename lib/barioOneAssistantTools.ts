@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioOneInvoices'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
+import { createCampaign } from '@/lib/barioOneCampaigns'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 // Kill switch for find_new_leads, off on purpose as of 2026-08-18 — see
@@ -120,6 +121,23 @@ export const BARIO_ONE_ASSISTANT_TOOLS = [
           count: { type: 'number', description: 'How many leads to find, default 5, max 10' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'send_email_campaign',
+      description: 'Send a marketing/outreach email to every CRM customer who has an email address on file. Use this whenever asked to send a campaign, blast, or bulk email to leads/customers -- e.g. "email all our leads about the new website offer". Can send immediately or be scheduled for a specific future date/time.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Short internal name for this campaign, e.g. "August website offer"' },
+          subject: { type: 'string', description: 'Email subject line' },
+          body: { type: 'string', description: 'Email body, plain text (line breaks are preserved)' },
+          scheduledAt: { type: 'string', description: 'ISO 8601 datetime to send at, in the future. Omit to send immediately.' },
+        },
+        required: ['name', 'subject', 'body'],
       },
     },
   },
@@ -278,6 +296,35 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
 
       const added = await addLeadsToOrg(sql, org.id, leads)
       return { ok: true, addedCount: added.length, leads: added.map((a) => a.customer) }
+    }
+    case 'send_email_campaign': {
+      const campaignName = String(args.name || '').trim()
+      const subject = String(args.subject || '').trim()
+      const body = String(args.body || '').trim()
+      if (!campaignName) return { error: 'name is required' }
+      if (!subject) return { error: 'subject is required' }
+      if (!body) return { error: 'body is required' }
+
+      let scheduledAt: Date | null = null
+      if (args.scheduledAt) {
+        scheduledAt = new Date(String(args.scheduledAt))
+        if (Number.isNaN(scheduledAt.getTime())) return { error: 'scheduledAt is not a valid date' }
+        if (scheduledAt.getTime() <= Date.now()) scheduledAt = null // in the past -- just send now instead
+      }
+
+      const campaign = await createCampaign(sql, org, {
+        name: campaignName,
+        subject,
+        body,
+        scheduledAt,
+        createdByUserId: null,
+        createdVia: 'ai_assistant',
+      })
+
+      if (campaign.status === 'scheduled') {
+        return { ok: true, status: 'scheduled', scheduledAt: campaign.scheduled_at, campaignId: campaign.id }
+      }
+      return { ok: true, status: 'sent', sentCount: campaign.sent_count, failedCount: campaign.failed_count, recipientCount: campaign.recipient_count, campaignId: campaign.id }
     }
     default:
       return { error: `Unknown tool: ${name}` }

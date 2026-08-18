@@ -1679,6 +1679,36 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS from_email TEXT`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_notes_message_id_idx ON bo_notes (message_id) WHERE message_id IS NOT NULL`
 
+  // Bario One CRM — bulk email campaigns (2026-08-18). Deliberately reuses
+  // bo_notes for the per-recipient send log (via campaign_id below) rather
+  // than a separate recipients table — a campaign send IS an outbound
+  // email on that customer's timeline, same as a 1:1 send, just with
+  // campaign_id set so the campaign's own history view can filter to it.
+  // created_via distinguishes an admin-triggered send from one Miko sent on
+  // request/schedule, purely for the campaign list UI, not access control.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_email_campaigns (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body_html TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      scheduled_at TIMESTAMPTZ,
+      sent_at TIMESTAMPTZ,
+      recipient_count INTEGER NOT NULL DEFAULT 0,
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_via TEXT NOT NULL DEFAULT 'admin',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_email_campaigns_org_idx ON bo_email_campaigns (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_email_campaigns_scheduled_idx ON bo_email_campaigns (status, scheduled_at)`
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS campaign_id TEXT REFERENCES bo_email_campaigns(id)`
+
   // Bario One — CRM custom fields (per-org field definitions, attachable to
   // customers and/or deals). Values live as a JSON map on the entity row
   // itself (custom_fields_json, keyed by field id) rather than a separate
@@ -2958,6 +2988,24 @@ export type BoCustomer = {
   custom_fields_json: string
   assigned_to_user_id: string | null
   created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type BoEmailCampaign = {
+  id: string
+  organization_id: string
+  name: string
+  subject: string
+  body_html: string
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed'
+  scheduled_at: string | null
+  sent_at: string | null
+  recipient_count: number
+  sent_count: number
+  failed_count: number
+  created_by_user_id: string | null
+  created_via: 'admin' | 'ai_assistant'
   created_at: string
   updated_at: string
 }
