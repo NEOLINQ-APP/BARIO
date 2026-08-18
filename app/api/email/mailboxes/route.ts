@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasPaidPlan } from '@/lib/access'
-import { createDnsRecord } from '@/lib/cloudflare'
+import { createDnsRecord, getZoneByDomain } from '@/lib/cloudflare'
 import { ensureDomain, createMailbox, getDkim, deleteMailbox } from '@/lib/mailcow'
 import { errorResponse } from '@/lib/errors'
 
@@ -57,17 +57,25 @@ export async function POST(req: Request) {
     }
 
     const siteRows = (await sql`
-      SELECT id, user_id, custom_domain, domain_status, cloudflare_zone_id FROM sites WHERE id = ${siteId}
-    `) as unknown as { id: string; user_id: string; custom_domain: string | null; domain_status: string; cloudflare_zone_id: string | null }[]
+      SELECT id, user_id, subdomain, custom_domain, domain_status, cloudflare_zone_id FROM sites WHERE id = ${siteId}
+    `) as unknown as { id: string; user_id: string; subdomain: string | null; custom_domain: string | null; domain_status: string; cloudflare_zone_id: string | null }[]
     const site = siteRows[0]
     if (!site || site.user_id !== session.userId) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 })
     }
-    if (!site.custom_domain || site.domain_status !== 'verified') {
-      return NextResponse.json({ error: 'Connect and verify a custom domain on this site before adding email' }, { status: 400 })
+    // A verified custom domain gets DNS auto-configured below (real MX/SPF/
+    // DKIM on their own domain). A site with no custom domain can still get
+    // a mailbox on its *.bario.ca subdomain instead -- no DNS to verify
+    // since Bario already owns that zone. Only a site with neither (no
+    // subdomain, no verified custom domain) can't host email at all.
+    if (!site.custom_domain && !site.subdomain) {
+      return NextResponse.json({ error: 'This site has no domain or subdomain to host email on' }, { status: 400 })
+    }
+    if (site.custom_domain && site.domain_status !== 'verified') {
+      return NextResponse.json({ error: 'Verify your custom domain before adding email, or use your bario.ca subdomain instead' }, { status: 400 })
     }
 
-    const domain = site.custom_domain
+    const domain = site.custom_domain && site.domain_status === 'verified' ? site.custom_domain : `${site.subdomain}.bario.ca`
     const fullAddress = `${localPart}@${domain}`
 
     const existingRows = (await sql`SELECT id FROM email_mailboxes WHERE full_address = ${fullAddress}`) as unknown as { id: string }[]
@@ -87,22 +95,32 @@ export async function POST(req: Request) {
 
     // DNS only needs setting up once per domain, the first time a mailbox
     // is created on it — every mailbox after that shares the same MX/SPF/
-    // DKIM records. Best-effort: a mailbox is still usable via webmail
-    // even if a customer's zone isn't Cloudflare-managed (DNS just has to
-    // be added manually in that case, surfaced in the response below).
-    if (isFirstMailboxOnDomain && site.cloudflare_zone_id) {
+    // DKIM records. Two cases: a verified custom domain uses the
+    // customer's own zone with root ('@') records; a *.bario.ca subdomain
+    // has no zone of its own, so the records go into Bario's own zone
+    // instead, scoped to that subdomain label (not '@', which would
+    // collide with bario.ca's own root mail setup). Best-effort either
+    // way — a mailbox is still usable via webmail even if this fails.
+    const usingSubdomain = !(site.custom_domain && site.domain_status === 'verified')
+    if (isFirstMailboxOnDomain) {
       try {
-        const mx = await createDnsRecord(site.cloudflare_zone_id, { type: 'MX', name: '@', content: 'reseller.bario.ca', priority: 10 })
-        mxRecordId = mx.id
-        const spf = await createDnsRecord(site.cloudflare_zone_id, { type: 'TXT', name: '@', content: 'v=spf1 mx ~all' })
-        spfRecordId = spf.id
-        const dkim = await getDkim(domain)
-        const dkimRecord = await createDnsRecord(site.cloudflare_zone_id, {
-          type: 'TXT',
-          name: `${dkim.dkim_selector}._domainkey`,
-          content: dkim.dkim_txt,
-        })
-        dkimRecordId = dkimRecord.id
+        const zoneId = usingSubdomain ? (await getZoneByDomain('bario.ca'))?.id : site.cloudflare_zone_id
+        if (zoneId) {
+          const recordName = usingSubdomain ? site.subdomain! : '@'
+          const dkimNamePrefix = usingSubdomain ? `.${site.subdomain}` : ''
+
+          const mx = await createDnsRecord(zoneId, { type: 'MX', name: recordName, content: 'reseller.bario.ca', priority: 10 })
+          mxRecordId = mx.id
+          const spf = await createDnsRecord(zoneId, { type: 'TXT', name: recordName, content: 'v=spf1 mx ~all' })
+          spfRecordId = spf.id
+          const dkim = await getDkim(domain)
+          const dkimRecord = await createDnsRecord(zoneId, {
+            type: 'TXT',
+            name: `${dkim.dkim_selector}._domainkey${dkimNamePrefix}`,
+            content: dkim.dkim_txt,
+          })
+          dkimRecordId = dkimRecord.id
+        }
       } catch {
         // Non-fatal — the mailbox itself was already created successfully
         // in Mailcow; DNS can be added manually if this fails.

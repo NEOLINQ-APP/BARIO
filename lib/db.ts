@@ -1594,6 +1594,30 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_customers_assigned_idx ON bo_customers (assigned_to_user_id)`
   await sql`CREATE INDEX IF NOT EXISTS bo_deals_assigned_idx ON bo_deals (assigned_to_user_id)`
 
+  // Self-serve "connect an existing external mailbox" (2026-08-18) — lets a
+  // customer's Bario webmail also show mail from an account they already
+  // have elsewhere (any IMAP/SMTP provider, deliberately not tied to one by
+  // name anywhere in this product). This table is BARIO's own record of
+  // what's connected, used only to enforce the 5-per-account limit and the
+  // 1-year free-trial window (first connection's created_at is the trial's
+  // start — see requireExternalMailQuota() in lib/sogoAuxAccounts.ts). The
+  // real IMAP/SMTP credentials live only in SOGo's own per-user profile
+  // (sogo_user_profile.c_defaults on the mail server) via
+  // addAuxiliaryMailAccount() — never duplicated into this table, which
+  // only keeps the SOGo-internal numeric id needed to remove one later.
+  await sql`
+    CREATE TABLE IF NOT EXISTS email_external_accounts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      mailbox_id TEXT NOT NULL REFERENCES email_mailboxes(id),
+      label TEXT NOT NULL,
+      email TEXT NOT NULL,
+      sogo_account_id INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS email_external_accounts_user_idx ON email_external_accounts (user_id)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS bo_tasks (
       id TEXT PRIMARY KEY,
