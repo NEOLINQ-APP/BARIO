@@ -228,6 +228,28 @@ export async function requireBoMembership(): Promise<
 // called. Lazily backfills enabled_modules_json on first touch (see
 // ensureModulesForOrg) so a pre-existing org's access doesn't change on the
 // day this system rolled out.
+// Real gap found 2026-08-18: `enabled_modules_json` containing a module
+// key was the ONLY thing this guard ever checked — subscription_status
+// and trial_ends_at were never consulted anywhere in this function, so an
+// org whose 14-day trial had lapsed (never converted to a paid Stripe
+// subscription) or whose subscription was actually canceled kept full
+// access to every paid module — including AI Assistant's find_new_leads
+// tool, which spends real Anthropic/web-search cost per call — forever,
+// for free. AFC Logistics and Sunbuilt Group's own Bario One orgs are
+// still sitting at subscription_status='trialing' today, which is exactly
+// the scenario this closes. 'past_due' is deliberately still allowed
+// (Stripe is mid-retry on a real subscription, not "no subscription") —
+// only an unconverted expired trial or an actually-canceled subscription
+// blocks access now.
+function hasActiveEntitlement(org: BoOrganization): boolean {
+  if (org.subscription_status === 'active' || org.subscription_status === 'past_due') return true
+  if (org.subscription_status === 'trialing') {
+    if (!org.trial_ends_at) return true
+    return new Date(org.trial_ends_at).getTime() > Date.now()
+  }
+  return false
+}
+
 export async function requireBoModule(
   moduleKey: BoModuleKey
 ): Promise<{ sql: any; user: User; org: BoOrganization; membership: BoMembership } | NextResponse> {
@@ -239,6 +261,13 @@ export async function requireBoModule(
     return NextResponse.json(
       { error: 'module_not_enabled', moduleKey, moduleName: BO_MODULES[moduleKey].name },
       { status: 403 }
+    )
+  }
+
+  if (!hasActiveEntitlement(org)) {
+    return NextResponse.json(
+      { error: 'subscription_required', message: 'Your free trial has ended — subscribe to keep using Bario One.' },
+      { status: 402 }
     )
   }
 
