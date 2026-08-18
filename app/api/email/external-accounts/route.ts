@@ -5,7 +5,9 @@ import { db } from '@/lib/db'
 import { addAuxiliaryMailAccount, removeAuxiliaryMailAccount } from '@/lib/sogoAuxAccounts'
 import { errorResponse } from '@/lib/errors'
 
-export const maxDuration = 30
+// Each add/remove restarts sogo-mailcow (~10-15s) so SOGo actually picks up
+// the direct database write -- see the comment in lib/sogoAuxAccounts.ts.
+export const maxDuration = 60
 
 const MAX_EXTERNAL_ACCOUNTS_PER_USER = 5
 const TRIAL_DURATION_MS = 365 * 24 * 60 * 60 * 1000 // 1 year

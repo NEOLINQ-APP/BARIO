@@ -57,6 +57,10 @@ export async function getDkim(domain: string): Promise<MailcowDkim> {
 // bario_mailcow_sogo_login_fixed memory for the full diagnosis). Restarting
 // here after every genuinely-new domain closes that gap for good instead of
 // relying on someone noticing and restarting it by hand again.
+export async function restartSogo(): Promise<void> {
+  return restartSogoForNewDomain()
+}
+
 async function restartSogoForNewDomain(): Promise<void> {
   const privateKeyB64 = process.env.BARIO_MAIL_VPS_SSH_PRIVATE_KEY_B64
   if (!privateKeyB64) {

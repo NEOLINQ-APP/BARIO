@@ -12,7 +12,7 @@
 // already uses) rather than browser automation, which would be far more
 // fragile against any future SOGo UI change.
 import { Client } from 'ssh2'
-import { randomUUID } from 'node:crypto'
+import { restartSogo } from './mailcow'
 
 const MAILCOW_VPS_HOST = '148.230.94.192'
 const MYSQL_CONTAINER = 'mailcowdockerized-mysql-mailcow-1'
@@ -143,6 +143,13 @@ export async function addAuxiliaryMailAccount(sogoUid: string, account: AuxAccou
   })
   defaults.AuxiliaryMailAccounts = existing
   await writeDefaults(sogoUid, defaults)
+  // Confirmed live (2026-08-18): SOGo doesn't reliably pick up a direct
+  // MySQL write to c_defaults without this -- same underlying staleness
+  // restartSogoForNewDomain() already exists to fix for a different
+  // trigger (a brand-new Mailcow domain). Real repro: added an account,
+  // it showed up correctly; removed it via direct SQL, the webmail UI
+  // kept showing the deleted entry until sogo-mailcow was restarted.
+  await restartSogo()
   return nextId
 }
 
@@ -151,4 +158,5 @@ export async function removeAuxiliaryMailAccount(sogoUid: string, accountId: num
   const existing: any[] = Array.isArray(defaults.AuxiliaryMailAccounts) ? defaults.AuxiliaryMailAccounts : []
   defaults.AuxiliaryMailAccounts = existing.filter((a) => Number(a.id) !== accountId)
   await writeDefaults(sogoUid, defaults)
+  await restartSogo()
 }
