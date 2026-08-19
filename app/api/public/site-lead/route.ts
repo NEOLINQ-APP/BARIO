@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { findCrm, findOrCreatePersonByEmail, logWebLeadNote } from '@/lib/crmOutreach'
 import { rateLimit } from '@/lib/rateLimit'
 import { errorResponse } from '@/lib/errors'
+import { BARIO_ONE_CALL_LOG_ORG_IDS, findOrCreateBoCustomerByEmail, logBoWebLeadNote } from '@/lib/barioOneCrmCallLog'
 
 // Genuinely public, unauthenticated — called client-side by a client's own
 // customer-facing site (sunbuiltgroup.com, afclogistics.ca) so a real
 // visitor's estimate/contact/signup submission reaches that business's real
-// Twenty CRM instead of vanishing into the site's own browser-local storage
-// (the bug this route exists to fix). Protected by a businessKey whitelist
+// CRM instead of vanishing into the site's own browser-local storage (the
+// bug this route exists to fix). Protected by a businessKey whitelist
 // (only real client CRMs we've wired up) + per-IP rate limiting rather than
-// auth, since a real anonymous visitor has no Bario session.
+// auth, since a real anonymous visitor has no Bario session. Repointed
+// 2026-08-18 from AFC's/Sunbuilt's standalone Twenty CRM (now deleted) to
+// their real Bario One CRM.
 const ALLOWED_BUSINESS_KEYS = new Set(['afc', 'sunbuilt'])
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -50,11 +52,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'A valid name and email are required' }, { status: 400, headers: CORS_HEADERS })
     }
 
-    const crm = findCrm(businessKey)
-    if (!crm) return NextResponse.json({ error: 'Unknown business' }, { status: 400, headers: CORS_HEADERS })
-
-    const personId = await findOrCreatePersonByEmail(crm, email, name, phone)
-    if (personId) {
+    const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
+    const customerId = await findOrCreateBoCustomerByEmail(sql, orgId, email, name, phone)
+    if (customerId) {
       const lines = [
         `Source: ${source}`,
         service ? `Service: ${service}` : null,
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
         phone ? `Phone: ${phone}` : null,
         notes ? `Notes: ${notes}` : null,
       ].filter(Boolean)
-      await logWebLeadNote(crm, personId, source, lines.join('\n'))
+      await logBoWebLeadNote(sql, orgId, customerId, source, lines.join('\n'))
     }
 
     return NextResponse.json({ ok: true }, { headers: CORS_HEADERS })

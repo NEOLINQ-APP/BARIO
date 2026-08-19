@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { findCrm, crmGraphQL } from '@/lib/crmOutreach'
+import { BARIO_ONE_CALL_LOG_ORG_IDS, createBoContact } from '@/lib/barioOneCrmCallLog'
 import { verifyDialerPasscode } from '@/lib/dialerAccess'
+import { db } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
 // Adds a new contact straight into the right business's Twenty CRM — used
@@ -32,6 +34,15 @@ export async function POST(req: Request) {
     if (!crmKey || (!firstName && !lastName) || !phone) {
       return NextResponse.json({ error: 'crmKey, a name, and a phone number are required' }, { status: 400 })
     }
+
+    // AFC and Sunbuilt repointed to their real Bario One CRM 2026-08-18.
+    if (crmKey === 'afc' || crmKey === 'sunbuilt') {
+      const sql = await db()
+      const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[crmKey]
+      const customerId = await createBoContact(sql, orgId, { firstName, lastName, phone, email, companyName })
+      return NextResponse.json({ ok: true, personId: customerId })
+    }
+
     const crm = findCrm(crmKey)
     if (!crm) return NextResponse.json({ error: 'That business has no CRM to add a contact to' }, { status: 400 })
 

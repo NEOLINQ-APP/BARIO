@@ -45,6 +45,61 @@ export async function setBoCustomerEmailIfMissing(sql: any, customerId: string, 
   await sql`UPDATE bo_customers SET email = ${target}, updated_at = now() WHERE id = ${customerId} AND email IS NULL`
 }
 
+// Repoints app/api/public/site-lead's real, live "a visitor submitted the
+// quote/contact form on afclogistics.ca or sunbuiltgroup.com" path onto
+// Bario One's CRM instead of Twenty -- this one is genuinely public and
+// unauthenticated, so leaving it pointed at a deleted Twenty instance
+// would have failed every real form submission on both client sites, not
+// just an internal tool. Matched on email (a web form always has one,
+// unlike a phone call), mirrors findOrCreatePersonByEmail's shape.
+export async function findOrCreateBoCustomerByEmail(sql: any, orgId: string, email: string, displayName: string | null, phone: string | null): Promise<string | null> {
+  const target = email.trim().toLowerCase()
+  if (!target) return null
+
+  const matchRows = (await sql`
+    SELECT id FROM bo_customers WHERE organization_id = ${orgId} AND lower(email) = ${target} LIMIT 1
+  `) as unknown as { id: string }[]
+  if (matchRows[0]) return matchRows[0].id
+
+  const id = randomUUID()
+  const contactName = displayName?.trim() || 'Unknown'
+  await sql`
+    INSERT INTO bo_customers (id, organization_id, contact_name, email, phone, tags_json)
+    VALUES (${id}, ${orgId}, ${contactName}, ${target}, ${phone}, '["website-lead"]')
+  `
+  return id
+}
+
+// Repoints components/BarioDialer.tsx's Contacts tab for AFC/Sunbuilt onto
+// Bario One's CRM -- shape matches exactly what the dialer already expects
+// from the Twenty-backed route (personId/name/companyName/phone) so the
+// frontend needs zero changes.
+export async function listBoContactsWithPhone(sql: any, orgId: string): Promise<{ personId: string; name: string; companyName: string | null; phone: string }[]> {
+  const rows = (await sql`
+    SELECT id, contact_name, company_name, phone FROM bo_customers
+    WHERE organization_id = ${orgId} AND phone IS NOT NULL AND phone <> ''
+    ORDER BY contact_name ASC
+  `) as unknown as { id: string; contact_name: string; company_name: string | null; phone: string }[]
+  return rows.map((r) => ({ personId: r.id, name: r.contact_name || 'Unknown', companyName: r.company_name, phone: r.phone }))
+}
+
+export async function createBoContact(sql: any, orgId: string, opts: { firstName: string; lastName: string; phone: string; email: string; companyName: string }): Promise<string> {
+  const id = randomUUID()
+  const contactName = `${opts.firstName} ${opts.lastName}`.trim() || 'Unknown'
+  await sql`
+    INSERT INTO bo_customers (id, organization_id, contact_name, company_name, phone, email, tags_json)
+    VALUES (${id}, ${orgId}, ${contactName}, ${opts.companyName || null}, ${opts.phone}, ${opts.email || null}, '["dialer-added"]')
+  `
+  return id
+}
+
+export async function logBoWebLeadNote(sql: any, orgId: string, customerId: string, source: string, body: string): Promise<void> {
+  await sql`
+    INSERT INTO bo_notes (id, organization_id, customer_id, kind, body)
+    VALUES (${randomUUID()}, ${orgId}, ${customerId}, 'note', ${`New website lead (${source})\n\n${body}`})
+  `
+}
+
 export async function logBoCallNote(
   sql: any,
   orgId: string,
