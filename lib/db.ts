@@ -1709,6 +1709,12 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_email_campaigns_scheduled_idx ON bo_email_campaigns (status, scheduled_at)`
   await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS campaign_id TEXT REFERENCES bo_email_campaigns(id)`
 
+  // Per-contact AI personalization (2026-08-19) — when on, body_html is a
+  // brief/template Claude rewrites individually per recipient (referencing
+  // their company name) rather than the literal text sent to everyone.
+  // Real per-send cost tradeoff, so it's opt-in per campaign, not default.
+  await sql`ALTER TABLE bo_email_campaigns ADD COLUMN IF NOT EXISTS personalize BOOLEAN NOT NULL DEFAULT false`
+
   // Bario One — CRM custom fields (per-org field definitions, attachable to
   // customers and/or deals). Values live as a JSON map on the entity row
   // itself (custom_fields_json, keyed by field id) rather than a separate
@@ -3004,6 +3010,7 @@ export type BoEmailCampaign = {
   recipient_count: number
   sent_count: number
   failed_count: number
+  personalize: boolean
   created_by_user_id: string | null
   created_via: 'admin' | 'ai_assistant'
   created_at: string

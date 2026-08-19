@@ -59,7 +59,9 @@ export default function AdminBarioOneLeads() {
   const [campaignBody, setCampaignBody] = useState('')
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now')
   const [scheduledAt, setScheduledAt] = useState('')
+  const [personalize, setPersonalize] = useState(false)
   const [sendingCampaign, setSendingCampaign] = useState(false)
+  const [draftingReply, setDraftingReply] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/bario-one/organizations')
@@ -125,6 +127,26 @@ export default function AdminBarioOneLeads() {
     setSendingReply(false)
   }
 
+  async function suggestReply() {
+    if (!selectedLead) return
+    setDraftingReply(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/bario-one/organizations/${orgId}/leads/${selectedLead.id}/draft-reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Could not draft a reply')
+      setReplySubject(data.subject)
+      setReplyBody(data.body)
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setDraftingReply(false)
+  }
+
   const leadsWithEmail = leads?.filter((l) => l.email) ?? []
 
   async function cancelCampaign(campaignId: string) {
@@ -159,6 +181,7 @@ export default function AdminBarioOneLeads() {
           subject: campaignSubject,
           body: campaignBody,
           scheduledAt: scheduleMode === 'later' ? new Date(scheduledAt).toISOString() : null,
+          personalize,
         }),
       })
       const data = await res.json()
@@ -169,6 +192,7 @@ export default function AdminBarioOneLeads() {
       setCampaignBody('')
       setScheduleMode('now')
       setScheduledAt('')
+      setPersonalize(false)
       await loadCampaigns()
       await loadLeads()
     } catch (err: any) {
@@ -226,6 +250,10 @@ export default function AdminBarioOneLeads() {
             <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="Campaign name (internal)" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm" />
             <input value={campaignSubject} onChange={(e) => setCampaignSubject(e.target.value)} placeholder="Subject line" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm" />
             <textarea value={campaignBody} onChange={(e) => setCampaignBody(e.target.value)} placeholder="Email body…" rows={6} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm" />
+            <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
+              <input type="checkbox" checked={personalize} onChange={(e) => setPersonalize(e.target.checked)} />
+              Personalize each email with AI (rewrites the body per recipient, referencing their company — better reply rates, slower to send)
+            </label>
             <div className="flex items-center gap-3 text-xs">
               <label className="flex items-center gap-1.5">
                 <input type="radio" checked={scheduleMode === 'now'} onChange={() => setScheduleMode('now')} /> Send now
@@ -324,13 +352,24 @@ export default function AdminBarioOneLeads() {
                 <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
                   <input value={replySubject} onChange={(e) => setReplySubject(e.target.value)} placeholder="Subject" className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs" />
                   <textarea value={replyBody} onChange={(e) => setReplyBody(e.target.value)} placeholder="Write a reply…" rows={4} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs" />
-                  <button
-                    onClick={sendReply}
-                    disabled={sendingReply}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-semibold text-xs"
-                  >
-                    {sendingReply ? 'Sending…' : 'Send'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={sendReply}
+                      disabled={sendingReply}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-semibold text-xs"
+                    >
+                      {sendingReply ? 'Sending…' : 'Send'}
+                    </button>
+                    {thread && thread.length > 0 && (
+                      <button
+                        onClick={suggestReply}
+                        disabled={draftingReply}
+                        className="px-3 py-1.5 rounded-lg border border-cyan-500 text-cyan-600 dark:text-cyan-400 disabled:opacity-50 font-semibold text-xs"
+                      >
+                        {draftingReply ? 'Drafting…' : '✨ Suggest reply (AI)'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

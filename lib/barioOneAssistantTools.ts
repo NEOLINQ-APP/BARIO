@@ -128,14 +128,15 @@ export const BARIO_ONE_ASSISTANT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'send_email_campaign',
-      description: 'Send a marketing/outreach email to every CRM customer who has an email address on file. Use this whenever asked to send a campaign, blast, or bulk email to leads/customers -- e.g. "email all our leads about the new website offer". Can send immediately or be scheduled for a specific future date/time.',
+      description: 'Send a marketing/outreach email to every CRM customer who has an email address on file. Use this whenever asked to send a campaign, blast, or bulk email to leads/customers -- e.g. "email all our leads about the new website offer". Can send immediately or be scheduled for a specific future date/time. Supports per-contact AI personalization -- ask the user if they want each recipient to get a version rewritten for them (better reply rates) or the exact same email for everyone (faster, no per-send AI cost).',
       parameters: {
         type: 'object',
         properties: {
           name: { type: 'string', description: 'Short internal name for this campaign, e.g. "August website offer"' },
-          subject: { type: 'string', description: 'Email subject line' },
-          body: { type: 'string', description: 'Email body, plain text (line breaks are preserved)' },
+          subject: { type: 'string', description: 'Email subject line (or subject template, if personalizing)' },
+          body: { type: 'string', description: 'Email body, plain text (line breaks are preserved) -- the template Claude personalizes per recipient if personalize is true' },
           scheduledAt: { type: 'string', description: 'ISO 8601 datetime to send at, in the future. Omit to send immediately.' },
+          personalize: { type: 'boolean', description: 'If true, rewrites the email individually for each recipient (references their company name, adapts tone) instead of sending identical text to everyone. Default false.' },
         },
         required: ['name', 'subject', 'body'],
       },
@@ -317,6 +318,7 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
         subject,
         body,
         scheduledAt,
+        personalize: Boolean(args.personalize),
         createdByUserId: null,
         createdVia: 'ai_assistant',
       })

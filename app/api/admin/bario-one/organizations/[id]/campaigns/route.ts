@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const org = orgRows[0]
     if (!org) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
 
-    const { name, subject, body, scheduledAt } = await req.json()
+    const { name, subject, body, scheduledAt, personalize } = await req.json()
     if (typeof name !== 'string' || !name.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
     if (typeof subject !== 'string' || !subject.trim()) return NextResponse.json({ error: 'subject is required' }, { status: 400 })
     if (typeof body !== 'string' || !body.trim()) return NextResponse.json({ error: 'body is required' }, { status: 400 })
@@ -47,6 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       subject: subject.trim(),
       body,
       scheduledAt: scheduledDate,
+      personalize: Boolean(personalize),
       createdByUserId: null,
       createdVia: 'admin',
     })
