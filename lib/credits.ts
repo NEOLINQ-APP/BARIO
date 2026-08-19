@@ -24,6 +24,14 @@ export function creditsForPlan(plan: string | null): number {
 export const STUDIO_CREDIT_COSTS = {
   videoPerGpuSecond: 2,
   voiceoverPer1kChars: 1,
+  // Export (lib/studioExport.ts) runs as plain ffmpeg on Vercel's own
+  // Node.js compute, not RunPod GPU-second billing — deliberately priced
+  // far below video generation for that reason. Both numbers below are
+  // starting estimates, not measured against real Vercel compute cost;
+  // recalibrate once real render-time data exists, same as
+  // videoPerGpuSecond above.
+  exportPer10Seconds: 1,
+  exportPerClip: 1,
 }
 
 export function creditsForVideoJob(estimatedGpuSeconds: number): number {
@@ -32,6 +40,12 @@ export function creditsForVideoJob(estimatedGpuSeconds: number): number {
 
 export function creditsForVoiceover(characterCount: number): number {
   return Math.max(1, Math.ceil((characterCount / 1000) * STUDIO_CREDIT_COSTS.voiceoverPer1kChars))
+}
+
+export function creditsForExportJob(totalDurationSeconds: number, clipCount: number): number {
+  const durationCost = Math.ceil(totalDurationSeconds / 10) * STUDIO_CREDIT_COSTS.exportPer10Seconds
+  const clipCost = Math.ceil(clipCount / 5) * STUDIO_CREDIT_COSTS.exportPerClip
+  return Math.max(1, durationCost + clipCost)
 }
 
 // Lazily refills a user's credits if their reset date has passed, since
