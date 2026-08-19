@@ -6,6 +6,7 @@ const LINKS = [
   { href: '/vps', label: 'VPS Servers', key: 'vps' },
   { href: '/bario-one', label: 'Bario One', key: 'bario-one' },
   { href: '/victoria', label: 'Meet Victoria', key: 'victoria' },
+  { href: '/ai-receptionist', label: 'AI Receptionist', key: 'ai-receptionist' },
   { href: '/site-audit', label: 'Free Site Audit', key: 'audit' },
 ]
 

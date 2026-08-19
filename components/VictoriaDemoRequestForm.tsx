@@ -2,9 +2,16 @@
 
 import { useState } from 'react'
 
-export default function VictoriaDemoRequestForm() {
+export default function VictoriaDemoRequestForm({
+  product = 'personal',
+  assistantName = 'Victoria',
+}: {
+  product?: 'personal' | 'business'
+  assistantName?: string
+}) {
   const [name, setName] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -18,7 +25,13 @@ export default function VictoriaDemoRequestForm() {
       const res = await fetch('/api/public/victoria-demo-request', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, phoneNumber, note: note || undefined }),
+        body: JSON.stringify({
+          name,
+          phoneNumber,
+          note: note || undefined,
+          product,
+          companyName: product === 'business' ? companyName || undefined : undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -38,7 +51,7 @@ export default function VictoriaDemoRequestForm() {
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
         <p className="font-semibold text-slate-900 dark:text-white">You're on the list!</p>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          We'll reach out shortly to set up your live demo with Victoria.
+          We'll reach out shortly to set up your live demo with {assistantName}.
         </p>
       </div>
     )
@@ -56,6 +69,17 @@ export default function VictoriaDemoRequestForm() {
           className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
         />
       </div>
+      {product === 'business' && (
+        <div>
+          <label className="block text-sm text-slate-500 dark:text-slate-400 mb-1">Business name</label>
+          <input
+            type="text"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+          />
+        </div>
+      )}
       <div>
         <label className="block text-sm text-slate-500 dark:text-slate-400 mb-1">Phone number</label>
         <input
@@ -85,7 +109,7 @@ export default function VictoriaDemoRequestForm() {
         {loading ? 'Sending…' : 'Request a live demo'}
       </button>
       <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-        We'll call or text you to set up a real conversation with Victoria.
+        We'll call or text you to set up a real conversation with {assistantName}.
       </p>
     </form>
   )

@@ -61,6 +61,11 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  // 'personal' (Victoria, /victoria) or 'business' (AI Receptionist,
+  // /ai-receptionist) — same table, same notify-Sherwin flow, just tagged
+  // so leads aren't mixed up when reviewing them.
+  await sql`ALTER TABLE victoria_demo_requests ADD COLUMN IF NOT EXISTS product TEXT NOT NULL DEFAULT 'personal'`
+  await sql`ALTER TABLE victoria_demo_requests ADD COLUMN IF NOT EXISTS company_name TEXT`
   // Grandfather in accounts that existed before email verification was required —
   // only backfills at the moment the column is first created, never again after.
   await sql`
