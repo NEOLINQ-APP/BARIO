@@ -1,4 +1,4 @@
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { randomUUID } from 'node:crypto'
 import { getJobStatus } from '@/lib/runpod'
 

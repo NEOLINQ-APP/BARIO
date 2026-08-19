@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { requireAdmin } from '@/lib/admin'
 import type { Asset } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'

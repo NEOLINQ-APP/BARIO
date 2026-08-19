@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { requireAdmin } from '@/lib/admin'
 import { getSetting, setSetting } from '@/lib/platformSettings'
 import { errorResponse } from '@/lib/errors'

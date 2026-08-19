@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { db } from '@/lib/db'
 import { verifyFamilyToken } from '@/lib/victoriaFamilyAccess'
 import { errorResponse } from '@/lib/errors'

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { errorResponse } from '@/lib/errors'
 import type { StaffTd1Record } from '@/lib/db'
 

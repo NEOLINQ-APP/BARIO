@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { del } from '@/lib/b2Storage'
+import { del } from '@/lib/storage'
 import { requireAdmin } from '@/lib/admin'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'

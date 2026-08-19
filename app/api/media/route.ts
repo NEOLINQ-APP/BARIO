@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { getApiSession } from '@/lib/session'
 import { db, type User, type MediaAsset } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { del } from '@/lib/b2Storage'
+import { del } from '@/lib/storage'
 import { requireAdmin } from '@/lib/admin'
 import type { Asset } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireBoMembership } from '@/lib/barioOne'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { errorResponse } from '@/lib/errors'
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB — a logo, not a general file upload

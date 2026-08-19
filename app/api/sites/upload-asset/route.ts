@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createPresignedUploadUrl } from '@/lib/b2Storage'
+import { createPresignedUploadUrl } from '@/lib/storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { hasBuilderAccess } from '@/lib/access'

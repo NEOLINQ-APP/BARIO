@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { getOpenAI } from '@/lib/openai'
 
 // Real text-to-image generation — nothing else in this codebase does this

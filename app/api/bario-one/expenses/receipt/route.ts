@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoModule } from '@/lib/barioOne'
-import { put } from '@/lib/b2Storage'
+import { put } from '@/lib/storage'
 import { parseReceiptImage } from '@/lib/barioOneExpenses'
 import { errorResponse } from '@/lib/errors'
 
