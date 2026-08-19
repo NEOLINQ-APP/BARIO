@@ -5,6 +5,8 @@ export default function SiteFooter() {
       <a href="/terms" className="underline hover:text-slate-700 dark:hover:text-slate-300">Terms of Service</a>
       {' · '}
       <a href="/privacy" className="underline hover:text-slate-700 dark:hover:text-slate-300">Privacy Policy</a>
+      {' · '}
+      <a href="/careers" className="underline hover:text-slate-700 dark:hover:text-slate-300">Join Our Team</a>
     </footer>
   )
 }
