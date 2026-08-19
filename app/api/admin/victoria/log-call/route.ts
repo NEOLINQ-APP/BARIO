@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin'
 import { computeClaudeCostCents, computeTwilioCostCents } from '@/lib/victoriaCallCost'
 import { errorResponse } from '@/lib/errors'
 import { findCrm, findOrCreatePersonByPhone, logCallNote, setPersonEmailIfMissing } from '@/lib/crmOutreach'
+import { BARIO_ONE_CALL_LOG_ORG_IDS, findOrCreateBoCustomerByPhone, logBoCallNote, setBoCustomerEmailIfMissing } from '@/lib/barioOneCrmCallLog'
 
 // Called by the VPS-side miko-voice server.js at the end of every call
 // (ws.on('close')) — not a customer-facing route, Bearer-gated the same
@@ -52,12 +53,27 @@ export async function POST(req: Request) {
       ON CONFLICT (call_sid) DO NOTHING
     `
 
-    // Best-effort: sync the call into the business's Twenty CRM as a
-    // contact + note. All 4 businesses now have their own CRM (Unique
-    // Group and Bario.ca got theirs 2026-08-15 — previously excluded here
-    // when neither had one). Never let a CRM hiccup fail the call-log
-    // write above — that's the authoritative record.
-    if (businessKey === 'afc' || businessKey === 'sunbuilt' || businessKey === 'unique' || businessKey === 'bario') {
+    // Best-effort: sync the call into the business's CRM as a contact +
+    // note. AFC and Sunbuilt repointed to their real Bario One CRM
+    // 2026-08-18 (their standalone Twenty stacks are being decommissioned);
+    // Unique Group and Bario.ca still use their own separate Twenty CRM
+    // stacks, unchanged. Never let a CRM hiccup fail the call-log write
+    // above — that's the authoritative record.
+    if (businessKey === 'afc' || businessKey === 'sunbuilt') {
+      const otherPartyNumber = direction === 'inbound' ? fromNumber : toNumber
+      if (otherPartyNumber) {
+        try {
+          const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
+          const customerId = await findOrCreateBoCustomerByPhone(sql, orgId, otherPartyNumber, callerName)
+          if (customerId) {
+            await logBoCallNote(sql, orgId, customerId, direction, summary, durationSeconds, personalNotes)
+            if (callerEmail) await setBoCustomerEmailIfMissing(sql, customerId, callerEmail)
+          }
+        } catch (err) {
+          console.error(`Bario One CRM call sync failed for ${businessKey}/${callSid}:`, err)
+        }
+      }
+    } else if (businessKey === 'unique' || businessKey === 'bario') {
       const otherPartyNumber = direction === 'inbound' ? fromNumber : toNumber
       if (otherPartyNumber) {
         try {

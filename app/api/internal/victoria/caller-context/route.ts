@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { findCrm, fetchPriorCallContext } from '@/lib/crmOutreach'
+import { db } from '@/lib/db'
+import { BARIO_ONE_CALL_LOG_ORG_IDS, fetchPriorBoCallContext } from '@/lib/barioOneCrmCallLog'
 
 // Called by miko-voice/server.js at call setup (the missing read-side of
 // the existing write-only log-call-at-hangup flow) — lets Victoria/Layla
@@ -19,6 +21,13 @@ export async function GET(req: Request) {
   const phone = url.searchParams.get('phone') ?? ''
   if (!['afc', 'sunbuilt', 'unique', 'bario'].includes(businessKey) || !phone) {
     return NextResponse.json({ context: null })
+  }
+
+  if (businessKey === 'afc' || businessKey === 'sunbuilt') {
+    const sql = await db()
+    const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
+    const context = await fetchPriorBoCallContext(sql, orgId, phone)
+    return NextResponse.json({ context })
   }
 
   const crm = findCrm(businessKey)
