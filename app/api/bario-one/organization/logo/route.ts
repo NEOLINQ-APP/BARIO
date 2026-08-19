@@ -6,7 +6,7 @@ import { errorResponse } from '@/lib/errors'
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB — a logo, not a general file upload
 
 // Org-owned asset, not personal X-Drive storage — uploads straight through
-// lib/b2Storage.ts's put() instead of /api/media's media_assets/quota
+// lib/storage.ts's put() instead of /api/media's media_assets/quota
 // bookkeeping (same reasoning as lib/imageGen.ts's upload path), and writes
 // the URL directly onto bo_organizations.branding_logo_url, the column
 // generateBoInvoicePdf() and the public invoice view already read but that

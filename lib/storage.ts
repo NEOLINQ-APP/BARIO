@@ -112,20 +112,17 @@ export async function createPresignedUploadUrl(pathname: string, opts: Presigned
   return { uploadUrl, url: `${PUBLIC_BASE}/${key}`, pathname: key }
 }
 
-// Accepts either a full URL or a bare key. Still handles the two legacy
-// URL shapes from BOTH prior backends (Vercel Blob, then B2) so a DB row
-// that predates either migration and was never rewritten still deletes
-// from the right place instead of silently no-op'ing against MinIO and
-// leaving the real file orphaned on whichever old backend actually has it.
+// Accepts either a full URL or a bare key. Still handles the legacy
+// vercel-storage.com shape (pre-B2, pre-MinIO) so a DB row from that era
+// that was never rewritten still deletes from the right place. The B2
+// fallback that used to live here was removed 2026-08-19 once
+// rewrite-b2-urls confirmed zero remaining backblazeb2.com references
+// anywhere in the DB -- every row that could point at B2 now points at
+// MinIO, so there's nothing left for that branch to ever match.
 export async function del(urlOrKey: string): Promise<void> {
   if (urlOrKey.includes('vercel-storage.com')) {
     const { del: vercelDel } = await import('@vercel/blob')
     await vercelDel(urlOrKey)
-    return
-  }
-  if (urlOrKey.includes('backblazeb2.com')) {
-    const { del: b2Del } = await import('./b2Storage')
-    await b2Del(urlOrKey)
     return
   }
   const key = urlOrKey.startsWith('http') ? new URL(urlOrKey).pathname.replace(new RegExp(`^/(${BUCKET}/)?`), '') : urlOrKey.replace(/^\/+/, '')

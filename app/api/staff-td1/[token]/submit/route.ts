@@ -35,12 +35,12 @@ export async function POST(req: Request, { params }: { params: { token: string }
       return NextResponse.json({ error: 'Valid claim amounts are required' }, { status: 400 })
     }
 
-    // NOTE: lib/b2Storage.ts only supports `access: 'public'` today — there
-    // is no signed/private-download option yet. These PDFs contain real
-    // SINs, so this relies on the storage key's random suffix being
+    // NOTE: lib/storage.ts's put() only supports `access: 'public'` today —
+    // there is no signed/private-download option yet. These PDFs contain
+    // real SINs, so this relies on the storage key's random suffix being
     // unguessable, same security assumption as X-Drive files elsewhere in
     // this codebase — NOT true authenticated access control. Revisit if a
-    // presigned-GET helper gets added to lib/b2Storage.ts.
+    // presigned-GET helper gets added to lib/storage.ts.
     const federalBlob = await put(`staff-td1/${record.staff_id}/${record.id}/federal.pdf`, federalPdf, { access: 'public' })
     const provincialBlob = await put(`staff-td1/${record.staff_id}/${record.id}/provincial.pdf`, provincialPdf, { access: 'public' })
 
