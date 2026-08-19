@@ -45,6 +45,22 @@ async function ensureSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_remaining INTEGER NOT NULL DEFAULT 0`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_reset_at TIMESTAMPTZ`
+
+  // Lead capture for the public "meet Victoria" personal-assistant demo
+  // page (2026-08-19) — a real live public phone/voice demo needs real
+  // abuse-prevention design (new number, rate limiting, a restricted
+  // toolset) that shouldn't be rushed, so the page's "try it" CTA is a
+  // callback request instead for now, notified to Sherwin via SMS
+  // (see app/api/public/victoria-demo-request/route.ts).
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_demo_requests (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone_number TEXT NOT NULL,
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
   // Grandfather in accounts that existed before email verification was required —
   // only backfills at the moment the column is first created, never again after.
   await sql`
