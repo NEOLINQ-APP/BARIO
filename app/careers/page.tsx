@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import CareersApplicationForm from '@/components/CareersApplicationForm'
 
 export const metadata: Metadata = {
   title: 'Careers — Bario',
@@ -12,21 +13,16 @@ export default function Careers() {
         <h1 className="text-3xl font-bold mt-6 mb-2">Join Our Team</h1>
         <p className="text-sm text-slate-500 dark:text-zinc-500 mb-10">Careers at Bario</p>
 
-        <div className="space-y-6 text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
+        <div className="space-y-6 text-sm leading-relaxed text-slate-700 dark:text-zinc-300 mb-10">
           <p>
             Bario is a small, fast-moving team building hosting, AI website tools, and business software for
             Canadian businesses. We don't always have open roles, but we're always glad to hear from people
-            who'd be a great fit for where we're headed.
-          </p>
-          <p>
-            Send your resume and a short note about what you'd want to work on to{' '}
-            <a href="mailto:admin@bario.ca?subject=Job%20Application" className="underline text-amber-600 dark:text-[#f59e0b]">
-              admin@bario.ca
-            </a>
-            . We review every application — if there's a fit with something we're hiring for now or soon, we'll
-            reach out.
+            who'd be a great fit for where we're headed. We review every application — if there's a fit with
+            something we're hiring for now or soon, we'll reach out.
           </p>
         </div>
+
+        <CareersApplicationForm />
       </div>
     </main>
   )

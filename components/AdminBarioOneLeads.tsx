@@ -62,6 +62,13 @@ export default function AdminBarioOneLeads() {
   const [personalize, setPersonalize] = useState(false)
   const [sendingCampaign, setSendingCampaign] = useState(false)
   const [draftingReply, setDraftingReply] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'lead' | 'job-applicant'>('all')
+
+  function categoryOf(l: Lead): { key: string; label: string; color: string } {
+    if (l.tags_json.includes('job-applicant')) return { key: 'job-applicant', label: 'Applicant', color: 'bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400' }
+    if (l.tags_json.includes('client-backup')) return { key: 'client-backup', label: 'Client backup', color: 'bg-slate-500/10 border-slate-500/30 text-slate-500 dark:text-zinc-400' }
+    return { key: 'lead', label: 'Lead', color: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400' }
+  }
 
   useEffect(() => {
     fetch('/api/admin/bario-one/organizations')
@@ -313,20 +320,37 @@ export default function AdminBarioOneLeads() {
       {/* Leads + thread */}
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 p-4">
-          <p className="font-semibold text-sm mb-2">Leads {leads ? `(${leads.length})` : ''}</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">Leads {leads ? `(${leads.filter((l) => categoryFilter === 'all' || categoryOf(l).key === categoryFilter).length})` : ''}</p>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as typeof categoryFilter)}
+              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+            >
+              <option value="all">All</option>
+              <option value="lead">Leads only</option>
+              <option value="job-applicant">Job applicants only</option>
+            </select>
+          </div>
           {leads === null && <p className="text-xs text-slate-400 dark:text-zinc-500">Loading…</p>}
           {leads?.length === 0 && <p className="text-xs text-slate-400 dark:text-zinc-500">No leads yet.</p>}
           <div className="space-y-1 max-h-[28rem] overflow-y-auto">
-            {leads?.map((l) => (
-              <button
-                key={l.id}
-                onClick={() => openLead(l)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs border ${selectedLead?.id === l.id ? 'border-cyan-500 bg-cyan-500/5' : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-800'}`}
-              >
-                <p className="font-medium">{l.company_name || l.contact_name}</p>
-                <p className="text-slate-400 dark:text-zinc-500">{l.email || 'no email on file'}{l.email_count ? ` · ${l.email_count} email${l.email_count === 1 ? '' : 's'}` : ''}</p>
-              </button>
-            ))}
+            {leads?.filter((l) => categoryFilter === 'all' || categoryOf(l).key === categoryFilter).map((l) => {
+              const cat = categoryOf(l)
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => openLead(l)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs border ${selectedLead?.id === l.id ? 'border-cyan-500 bg-cyan-500/5' : 'border-transparent hover:border-slate-200 dark:hover:border-zinc-800'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{l.company_name || l.contact_name}</p>
+                    <span className={`px-1.5 py-0.5 rounded border text-[10px] ${cat.color}`}>{cat.label}</span>
+                  </div>
+                  <p className="text-slate-400 dark:text-zinc-500">{l.email || 'no email on file'}{l.email_count ? ` · ${l.email_count} email${l.email_count === 1 ? '' : 's'}` : ''}</p>
+                </button>
+              )
+            })}
           </div>
         </div>
 
