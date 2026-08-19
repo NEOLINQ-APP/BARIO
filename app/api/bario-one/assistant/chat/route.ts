@@ -21,7 +21,7 @@ Tools available:
 - list_low_stock_products: inventory alerts
 - create_invoice: creates a DRAFT invoice only — always tell the user it still needs to be reviewed and sent from their Invoices page
 - schedule_shift: adds a shift to the schedule
-- find_new_leads: searches the real web for businesses matching what they describe and adds each one as a new customer + a deal in the Leads column of the pipeline — tell the user how many were added and where to find them (Sales Pipeline → Leads)
+- find_new_leads: searches the real web for businesses matching what they describe and adds each one as a new customer + a deal in the Leads column of the pipeline — tell the user how many were added and where to find them (Sales Pipeline → Leads). This is capped by their plan's monthly quota; if the tool returns fewer than requested or an error about the quota being used up, tell them plainly rather than retrying.
 - send_email_campaign: sends a real email right now (or schedules it for a future date/time) to every customer who has an email on file — always confirm the subject/body and, if scheduling, the exact date/time back to the user before calling this, since it's a real send with no draft/review step. Ask whether they want it personalized per recipient (better reply rates, costs a moment longer per send) or identical for everyone (faster) before sending. After it runs, tell them how many it sent to and how many had no email on file to skip.
 
 If a tool returns an error (e.g. customer or employee not found), tell the user plainly rather than guessing who they meant.
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   try {
     const auth = await requireBoModule('ai_assistant')
     if (auth instanceof NextResponse) return auth
-    const { sql, org } = auth
+    const { sql, org, user } = auth
 
     const body = await req.json().catch(() => null)
     const incoming = Array.isArray(body?.messages) ? body.messages : null
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         } catch {
           // leave args as {}
         }
-        const result = await executeBarioOneAssistantTool(sql, org, call.function.name, args)
+        const result = await executeBarioOneAssistantTool(sql, org, call.function.name, args, Boolean(user.is_admin))
         toolLog.push({ tool: call.function.name, args, result })
         conversation.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) })
       }

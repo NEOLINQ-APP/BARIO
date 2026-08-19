@@ -6,11 +6,26 @@ import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
 import { createCampaign } from '@/lib/barioOneCampaigns'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
-// Kill switch for find_new_leads, off on purpose as of 2026-08-18 — see
-// the comment at that tool's case below for why. Flip to true once the
-// real per-tier lead quota (part of the not-yet-live pricing update) is
-// actually wired in.
-const LEAD_GEN_LIVE = false
+// Real monthly lead-gen quota, enforced 2026-08-19 per explicit user
+// instruction: customers may only generate as many leads as their
+// subscription allows, never more, unless an admin is the one doing it
+// (the Bearer-gated admin generate-leads route, or an admin's own Miko
+// chat session — see isAdmin below) — that path stays unlimited by design.
+//
+// This is intentionally a single flat quota, not a true per-tier ladder
+// (Starter/Professional/Business getting different amounts), because
+// org.plan is NOT a reliable signal here — every real org on the platform
+// (Bario.ca, AFC, Sunbuilt, Unique) shows plan:'starter' regardless of
+// what they actually pay for, since modular a-la-carte billing (see
+// lib/barioOneModules.ts) replaced fixed tiers as the real entitlement
+// mechanism and `plan` was never migrated to track it. The only accurate,
+// checkable signal today is "does this org have an active ai_assistant
+// entitlement" (already enforced by requireBoModule before this tool ever
+// runs) — so every entitled org gets the same quota for now. A real
+// differentiated per-tier ladder needs a genuine product/pricing decision
+// (same open-item pattern as BO_PLANS.modules in lib/barioOneTiers.ts) —
+// flag to the user before changing this to vary by plan.
+const DEFAULT_LEAD_GEN_MONTHLY_QUOTA = 25
 
 function invoiceTotalCents(invoice: BoInvoice, items: BoInvoiceItem[]): number {
   return computeTotals(
@@ -158,7 +173,7 @@ async function findEmployeeByName(sql: any, orgId: string, name: string) {
   return rows[0] ?? null
 }
 
-export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization, name: string, args: any): Promise<unknown> {
+export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization, name: string, args: any, isAdmin: boolean = false): Promise<unknown> {
   switch (name) {
     case 'who_owes_money': {
       const invoices = (await sql`
@@ -277,20 +292,29 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       return { ok: true, employee: employee.name, startsAt: args.startsAt, endsAt: args.endsAt }
     }
     case 'find_new_leads': {
-      // Deliberately held off 2026-08-18, on request — this was shipped
-      // with no usage cap beyond a per-call max of 10, but the real plan
-      // is a per-tier monthly lead quota (Starter/Professional/Business
-      // each get a different amount) as part of the pricing update, which
-      // isn't defined or live on the pricing page yet. Don't let this
-      // start spending real Anthropic/web-search cost for free ahead of
-      // that. Remove this early-return (not the tool itself) once pricing
-      // is live and the actual per-tier quota is wired in below it.
-      if (!LEAD_GEN_LIVE) {
-        return { error: "Lead generation isn't turned on yet — it's launching soon with real pricing tiers. Let the user know it's coming." }
-      }
       const query = String(args.query || '').trim()
       if (!query) return { error: 'query is required — describe what kind of leads to find' }
-      const count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
+      let count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
+
+      // Real usage quota, enforced 2026-08-19 — admins (the admin route, or
+      // an admin's own Miko session) are unlimited by design; everyone else
+      // is capped at DEFAULT_LEAD_GEN_MONTHLY_QUOTA leads generated this
+      // calendar month, counting only leads this org generated for itself
+      // (excludes client-backup copies landing here from another org, in
+      // case this org IS the Bario master CRM).
+      if (!isAdmin) {
+        const usedRows = (await sql`
+          SELECT count(*)::int AS n FROM bo_customers
+          WHERE organization_id = ${org.id} AND tags_json LIKE '%"lead"%' AND tags_json NOT LIKE '%"client-backup"%'
+            AND created_at >= date_trunc('month', now())
+        `) as unknown as { n: number }[]
+        const used = usedRows[0]?.n ?? 0
+        const remaining = Math.max(DEFAULT_LEAD_GEN_MONTHLY_QUOTA - used, 0)
+        if (remaining === 0) {
+          return { error: `You've used all ${DEFAULT_LEAD_GEN_MONTHLY_QUOTA} leads included in your plan this month — more become available next billing cycle.` }
+        }
+        count = Math.min(count, remaining)
+      }
 
       const leads = await researchLeads(query, count)
       if (leads.length === 0) return { error: 'Could not find any real leads matching that — try a broader or more specific search.' }
