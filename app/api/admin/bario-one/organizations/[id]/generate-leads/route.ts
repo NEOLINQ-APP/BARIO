@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin'
 import { researchLeads, researchLeadsDebug, addLeadsToOrg } from '@/lib/barioOneAssistantTools'
 import { logAdminAction } from '@/lib/adminActions'
 import { errorResponse } from '@/lib/errors'
+import type { BoOrganization } from '@/lib/db'
 
 // Admin-triggered lead research for a house account's own CRM (e.g.
 // Bario.ca's, Unique Group's) — deliberately separate from the customer-
@@ -38,7 +39,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Could not find any real leads matching that — try a broader or more specific search.' }, { status: 404 })
     }
 
-    const added = await addLeadsToOrg(sql, params.id, leads)
+    const orgRows = (await sql`SELECT * FROM bo_organizations WHERE id = ${params.id}`) as unknown as BoOrganization[]
+    const orgName = orgRows[0]?.name
+
+    const added = await addLeadsToOrg(sql, params.id, leads, orgName)
 
     await logAdminAction(sql, {
       action: 'bario_one_admin_generate_leads',
