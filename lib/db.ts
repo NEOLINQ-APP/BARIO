@@ -25,8 +25,34 @@ function getSql() {
   return _sql
 }
 
+// Bump this whenever a new CREATE TABLE/ALTER TABLE/CREATE INDEX statement
+// is added anywhere below -- the fast path skips the entire rest of
+// ensureSchema() once the DB's recorded version matches this, so a schema
+// change shipped without bumping it will silently never run in production
+// until the version changes again for some other reason. This is the
+// deliberate tradeoff (see [[bario_afc_sunbuilt_lockout_and_disconnection]]
+// for why it was added, 2026-08-19): the full ~289-statement sequence used
+// to re-run on every single cold start (schemaReady is a module-level
+// variable, reset on every fresh container), which under concurrent load
+// (crons + admin + real traffic all cold-starting near each other) was
+// exhausting Supabase's Supavisor connection pool and hanging every
+// DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
+// schema change and forget to bump this = a real, live "why isn't my new
+// column there" bug, not a hypothetical.
+const CURRENT_SCHEMA_VERSION = 'v3-2026-08-19'
+
 async function ensureSchema() {
   const sql = getSql()
+  await sql`
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  const [marker] = await sql<{ value: string }[]>`SELECT value FROM platform_settings WHERE key = 'schema_version'`
+  if (marker?.value === CURRENT_SCHEMA_VERSION) return
+
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -464,6 +490,29 @@ async function ensureSchema() {
       ON neo_incidents (source, category, description)
       WHERE status IN ('detected', 'needs_review')
   `
+  // Widened 2026-08-19 to also cover 'pending_approval' (see below) so a
+  // still-pending proposal re-detected on the next 15-min run updates the
+  // existing row instead of spamming a duplicate. Cheap to rebuild at this
+  // table's size; DROP+CREATE since a partial index's WHERE clause can't
+  // be altered in place and IF NOT EXISTS would otherwise silently keep
+  // the old predicate.
+  await sql`DROP INDEX IF EXISTS neo_incidents_open_dedupe_idx`
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS neo_incidents_open_dedupe_idx
+      ON neo_incidents (source, category, description)
+      WHERE status IN ('detected', 'needs_review', 'pending_approval')
+  `
+  // NEO merged with the admin assistant's tools 2026-08-19 (user's explicit
+  // instruction: "he can repair and fix things but needs my approval on
+  // something major"). Mirrors the existing safe-action registry
+  // (lib/neoActions.ts) but for fixes real enough to propose, not run
+  // blind: a category with an entry in lib/neoApprovalActions.ts flips an
+  // incident to 'pending_approval' with the exact tool+args NEO wants to
+  // run, notifies the admin (SMS), and only executes if explicitly
+  // approved via /admin/neo — never on a timer, never without a click.
+  await sql`ALTER TABLE neo_incidents ADD COLUMN IF NOT EXISTS proposed_tool TEXT`
+  await sql`ALTER TABLE neo_incidents ADD COLUMN IF NOT EXISTS proposed_args_json TEXT`
+  await sql`ALTER TABLE neo_incidents ADD COLUMN IF NOT EXISTS proposed_label TEXT`
   // Optional multi-page content for a site, additive to the single
   // sites.raw_html column above. A site with zero rows here is unaffected —
   // /site/[domain] keeps rendering exactly as before (sections_json or
@@ -1430,13 +1479,9 @@ async function ensureSchema() {
   // paystubs (falls back to Bario's own logo if unset), and employer
   // details required on a compliant paystub (legal name, address, CRA
   // Business Number/payroll program account number).
-  await sql`
-    CREATE TABLE IF NOT EXISTS platform_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `
+  // (platform_settings itself is created at the very top of this function
+  // now, before the fast-path version check, so it's guaranteed to exist
+  // even on a completely fresh database -- not duplicated here.)
 
   // One row per completed Victoria call, logged by the VPS-side
   // server.js at ws.on('close') via /api/admin/victoria/log-call. Claude
@@ -2345,6 +2390,11 @@ async function ensureSchema() {
       sms_alert_sent BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
+  `
+
+  await sql`
+    INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
   `
 }
 

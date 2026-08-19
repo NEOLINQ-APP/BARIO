@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { recordIncident, autoResolveIfMissing, recordAutoFix } from '@/lib/neoIncidents'
+import { recordIncident, autoResolveIfMissing, recordAutoFix, proposeApprovalAction } from '@/lib/neoIncidents'
 import { hasSafeAction, runSafeAction } from '@/lib/neoActions'
+import { hasApprovalAction, getApprovalAction } from '@/lib/neoApprovalActions'
 import { getStripe } from '@/lib/stripe'
+import { sendSms } from '@/lib/twilio'
 
 // NEO's detection loop — runs every 15 minutes (vercel.json), same cadence
 // and auth pattern as the existing wp-hosting-health cron. Every check
@@ -124,20 +126,44 @@ export async function GET(req: Request) {
   `) as unknown as { id: string; category: string; description: string; details_json: string }[]
 
   const autoFixed: string[] = []
+  const proposed: string[] = []
   for (const incident of openIncidents) {
-    if (!hasSafeAction(incident.category)) continue
-    try {
-      const details = JSON.parse(incident.details_json || '{}')
-      const actionTaken = await runSafeAction(sql, incident.category, details)
-      await recordAutoFix(sql, SOURCE, incident.category, incident.description, actionTaken)
-      autoFixed.push(incident.description)
-    } catch (err: any) {
-      // A safe action that itself throws just leaves the incident at
-      // 'detected' for a human — never silently mark something fixed that
-      // wasn't.
-      console.error(`NEO safe action failed for ${incident.category}:`, err)
+    const details = JSON.parse(incident.details_json || '{}')
+
+    if (hasSafeAction(incident.category)) {
+      try {
+        const actionTaken = await runSafeAction(sql, incident.category, details)
+        await recordAutoFix(sql, SOURCE, incident.category, incident.description, actionTaken)
+        autoFixed.push(incident.description)
+      } catch (err: any) {
+        // A safe action that itself throws just leaves the incident at
+        // 'detected' for a human — never silently mark something fixed that
+        // wasn't.
+        console.error(`NEO safe action failed for ${incident.category}:`, err)
+      }
+      continue
+    }
+
+    if (hasApprovalAction(incident.category)) {
+      const action = getApprovalAction(incident.category)!
+      try {
+        await proposeApprovalAction(sql, SOURCE, incident.category, incident.description, {
+          tool: action.tool,
+          args: action.buildArgs(details),
+          label: action.label,
+        })
+        proposed.push(incident.description)
+        const alertNumber = process.env.EXEC_ALERT_PHONE_NUMBER
+        if (alertNumber) {
+          await sendSms(alertNumber, `NEO found something that needs your approval: ${incident.description}. Proposed fix: ${action.label}. Review at https://www.bario.ca/admin/neo`).catch((err) =>
+            console.error('NEO approval SMS failed', err)
+          )
+        }
+      } catch (err: any) {
+        console.error(`NEO approval proposal failed for ${incident.category}:`, err)
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, autoFixed })
+  return NextResponse.json({ ok: true, autoFixed, proposed })
 }

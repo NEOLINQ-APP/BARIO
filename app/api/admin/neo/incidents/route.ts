@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const [open, recentResolved] = await Promise.all([
       sql`
-        SELECT id, source, category, severity, description, status, action_taken, last_seen_at, created_at
-        FROM neo_incidents WHERE status IN ('detected', 'needs_review')
-        ORDER BY severity = 'critical' DESC, last_seen_at DESC LIMIT 50
+        SELECT id, source, category, severity, description, status, action_taken, proposed_tool, proposed_args_json, proposed_label, last_seen_at, created_at
+        FROM neo_incidents WHERE status IN ('detected', 'needs_review', 'pending_approval')
+        ORDER BY status = 'pending_approval' DESC, severity = 'critical' DESC, last_seen_at DESC LIMIT 50
       `,
       sql`
         SELECT id, source, category, severity, description, status, action_taken, resolved_at, created_at

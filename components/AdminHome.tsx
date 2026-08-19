@@ -33,13 +33,9 @@ export default function AdminHome() {
             <div className="font-semibold">Grant a Plan</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Comp a paid plan onto an account — no payment, e.g. for family.</p>
           </a>
-          <a href="/admin/assistant" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
-            <div className="font-semibold">Assistant</div>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">General-purpose AI that can also fix low-risk account issues on its own.</p>
-          </a>
           <a href="/admin/neo" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">NEO 🛰️</div>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Automated health checks every 15 min — endpoints, hosting nodes, Stripe. Auto-fixes only a pre-approved safe list; everything else waits for review.</p>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Overlooks the whole platform — automated health checks every 15 min, proposes major fixes for your approval, auto-fixes pre-approved safe ones, and takes direct requests in chat.</p>
           </a>
           <a href="/admin/refund-requests" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Refund Requests 💸</div>

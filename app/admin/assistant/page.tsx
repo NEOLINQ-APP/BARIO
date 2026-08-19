@@ -1,17 +1,10 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/session'
-import { db, type User } from '@/lib/db'
-import AdminAssistant from '@/components/AdminAssistant'
 
-export const dynamic = 'force-dynamic'
-
-export default async function AdminAssistantPage() {
-  const session = await getSession()
-  if (!session) redirect('/login')
-
-  const sql = await db()
-  const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
-  if (!rows[0]?.is_admin) redirect('/dashboard')
-
-  return <AdminAssistant />
+// Merged into NEO 2026-08-19 — this was a separate agent (general Q&A +
+// low-risk account fixes) with no automated monitoring of its own; NEO now
+// covers both (the same chat + tools, plus the health-check/approval
+// queue). Redirect rather than delete the route outright in case anything
+// still links here.
+export default function AdminAssistantPage() {
+  redirect('/admin/neo')
 }

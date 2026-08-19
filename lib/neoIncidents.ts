@@ -20,7 +20,7 @@ export async function recordIncident(
   await sql`
     INSERT INTO neo_incidents (id, source, category, severity, description, details_json)
     VALUES (${randomUUID()}, ${opts.source}, ${opts.category}, ${opts.severity}, ${opts.description}, ${JSON.stringify(opts.details ?? {})})
-    ON CONFLICT (source, category, description) WHERE status IN ('detected', 'needs_review')
+    ON CONFLICT (source, category, description) WHERE status IN ('detected', 'needs_review', 'pending_approval')
     DO UPDATE SET last_seen_at = now(), details_json = EXCLUDED.details_json
   `
 }
@@ -33,14 +33,34 @@ export async function autoResolveIfMissing(sql: any, source: string, category: s
   if (stillOpenDescriptions.length === 0) {
     await sql`
       UPDATE neo_incidents SET status = 'resolved', resolved_at = now()
-      WHERE source = ${source} AND category = ${category} AND status IN ('detected', 'needs_review')
+      WHERE source = ${source} AND category = ${category} AND status IN ('detected', 'needs_review', 'pending_approval')
     `
     return
   }
   await sql`
     UPDATE neo_incidents SET status = 'resolved', resolved_at = now()
-    WHERE source = ${source} AND category = ${category} AND status IN ('detected', 'needs_review')
+    WHERE source = ${source} AND category = ${category} AND status IN ('detected', 'needs_review', 'pending_approval')
       AND NOT (description = ANY(${stillOpenDescriptions}))
+  `
+}
+
+// Flips a detected incident to 'pending_approval' with the exact tool+args
+// NEO wants to run — used by a category with an entry in
+// lib/neoApprovalActions.ts. Distinct from recordAutoFix(): this never
+// executes anything itself, only proposes, and only for a category
+// explicitly registered as understood + safe-to-propose (same discipline
+// as the safe-action registry, just with a human click required).
+export async function proposeApprovalAction(
+  sql: any,
+  source: string,
+  category: string,
+  description: string,
+  proposal: { tool: string; args: Record<string, unknown>; label: string }
+): Promise<void> {
+  await sql`
+    UPDATE neo_incidents
+    SET status = 'pending_approval', proposed_tool = ${proposal.tool}, proposed_args_json = ${JSON.stringify(proposal.args)}, proposed_label = ${proposal.label}
+    WHERE source = ${source} AND category = ${category} AND description = ${description} AND status IN ('detected', 'needs_review')
   `
 }
 
