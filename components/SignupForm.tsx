@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { continueAfterAuth } from '@/lib/continueAfterAuth'
 import PasswordInput from '@/components/PasswordInput'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
 
 export default function SignupForm() {
   const params = useSearchParams()
@@ -55,6 +56,12 @@ export default function SignupForm() {
       >
         {loading ? 'Creating account…' : 'Sign up'}
       </button>
+      <div className="flex items-center gap-3 mt-6">
+        <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
+        <span className="text-xs text-slate-400 dark:text-zinc-500">or</span>
+        <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
+      </div>
+      <GoogleSignInButton plan={plan} promoCode={promoCode} next={next} label="Continue with Google" />
       <p className="text-xs text-slate-400 dark:text-zinc-500 mt-4 text-center">
         By signing up you agree to our{' '}
         <a href="/terms" className="underline">Terms</a> and{' '}

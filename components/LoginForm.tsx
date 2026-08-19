@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { continueAfterAuth } from '@/lib/continueAfterAuth'
 import PasswordInput from '@/components/PasswordInput'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
 
 export default function LoginForm() {
   const params = useSearchParams()
@@ -13,7 +14,7 @@ export default function LoginForm() {
   const idle = params.get('idle')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(params.get('error'))
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -60,6 +61,12 @@ export default function LoginForm() {
       >
         {loading ? 'Logging in…' : 'Log in'}
       </button>
+      <div className="flex items-center gap-3 mt-6">
+        <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
+        <span className="text-xs text-slate-400 dark:text-zinc-500">or</span>
+        <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
+      </div>
+      <GoogleSignInButton plan={plan} next={next} label="Continue with Google" />
       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Don't have an account?{' '}
         <a
