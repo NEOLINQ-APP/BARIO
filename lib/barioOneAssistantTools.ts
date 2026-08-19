@@ -4,6 +4,7 @@ import { nextBoInvoiceNumber, newPublicToken, computeTotals } from '@/lib/barioO
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
 import { createCampaign } from '@/lib/barioOneCampaigns'
+import { getOwnAiKey } from '@/lib/barioOneOwnAiKey'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 // Real monthly lead-gen quota, enforced 2026-08-19 per explicit user
@@ -296,13 +297,24 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
       if (!query) return { error: 'query is required — describe what kind of leads to find' }
       let count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
 
+      // A customer running their own key pays for their own usage, so they
+      // skip Bario's shared quota entirely — matches the user's explicit
+      // 2026-08-19 instruction. Only a *supported* provider (real,
+      // web-search-verified research — currently just Anthropic) can
+      // actually bypass; an unsupported one configured in settings still
+      // falls through to the normal quota-checked shared path rather than
+      // silently doing nothing.
+      const ownKey = getOwnAiKey(org)
+      const usingOwnKey = Boolean(ownKey?.supported)
+
       // Real usage quota, enforced 2026-08-19 — admins (the admin route, or
-      // an admin's own Miko session) are unlimited by design; everyone else
-      // is capped at DEFAULT_LEAD_GEN_MONTHLY_QUOTA leads generated this
-      // calendar month, counting only leads this org generated for itself
-      // (excludes client-backup copies landing here from another org, in
-      // case this org IS the Bario master CRM).
-      if (!isAdmin) {
+      // an admin's own Miko session) are unlimited by design; a customer
+      // using their own AI key is also unlimited (their own usage, their
+      // own cost); everyone else is capped at DEFAULT_LEAD_GEN_MONTHLY_QUOTA
+      // leads generated this calendar month, counting only leads this org
+      // generated for itself (excludes client-backup copies landing here
+      // from another org, in case this org IS the Bario master CRM).
+      if (!isAdmin && !usingOwnKey) {
         const usedRows = (await sql`
           SELECT count(*)::int AS n FROM bo_customers
           WHERE organization_id = ${org.id} AND tags_json LIKE '%"lead"%' AND tags_json NOT LIKE '%"client-backup"%'
@@ -311,12 +323,12 @@ export async function executeBarioOneAssistantTool(sql: any, org: BoOrganization
         const used = usedRows[0]?.n ?? 0
         const remaining = Math.max(DEFAULT_LEAD_GEN_MONTHLY_QUOTA - used, 0)
         if (remaining === 0) {
-          return { error: `You've used all ${DEFAULT_LEAD_GEN_MONTHLY_QUOTA} leads included in your plan this month — more become available next billing cycle.` }
+          return { error: `You've used all ${DEFAULT_LEAD_GEN_MONTHLY_QUOTA} leads included in your plan this month — more become available next billing cycle, or add your own AI API key in Company Settings to generate without a limit.` }
         }
         count = Math.min(count, remaining)
       }
 
-      const leads = await researchLeads(query, count)
+      const leads = await researchLeads(query, count, usingOwnKey ? ownKey!.apiKey : undefined)
       if (leads.length === 0) return { error: 'Could not find any real leads matching that — try a broader or more specific search.' }
 
       const added = await addLeadsToOrg(sql, org.id, leads, org.name)
@@ -436,8 +448,8 @@ export async function addLeadsToOrg(sql: any, orgId: string, leads: ResearchedLe
 // nor this codebase has a working web-search path on that provider yet.
 // Returns [] on any failure — a research miss should surface as "found
 // nothing," never a thrown error the chat loop has to handle specially.
-export async function researchLeads(query: string, count: number): Promise<ResearchedLead[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+export async function researchLeads(query: string, count: number, apiKeyOverride?: string): Promise<ResearchedLead[]> {
+  const apiKey = apiKeyOverride || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return []
   const anthropic = new Anthropic({ apiKey })
 

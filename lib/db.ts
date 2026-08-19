@@ -1715,6 +1715,20 @@ async function ensureSchema() {
   // Real per-send cost tradeoff, so it's opt-in per campaign, not default.
   await sql`ALTER TABLE bo_email_campaigns ADD COLUMN IF NOT EXISTS personalize BOOLEAN NOT NULL DEFAULT false`
 
+  // Bring-your-own AI key for lead research (2026-08-19) — a customer can
+  // plug in their own provider API key instead of using Bario's shared one
+  // and shared monthly quota. Encrypted at rest via the same AES-256-GCM
+  // helper (lib/vpsPassword.ts) already used for CRM mailbox passwords.
+  // Only 'anthropic' is actually wired to real, web-search-verified
+  // research today (see researchLeads() in lib/barioOneAssistantTools.ts) —
+  // other providers can be stored but aren't executed against yet, since a
+  // provider without a real web-search tool would risk inventing
+  // businesses that don't exist, which this feature explicitly promises
+  // never to do.
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS own_ai_provider TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS own_ai_api_key_ciphertext TEXT`
+  await sql`ALTER TABLE bo_organizations ADD COLUMN IF NOT EXISTS own_ai_api_key_iv TEXT`
+
   // Bario One — CRM custom fields (per-org field definitions, attachable to
   // customers and/or deals). Values live as a JSON map on the entity row
   // itself (custom_fields_json, keyed by field id) rather than a separate
@@ -2965,6 +2979,9 @@ export type BoOrganization = {
   crm_mailbox_smtp_port: number | null
   crm_mailbox_password_ciphertext: string | null
   crm_mailbox_password_iv: string | null
+  own_ai_provider: string | null
+  own_ai_api_key_ciphertext: string | null
+  own_ai_api_key_iv: string | null
   created_at: string
   updated_at: string
 }

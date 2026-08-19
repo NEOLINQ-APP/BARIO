@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import BarioOneCompanySettings from '@/components/BarioOneCompanySettings'
+import BarioOneAiKeySettings from '@/components/BarioOneAiKeySettings'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,9 @@ export default async function BarioOneCompanyPage() {
         </a>
         <h1 className="text-2xl font-bold mt-3 mb-6">Company settings</h1>
         <BarioOneCompanySettings />
+        <div className="mt-8 pt-8 border-t border-slate-200 dark:border-zinc-800">
+          <BarioOneAiKeySettings />
+        </div>
       </div>
     </main>
   )
