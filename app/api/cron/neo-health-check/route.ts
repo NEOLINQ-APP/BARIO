@@ -116,6 +116,113 @@ async function checkStripe(sql: any) {
   }
 }
 
+// Catches exactly the class of bug found 2026-08-20: a DNS record silently
+// colliding with (or simply missing) what an external mail relay requires,
+// breaking outbound email from a real mailbox with no application-level
+// error anywhere -- the first sign was a bounce landing in someone's inbox,
+// which NEO had no way to see. Detect-only: there is no safe auto-fix here
+// (writing the wrong TXT value would be worse than leaving it alone), but
+// at minimum this makes the problem visible on the next check instead of
+// waiting for a human to notice a bounce.
+async function checkDnsEmailDeliverability(sql: any) {
+  const category = 'dns_email_deliverability'
+  const stillOpen: string[] = []
+
+  try {
+    const spf = await withTimeout(
+      fetch('https://dns.google/resolve?name=bario.ca&type=TXT').then((r) => r.json()),
+      8000,
+      'SPF DNS lookup'
+    )
+    const hasSpf = (spf.Answer ?? []).some((r: any) => typeof r.data === 'string' && r.data.includes('v=spf1'))
+    if (!hasSpf) {
+      const description = 'bario.ca has no SPF TXT record — outbound mail from @bario.ca addresses is likely to be rejected or bounced'
+      stillOpen.push(description)
+      await recordIncident(sql, { source: SOURCE, category, severity: 'warning', description })
+    }
+
+    const mc = await withTimeout(
+      fetch('https://dns.google/resolve?name=_mailchannels.bario.ca&type=TXT').then((r) => r.json()),
+      8000,
+      'MailChannels DNS lookup'
+    )
+    const mcAnswer = (mc.Answer ?? [])[0]
+    const mcIsTxt = mcAnswer?.type === 16
+    if (!mcIsTxt) {
+      const description = `_mailchannels.bario.ca is ${mcAnswer ? `a ${mcAnswer.type === 5 ? 'CNAME' : 'record type ' + mcAnswer.type} (${mcAnswer.data})` : 'missing'} instead of the TXT record MailChannels requires — outbound mail through Hostinger's relay will be rejected as unauthorized`
+      stillOpen.push(description)
+      await recordIncident(sql, { source: SOURCE, category, severity: 'critical', description, details: { found: mcAnswer } })
+    }
+  } catch (err: any) {
+    console.error('NEO: DNS email deliverability check failed', err)
+    return
+  }
+
+  await autoResolveIfMissing(sql, SOURCE, category, stillOpen)
+}
+
+// Measures how long the DB connection itself takes to establish (not just
+// whether a query succeeds) -- catches the 2026-08-19/20 Supabase egress-cap
+// incident's real signature: the pool going slow/flaky under load well
+// before it fails outright. Note the inherent limit here: if the DB is
+// fully unreachable, this cron can't run at all (recording an incident
+// itself needs a DB write), so this only catches "degraded," never "fully
+// down" -- a full outage shows up as the cron simply not completing, which
+// is its own kind of signal (no incidents get auto-resolved, everything
+// stays stuck open).
+async function checkDatabaseLatency(sql: any, connectMs: number) {
+  const category = 'database_slow'
+  const THRESHOLD_MS = 3000
+  if (connectMs > THRESHOLD_MS) {
+    const description = `Database connection took ${connectMs}ms to establish (threshold ${THRESHOLD_MS}ms) — the connection pool may be under pressure`
+    await recordIncident(sql, { source: SOURCE, category, severity: 'warning', description, details: { connectMs } })
+    await autoResolveIfMissing(sql, SOURCE, category, [description])
+  } else {
+    await autoResolveIfMissing(sql, SOURCE, category, [])
+  }
+}
+
+// A VPS order that never actually finished provisioning -- the customer
+// paid for a server that doesn't exist yet. Has a real, safe, idempotent
+// fix (vps_retry_provision, already used manually via the admin assistant)
+// so this proposes rather than just alerting -- see
+// lib/neoApprovalActions.ts.
+async function checkVpsProvisioning(sql: any) {
+  const category = 'vps_stuck_provisioning'
+  const stuck = (await withTimeout(
+    sql`SELECT id, hostname FROM vps_instances WHERE status = 'provision_failed'`,
+    10000,
+    'vps_instances query'
+  )) as unknown as { id: string; hostname: string | null }[]
+
+  const stillOpen: string[] = []
+  for (const vps of stuck) {
+    const description = `VPS ${vps.hostname ?? vps.id} is stuck in provision_failed`
+    stillOpen.push(description)
+    await recordIncident(sql, { source: SOURCE, category, severity: 'critical', description, details: { instanceId: vps.id } })
+  }
+  await autoResolveIfMissing(sql, SOURCE, category, stillOpen)
+}
+
+// Same shape as checkVpsProvisioning, for WordPress shared-hosting sites --
+// wp_retry_provision is the existing, already-used-manually fix.
+async function checkWpProvisioning(sql: any) {
+  const category = 'wp_site_stuck_provisioning'
+  const stuck = (await withTimeout(
+    sql`SELECT id, custom_domain, subdomain FROM wp_sites WHERE status IN ('provision_failed', 'awaiting_capacity')`,
+    10000,
+    'wp_sites query'
+  )) as unknown as { id: string; custom_domain: string | null; subdomain: string | null }[]
+
+  const stillOpen: string[] = []
+  for (const site of stuck) {
+    const description = `WP site ${site.custom_domain ?? site.subdomain ?? site.id} is stuck provisioning`
+    stillOpen.push(description)
+    await recordIncident(sql, { source: SOURCE, category, severity: 'critical', description, details: { siteId: site.id } })
+  }
+  await autoResolveIfMissing(sql, SOURCE, category, stillOpen)
+}
+
 async function checkSentryConfigured(sql: any) {
   const category = 'sentry_not_configured'
   if (process.env.SENTRY_API_TOKEN) {
@@ -170,9 +277,28 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
+  const dbStart = Date.now()
   const sql = await db()
+  const connectMs = Date.now() - dbStart
 
-  await Promise.all([checkKeyEndpoints(sql), checkWpHostingNodes(sql), checkStripe(sql), checkSentryConfigured(sql), checkVercelDeploys(sql)])
+  // Sequential, not Promise.all -- db()'s client is opened with max: 1 (one
+  // real Postgres connection per invocation, see lib/db.ts), so "running
+  // concurrently" never actually parallelized these queries anyway, it just
+  // queued them on the same connection. With 9 checks now (was 5), that
+  // queuing produced real contention: vps_instances's query alone timed out
+  // at 10s waiting behind the others. Running them one at a time removes
+  // the contention entirely and costs nothing -- they were never truly
+  // concurrent to begin with, and the route's 60s budget comfortably fits
+  // 9 sequential checks that each individually finish in a second or two.
+  await checkKeyEndpoints(sql)
+  await checkWpHostingNodes(sql)
+  await checkStripe(sql)
+  await checkSentryConfigured(sql)
+  await checkVercelDeploys(sql)
+  await checkDnsEmailDeliverability(sql)
+  await checkDatabaseLatency(sql, connectMs)
+  await checkVpsProvisioning(sql)
+  await checkWpProvisioning(sql)
 
   // Any freshly-'detected' incident whose category has a registered safe
   // action gets fixed immediately; everything else waits at 'needs_review'

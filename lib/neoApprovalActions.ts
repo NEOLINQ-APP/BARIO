@@ -11,15 +11,16 @@
 // names/args shape (see executeAdminAssistantTool) — no separate remediation
 // logic invented just for NEO.
 //
-// Empty on purpose as of 2026-08-19: none of NEO's current health checks
-// (endpoint_down, wp_hosting_node_unhealthy, stripe_unreachable,
-// sentry_not_configured) map cleanly to one of the admin assistant's
-// account-management tools — they're infra-level signals, not "this one
-// customer's record got stuck" issues. Add an entry only once a real
-// incident has occurred, the right fix is understood, and it's been
-// explicitly reviewed as reasonable to *propose* (never skip straight to
-// the safe-action registry just because it has an entry here — proposing
-// and auto-running are different trust levels on purpose).
+// First two entries added 2026-08-20 -- checkVpsProvisioning and
+// checkWpProvisioning (app/api/cron/neo-health-check/route.ts) detect a
+// stuck order/site and record instanceId/siteId in details_json; these map
+// that straight onto the existing, already-manually-used admin assistant
+// tools. Both are idempotent (retrying an already-succeeded provision is a
+// safe no-op on the underlying routes) and narrow (touch exactly the one
+// stuck record), but still propose-and-approve rather than auto-run: a
+// provision retry can cost real infra money (a second Hetzner server, a WP
+// container) if it somehow ran twice on a false positive, so a human still
+// clicks it.
 export type NeoApprovalProposal = {
   tool: string // must be a real ADMIN_ASSISTANT_TOOLS function name
   buildArgs: (details: Record<string, unknown>) => Record<string, unknown>
@@ -27,11 +28,16 @@ export type NeoApprovalProposal = {
 }
 
 export const NEO_APPROVAL_ACTIONS: Record<string, NeoApprovalProposal> = {
-  // 'vps_stuck_provisioning': {
-  //   tool: 'vps_retry_provision',
-  //   buildArgs: (details) => ({ vpsId: details.vpsId }),
-  //   label: 'Retry stuck VPS provision',
-  // },
+  vps_stuck_provisioning: {
+    tool: 'vps_retry_provision',
+    buildArgs: (details) => ({ instanceId: details.instanceId }),
+    label: 'Retry stuck VPS provision',
+  },
+  wp_site_stuck_provisioning: {
+    tool: 'wp_retry_provision',
+    buildArgs: (details) => ({ siteId: details.siteId }),
+    label: 'Retry stuck WP site provision',
+  },
 }
 
 export function hasApprovalAction(category: string): boolean {
