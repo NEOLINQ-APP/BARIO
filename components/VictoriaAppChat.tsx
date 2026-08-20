@@ -55,6 +55,14 @@ export default function VictoriaAppChat() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
+  // Tracks whether the mic was turned off by the user (the button) vs. the
+  // browser's own recognition session ending on its own — Chrome in
+  // particular ends a SpeechRecognition session after each finalized phrase
+  // (or after a silence gap) even with continuous=true, which without this
+  // flag reads as "conversation keeps getting cut off." onend below
+  // auto-restarts unless this is true, so the mic behaves like a real
+  // toggle: stays listening across pauses until you actually click it off.
+  const micManuallyStoppedRef = useRef(true)
 
   const [personaKey, setPersonaKey] = useState('victoria')
   const currentPersona = PERSONAS.find((p) => p.key === personaKey) ?? PERSONAS[0]
@@ -272,31 +280,73 @@ export default function VictoriaAppChat() {
     setUploading(false)
   }
 
-  function toggleListening() {
+  // Guards against the new auto-restart-on-end behavior leaving a
+  // recognition session (and its restart loop) running after the page
+  // itself goes away.
+  useEffect(() => {
+    return () => {
+      micManuallyStoppedRef.current = true
+      recognitionRef.current?.stop()
+    }
+  }, [])
+
+  function startRecognitionSession() {
     const SpeechRecognition = getSpeechRecognition()
     if (!SpeechRecognition) return
 
-    if (listening) {
-      recognitionRef.current?.stop()
-      return
-    }
-
     const recognition = new SpeechRecognition()
-    recognition.continuous = false
+    // continuous=true keeps the mic open across multiple phrases instead of
+    // stopping after the first one — combined with the auto-restart in
+    // onend below, this is what makes the mic stay on until the user
+    // actually clicks it off, rather than needing to be re-clicked after
+    // every single thing said.
+    recognition.continuous = true
     recognition.interimResults = false
     recognition.lang = 'en-US'
     recognition.onresult = (event: any) => {
-      const transcript = event.results?.[0]?.[0]?.transcript
-      // Auto-send straight from voice — pass the transcript directly
-      // rather than routing through the `input` state, since setState is
-      // async and send() would otherwise fire before `input` catches up.
-      if (transcript) sendVoiceTranscript(transcript)
+      // continuous mode can report more than one finalized result per
+      // session (e.g. after a longer pause) — send each new one, not just
+      // the first, so nothing said gets silently dropped.
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          const transcript = result[0]?.transcript
+          if (transcript) sendVoiceTranscript(transcript)
+        }
+      }
     }
-    recognition.onend = () => setListening(false)
-    recognition.onerror = () => setListening(false)
+    recognition.onend = () => {
+      if (micManuallyStoppedRef.current) {
+        setListening(false)
+        return
+      }
+      // The browser ended the session on its own (silence gap, internal
+      // timeout) but the user never clicked to stop — transparently start
+      // a fresh session so listening continues without their input.
+      startRecognitionSession()
+    }
+    recognition.onerror = (event: any) => {
+      // 'no-speech'/'aborted' are routine (a pause, or this same
+      // restart-on-end path) and shouldn't end listening — only a real
+      // failure (e.g. permission revoked) should.
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        micManuallyStoppedRef.current = true
+        setListening(false)
+      }
+    }
     recognitionRef.current = recognition
     recognition.start()
     setListening(true)
+  }
+
+  function toggleListening() {
+    if (listening) {
+      micManuallyStoppedRef.current = true
+      recognitionRef.current?.stop()
+      return
+    }
+    micManuallyStoppedRef.current = false
+    startRecognitionSession()
   }
 
   return (
@@ -452,7 +502,7 @@ export default function VictoriaAppChat() {
                 type="button"
                 onClick={toggleListening}
                 disabled={busy}
-                title={listening ? 'Stop listening' : 'Speak instead of typing — sends automatically'}
+                title={listening ? 'Stop listening (mic stays on until you click this)' : 'Speak instead of typing — stays on and sends each thing you say automatically'}
                 className={`shrink-0 h-9 w-9 flex items-center justify-center rounded-xl border text-sm disabled:opacity-50 ${
                   listening ? 'border-red-400 bg-red-500/10 text-red-500' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
                 }`}
