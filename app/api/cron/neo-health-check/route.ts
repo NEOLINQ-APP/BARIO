@@ -21,6 +21,23 @@ export const maxDuration = 60
 
 const SOURCE = 'health_check'
 
+// Guards any check's external call against this route's own 60s
+// maxDuration — added 2026-08-20 after checkStripe (below) silently ran
+// this route past its ceiling. getStripe() has no explicit `timeout` set,
+// so the Stripe SDK's own default (80s) applied, longer than this route's
+// maxDuration; when Stripe was ever slow, the whole cron (including every
+// OTHER check bundled in the same Promise.all) got killed by Vercel's
+// runtime with no incident ever recorded, and no error to tell a human
+// why. A bounded race here means one slow dependency degrades to "that one
+// check didn't finish this run" instead of taking the whole health check
+// down with it.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ])
+}
+
 async function checkKeyEndpoints(sql: any) {
   const targets = [
     { name: 'homepage', url: 'https://www.bario.ca/' },
@@ -58,9 +75,11 @@ async function checkKeyEndpoints(sql: any) {
 }
 
 async function checkWpHostingNodes(sql: any) {
-  const nodes = (await sql`
-    SELECT id, ipv4, status FROM wp_hosting_nodes WHERE status != 'draining'
-  `) as unknown as { id: string; ipv4: string; status: string }[]
+  const nodes = (await withTimeout(
+    sql`SELECT id, ipv4, status FROM wp_hosting_nodes WHERE status != 'draining'`,
+    10000,
+    'wp_hosting_nodes query'
+  )) as unknown as { id: string; ipv4: string; status: string }[]
 
   const stillOpen: string[] = []
   for (const node of nodes) {
@@ -82,7 +101,7 @@ async function checkWpHostingNodes(sql: any) {
 async function checkStripe(sql: any) {
   const category = 'stripe_unreachable'
   try {
-    await getStripe().balance.retrieve()
+    await withTimeout(getStripe().balance.retrieve(), 10000, 'Stripe balance.retrieve()')
     await autoResolveIfMissing(sql, SOURCE, category, [])
   } catch (err: any) {
     const description = `Stripe API call failed: ${err?.message ?? 'unknown error'}`
@@ -120,7 +139,7 @@ async function checkSentryConfigured(sql: any) {
 async function checkVercelDeploys(sql: any) {
   const category = 'vercel_deploy_failed'
   try {
-    const deployments = await getLatestProductionDeployments(5)
+    const deployments = await withTimeout(getLatestProductionDeployments(5), 10000, 'Vercel deployments API')
     const latest = deployments[0]
     if (latest && (latest.state === 'ERROR' || latest.state === 'CANCELED')) {
       const description = `Latest production deploy failed (state: ${latest.state}) — ${latest.url}`
