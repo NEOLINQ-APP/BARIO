@@ -1,17 +1,23 @@
 import { randomUUID } from 'node:crypto'
 
 // Repoints Victoria's call-logging + caller-context (previously written
-// against AFC's and Sunbuilt's standalone Twenty CRM instances, see
+// against each business's own standalone Twenty CRM instance, see
 // lib/crmOutreach.ts) onto their real Bario One CRM instead, ahead of
-// deleting those two Twenty stacks entirely (2026-08-18) -- same job,
-// same shape the caller-context route already expects
-// ({ personId/customerId, firstName, notesSummary }), just against
-// bo_customers/bo_notes. Unique Group's and Bario.ca's own Twenty stacks
-// are untouched and keep using lib/crmOutreach.ts as before -- this file
-// only covers the two orgs whose Twenty backend is going away.
+// deleting the underlying Twenty stack entirely -- same job, same shape
+// the caller-context route already expects ({ personId/customerId,
+// firstName, notesSummary }), just against bo_customers/bo_notes.
+// AFC/Sunbuilt repointed 2026-08-18. unique/bario repointed 2026-08-20 --
+// their Twenty stacks (unique-crm-stack/bario-crm-stack, Hetzner box) had
+// already been stopped by the time this was noticed (found ~25h into an
+// unplanned outage during an unrelated backup audit); unique's 3 real
+// contacts + 6 notes (Victoria's own family-call log — Twenty's 5 default
+// demo-seed people were left behind on purpose) were migrated in first
+// via a one-off admin route, bario's Twenty had zero real data to lose.
 export const BARIO_ONE_CALL_LOG_ORG_IDS: Record<string, string> = {
   afc: 'db97fd81-faee-4489-af7e-3bb813886c53',
   sunbuilt: '2bef423d-737a-4d79-b30c-5ced1fe9ffcb',
+  unique: 'f7e3dc4b-fb3c-41eb-a24d-6339491c927c',
+  bario: '184e65d3-faf9-4a21-8454-958f106fea06',
 }
 
 function last10Digits(raw: string): string {

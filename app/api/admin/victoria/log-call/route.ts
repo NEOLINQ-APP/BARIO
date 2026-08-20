@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
 import { computeClaudeCostCents, computeTwilioCostCents } from '@/lib/victoriaCallCost'
 import { errorResponse } from '@/lib/errors'
-import { findCrm, findOrCreatePersonByPhone, logCallNote, setPersonEmailIfMissing } from '@/lib/crmOutreach'
 import { BARIO_ONE_CALL_LOG_ORG_IDS, findOrCreateBoCustomerByPhone, logBoCallNote, setBoCustomerEmailIfMissing } from '@/lib/barioOneCrmCallLog'
 
 // Called by the VPS-side miko-voice server.js at the end of every call
@@ -54,12 +53,14 @@ export async function POST(req: Request) {
     `
 
     // Best-effort: sync the call into the business's CRM as a contact +
-    // note. AFC and Sunbuilt repointed to their real Bario One CRM
-    // 2026-08-18 (their standalone Twenty stacks are being decommissioned);
-    // Unique Group and Bario.ca still use their own separate Twenty CRM
-    // stacks, unchanged. Never let a CRM hiccup fail the call-log write
-    // above — that's the authoritative record.
-    if (businessKey === 'afc' || businessKey === 'sunbuilt') {
+    // note. All 4 lines now repointed to their real Bario One CRM (AFC/
+    // Sunbuilt 2026-08-18, unique/bario 2026-08-20 once their Twenty
+    // stacks were confirmed migrated/empty — see
+    // lib/barioOneCrmCallLog.ts) — nothing left routing through the old
+    // per-business Twenty stacks in lib/crmOutreach.ts for this path.
+    // Never let a CRM hiccup fail the call-log write above — that's the
+    // authoritative record.
+    if (businessKey in BARIO_ONE_CALL_LOG_ORG_IDS) {
       const otherPartyNumber = direction === 'inbound' ? fromNumber : toNumber
       if (otherPartyNumber) {
         try {
@@ -71,22 +72,6 @@ export async function POST(req: Request) {
           }
         } catch (err) {
           console.error(`Bario One CRM call sync failed for ${businessKey}/${callSid}:`, err)
-        }
-      }
-    } else if (businessKey === 'unique' || businessKey === 'bario') {
-      const otherPartyNumber = direction === 'inbound' ? fromNumber : toNumber
-      if (otherPartyNumber) {
-        try {
-          const crm = findCrm(businessKey)
-          if (crm) {
-            const personId = await findOrCreatePersonByPhone(crm, otherPartyNumber, callerName)
-            if (personId) {
-              await logCallNote(crm, personId, direction, summary, durationSeconds, personalNotes)
-              if (callerEmail) await setPersonEmailIfMissing(crm, personId, callerEmail)
-            }
-          }
-        } catch (err) {
-          console.error(`CRM call sync failed for ${businessKey}/${callSid}:`, err)
         }
       }
     }

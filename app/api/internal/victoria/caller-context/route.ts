@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { findCrm, fetchPriorCallContext } from '@/lib/crmOutreach'
 import { db } from '@/lib/db'
 import { BARIO_ONE_CALL_LOG_ORG_IDS, fetchPriorBoCallContext } from '@/lib/barioOneCrmCallLog'
 
@@ -23,16 +22,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ context: null })
   }
 
-  if (businessKey === 'afc' || businessKey === 'sunbuilt') {
-    const sql = await db()
-    const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
-    const context = await fetchPriorBoCallContext(sql, orgId, phone)
-    return NextResponse.json({ context })
-  }
+  const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
+  if (!orgId) return NextResponse.json({ context: null })
 
-  const crm = findCrm(businessKey)
-  if (!crm) return NextResponse.json({ context: null })
-
-  const context = await fetchPriorCallContext(crm, phone)
+  const sql = await db()
+  const context = await fetchPriorBoCallContext(sql, orgId, phone)
   return NextResponse.json({ context })
 }
