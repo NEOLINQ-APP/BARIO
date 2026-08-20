@@ -5,12 +5,22 @@ import BarioOneCustomFieldInputs from './BarioOneCustomFieldInputs'
 
 type FieldDef = { id: string; name: string; field_type: 'text' | 'number' | 'date' | 'select' | 'checkbox'; options: string[] }
 
+type Priority = 'red' | 'yellow' | 'green' | 'grey'
+
+const PRIORITY_BADGE: Record<Priority, { emoji: string; label: string; classes: string }> = {
+  red: { emoji: '🔴', label: 'Hot', classes: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-400/40' },
+  yellow: { emoji: '🟡', label: 'Warm', classes: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-400/40' },
+  green: { emoji: '🟢', label: 'Nurture', classes: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-400/40' },
+  grey: { emoji: '⚫', label: 'Inactive', classes: 'bg-slate-500/10 text-slate-500 dark:text-zinc-500 border-slate-400/30' },
+}
+
 type Data = {
-  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[]; customFields: Record<string, unknown>; assigned_to_user_id: string | null }
+  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[]; customFields: Record<string, unknown>; assigned_to_user_id: string | null; current_score: number | null; current_priority: Priority | null }
   deals: { id: string; title: string; stage: string; value_cents: number }[]
   tasks: { id: string; title: string; status: string; due_at: string | null }[]
   notes: { id: string; kind: 'note' | 'email' | 'sms' | 'comment'; body: string; created_at: string; author_email: string | null; direction: 'outbound' | 'inbound' | null; from_email: string | null }[]
   customFieldDefs: FieldDef[]
+  priorityReason: string | null
 } | null
 
 type OrgMember = { userId: string | null; email: string | null; role: string; status: string }
@@ -218,7 +228,7 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
   if (data === undefined) return <p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>
   if (!data) return <p className="text-sm text-red-500 dark:text-red-400">Customer not found.</p>
 
-  const { customer, deals, tasks, notes, customFieldDefs } = data
+  const { customer, deals, tasks, notes, customFieldDefs, priorityReason } = data
 
   async function saveCustomField(fieldId: string, value: unknown) {
     setData((prev) => (prev ? { ...prev, customer: { ...prev.customer, customFields: { ...prev.customer.customFields, [fieldId]: value } } } : prev))
@@ -265,6 +275,14 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
         <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
           <h2 className="font-bold text-lg">{customer.contact_name}</h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400">{customer.company_name}</p>
+          {customer.current_priority && customer.current_score !== null && (
+            <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${PRIORITY_BADGE[customer.current_priority].classes}`}>
+              <p className="font-semibold">
+                {PRIORITY_BADGE[customer.current_priority].emoji} {PRIORITY_BADGE[customer.current_priority].label} — {customer.current_score}/100
+              </p>
+              {priorityReason && <p className="mt-0.5 opacity-90">{priorityReason}</p>}
+            </div>
+          )}
           <div className="mt-3 space-y-1 text-sm">
             <p>📧 {customer.email || '—'}</p>
             <p>📞 {customer.phone || '—'}</p>

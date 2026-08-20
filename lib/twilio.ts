@@ -58,8 +58,19 @@ export async function sendVictoriaSms(toNumber: string, body: string): Promise<{
 // Generic SMS sender for features that don't have their own dedicated
 // Twilio number (e.g. the Social Dispatcher's Lead Ads notifications —
 // regular Bario customers don't get a business Twilio number the way
-// AFC/Sunbuilt/Unique do). Defaults From to Victoria's number since it's
+// AFC/Sunbuilt/Unique do). Defaults To to Victoria's number since it's
 // already the general "Bario notifies you" line.
+//
+// No crm_do_not_contact suppression check here on purpose — this function
+// is used for OTPs, alerts, appointment/demo-request notifications, and
+// Victoria's own personal messages, none of which should ever be gated by
+// a CRM opt-out list, and it doesn't take a person_id to check against
+// anyway. There is no SMS-based CRM outreach send path in this codebase
+// today (crm-leadgen outreach is email-only, via lib/crmOutreach.ts's
+// deliverOutreach/deliverReplyResponse, which DO check crm_do_not_contact).
+// If SMS-based outreach is ever built, that new call site must check
+// suppression itself before calling sendSms — same pattern as the two
+// email functions above, not inside this generic helper.
 export async function sendSms(toNumber: string, body: string, fromNumber = '+18254650880'): Promise<{ sid: string }> {
   const data = await twilioFetch('/Messages.json', { To: toNumber, From: fromNumber, Body: body })
   return { sid: data.sid }

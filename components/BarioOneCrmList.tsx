@@ -9,6 +9,33 @@ type Customer = {
   phone: string | null
   email: string | null
   tags: string[]
+  current_score: number | null
+  current_priority: 'red' | 'yellow' | 'green' | 'grey' | null
+}
+
+const PRIORITY_BADGE: Record<'red' | 'yellow' | 'green' | 'grey', { emoji: string; label: string; classes: string }> = {
+  red: { emoji: '🔴', label: 'Hot', classes: 'bg-red-500/10 text-red-600 dark:text-red-400' },
+  yellow: { emoji: '🟡', label: 'Warm', classes: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  green: { emoji: '🟢', label: 'Nurture', classes: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  grey: { emoji: '⚫', label: 'Inactive', classes: 'bg-slate-500/10 text-slate-500 dark:text-zinc-500' },
+}
+
+function PriorityBadge({ score, priority }: { score: number | null; priority: Customer['current_priority'] }) {
+  if (!priority || score === null) return null
+  const badge = PRIORITY_BADGE[priority]
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${badge.classes}`}>
+      {badge.emoji} {badge.label} {score}/100
+    </span>
+  )
+}
+
+type DuplicateMatch = { id: string; contactName: string; companyName: string | null; matchedOn: 'email' | 'phone' | 'company_and_address' }
+
+const MATCH_LABEL: Record<DuplicateMatch['matchedOn'], string> = {
+  email: 'email address',
+  phone: 'phone number',
+  company_and_address: 'company name and address',
 }
 
 function AddCustomerForm({ onAdded }: { onAdded: () => void }) {
@@ -19,23 +46,28 @@ function AddCustomerForm({ onAdded }: { onAdded: () => void }) {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function submit(confirmDuplicate: boolean) {
     setError(null)
     setBusy(true)
     try {
       const res = await fetch('/api/bario-one/crm/customers', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ companyName, contactName, phone, email }),
+        body: JSON.stringify({ companyName, contactName, phone, email, confirmDuplicate }),
       })
       const data = await res.json()
+      if (res.status === 409 && data.duplicate) {
+        setDuplicate(data.duplicate)
+        return
+      }
       if (!res.ok) throw new Error(data.error ?? 'Something went wrong')
       setCompanyName('')
       setContactName('')
       setPhone('')
       setEmail('')
+      setDuplicate(null)
       setOpen(false)
       onAdded()
     } catch (err: any) {
@@ -43,6 +75,11 @@ function AddCustomerForm({ onAdded }: { onAdded: () => void }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    submit(false)
   }
 
   if (!open) {
@@ -65,6 +102,22 @@ function AddCustomerForm({ onAdded }: { onAdded: () => void }) {
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" className="rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] px-3 py-2 text-sm" />
       </div>
       {error && <p className="text-xs text-red-500 dark:text-red-400">{error}</p>}
+      {duplicate && (
+        <div className="rounded-lg border border-amber-400/50 bg-amber-500/10 p-3 text-sm space-y-2">
+          <p>
+            <strong>Possible duplicate</strong> — a customer named <strong>{duplicate.contactName}</strong>
+            {duplicate.companyName ? ` (${duplicate.companyName})` : ''} already exists, matched by {MATCH_LABEL[duplicate.matchedOn]}.
+          </p>
+          <div className="flex gap-2">
+            <a href={`/dashboard/bario-one/crm/${duplicate.id}`} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800">
+              Open existing
+            </a>
+            <button type="button" disabled={busy} onClick={() => submit(true)} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white">
+              Create anyway
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className="rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2">
           {busy ? 'Saving…' : 'Save customer'}
@@ -207,7 +260,10 @@ export default function BarioOneCrmList() {
           {customers.map((c) => (
             <a key={c.id} href={`/dashboard/bario-one/crm/${c.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-zinc-900">
               <div>
-                <p className="font-semibold text-sm">{c.contact_name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-sm">{c.contact_name}</p>
+                  <PriorityBadge score={c.current_score} priority={c.current_priority} />
+                </div>
                 <p className="text-xs text-slate-500 dark:text-zinc-400">{c.company_name || '—'}</p>
               </div>
               <div className="text-right text-xs text-slate-500 dark:text-zinc-400">

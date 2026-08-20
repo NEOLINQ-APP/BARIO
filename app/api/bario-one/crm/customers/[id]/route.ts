@@ -38,12 +38,21 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       SELECT * FROM bo_custom_fields WHERE organization_id = ${org.id} AND entity_type = 'customer' ORDER BY position ASC, created_at ASC
     `) as unknown as BoCustomField[]
 
+    // Spec: never show a priority color without its reason text — the most
+    // recent priority_history row IS that reason (recordPriorityChange in
+    // lib/leadPipeline.ts always writes one alongside updating
+    // bo_customers.current_score/current_priority).
+    const latestPriorityRows = (await sql`
+      SELECT reason FROM priority_history WHERE customer_id = ${customer.id} ORDER BY changed_at DESC LIMIT 1
+    `) as unknown as { reason: string }[]
+
     return NextResponse.json({
       customer: { ...customer, tags: JSON.parse(customer.tags_json), customFields: JSON.parse(customer.custom_fields_json) },
       deals,
       tasks,
       notes,
       customFieldDefs: customFieldDefs.map((f) => ({ ...f, options: JSON.parse(f.options_json) })),
+      priorityReason: latestPriorityRows[0]?.reason ?? null,
     })
   } catch (err: any) {
     return errorResponse(err)

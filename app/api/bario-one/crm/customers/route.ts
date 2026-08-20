@@ -4,6 +4,7 @@ import { requireBoModule } from '@/lib/barioOne'
 import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
+import { findDuplicateLead } from '@/lib/leadPipeline'
 import type { BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -48,9 +49,20 @@ export async function POST(req: Request) {
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 
-    const { companyName, contactName, phone, email, address, notes, tags, customFields } = await req.json()
+    const { companyName, contactName, phone, email, address, notes, tags, customFields, confirmDuplicate } = await req.json()
     if (typeof contactName !== 'string' || !contactName.trim()) {
       return NextResponse.json({ error: 'Contact name is required' }, { status: 400 })
+    }
+
+    // Spec: "Before creating a lead... if duplicate probability is high,
+    // STOP CREATION... allow open existing / confirm new record." A caller
+    // that's already seen the warning and wants to proceed anyway sets
+    // confirmDuplicate:true to skip straight past this check.
+    if (!confirmDuplicate) {
+      const duplicate = await findDuplicateLead(sql, org.id, { email, phone, companyName, address })
+      if (duplicate) {
+        return NextResponse.json({ error: 'Possible duplicate', duplicate }, { status: 409 })
+      }
     }
 
     const id = randomUUID()

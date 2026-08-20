@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v3-2026-08-19'
+const CURRENT_SCHEMA_VERSION = 'v4-2026-08-20'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2392,6 +2392,92 @@ async function ensureSchema() {
     )
   `
 
+  // Multi-agent CRM/lead-gen Phase 1 (2026-08-20) — lead scoring, priority,
+  // and source-attribution foundation. Additive only: existing bo_customers
+  // rows with no score yet just render blank/null in the UI, nothing here
+  // changes existing read paths. See lib/leadPipeline.ts for the only
+  // sanctioned write path to these tables (agents/services should never
+  // write bo_customers.current_score directly).
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_scores (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id) ON DELETE CASCADE,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      score INTEGER NOT NULL,
+      breakdown_json TEXT NOT NULL DEFAULT '{}',
+      calculated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS lead_scores_customer_idx ON lead_scores (customer_id, calculated_at DESC)`
+
+  // History of every priority change for a lead (spec: "Priority must be
+  // dynamic... store priority changes") — append-only, never updated in
+  // place, so a lead's full RED/YELLOW/GREEN/GREY trajectory stays
+  // reconstructable for analytics later.
+  await sql`
+    CREATE TABLE IF NOT EXISTS priority_history (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id) ON DELETE CASCADE,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      priority TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS priority_history_customer_idx ON priority_history (customer_id, changed_at DESC)`
+
+  // First-touch/latest-touch source attribution, kept separate from
+  // bo_customers itself (a lead can have multiple touches over time; this
+  // table is append-only, bo_customers.source/campaign_id below are just a
+  // denormalized "latest" cache for fast list rendering).
+  await sql`
+    CREATE TABLE IF NOT EXISTS lead_sources (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id) ON DELETE CASCADE,
+      source TEXT NOT NULL,
+      source_detail TEXT,
+      campaign_id TEXT,
+      utm_source TEXT,
+      utm_medium TEXT,
+      utm_campaign TEXT,
+      utm_content TEXT,
+      utm_term TEXT,
+      first_touch_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      latest_touch_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS lead_sources_customer_idx ON lead_sources (customer_id)`
+
+  // Cached "current" values on bo_customers itself so list views don't need
+  // a join/subquery against lead_scores/priority_history just to render a
+  // badge — lead_scores/priority_history remain the source of truth/history,
+  // these two columns are a read-optimization only, always written together
+  // by lib/leadPipeline.ts's calculatePriority()/recordPriorityChange().
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS current_score INTEGER`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS current_priority TEXT`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS source TEXT`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS campaign_id TEXT`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS data_completeness_pct INTEGER`
+
+  // agent_tasks gets the structured field set the multi-agent orchestration
+  // layer needs (Phase 3+) — added now, alongside the rest of this schema,
+  // even though nothing writes them yet, so Phase 3 doesn't need its own
+  // migration pass. All nullable/additive; existing rows (3 seed agents'
+  // worth) are untouched.
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS lead_id TEXT REFERENCES bo_customers(id)`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS contact_id TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS company_id TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS objective TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS context_json TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS data_confidence TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS source_agent TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS target_agent TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS permissions_json TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS restrictions_json TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS expected_output TEXT`
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -3069,6 +3155,8 @@ export type BoMembership = {
   updated_at: string
 }
 
+export type LeadPriority = 'red' | 'yellow' | 'green' | 'grey'
+
 export type BoCustomer = {
   id: string
   organization_id: string
@@ -3082,8 +3170,47 @@ export type BoCustomer = {
   custom_fields_json: string
   assigned_to_user_id: string | null
   created_by_user_id: string | null
+  current_score: number | null
+  current_priority: LeadPriority | null
+  source: string | null
+  campaign_id: string | null
+  data_completeness_pct: number | null
   created_at: string
   updated_at: string
+}
+
+export type LeadScore = {
+  id: string
+  customer_id: string
+  organization_id: string
+  score: number
+  breakdown_json: string
+  calculated_at: string
+}
+
+export type PriorityHistoryEntry = {
+  id: string
+  customer_id: string
+  organization_id: string
+  priority: LeadPriority
+  score: number
+  reason: string
+  changed_at: string
+}
+
+export type LeadSource = {
+  id: string
+  customer_id: string
+  source: string
+  source_detail: string | null
+  campaign_id: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+  utm_term: string | null
+  first_touch_at: string
+  latest_touch_at: string
 }
 
 export type BoEmailCampaign = {

@@ -426,6 +426,14 @@ export async function deliverOutreach(
   if (!note) throw new Error('Draft note no longer exists in the CRM')
   if (!email) throw new Error('Contact no longer has an email on file')
 
+  // Suppression was previously only checked at draft time (the crm-leadgen
+  // cron skips drafting for a suppressed contact) — this was a real gap: a
+  // draft created BEFORE someone opted out could still be sent afterward,
+  // since nothing re-checked at actual send time. Real compliance risk
+  // (CASL/CAN-SPAM), fixed 2026-08-20.
+  const suppressed = (await sql`SELECT 1 FROM crm_do_not_contact WHERE crm_key = ${crm.key} AND person_id = ${personId}`) as unknown as unknown[]
+  if (suppressed.length > 0) throw new Error('Blocked: this contact has opted out of outreach (crm_do_not_contact)')
+
   const subject = subjectOverride?.trim() || (note.title as string)?.replace(/^BARIO Draft: /, '') || `A message from ${crm.businessName}`
   const body = bodyOverride?.trim() || note.bodyV2?.markdown || ''
 
@@ -457,6 +465,17 @@ export async function deliverReplyResponse(sql: any, crm: CrmConfig, replyId: st
   const smtpUser = process.env[crm.smtpUserEnvVar]
   const smtpPass = process.env[crm.smtpPassEnvVar]
   if (!smtpUser || !smtpPass) throw new Error(`${crm.smtpUserEnvVar}/${crm.smtpPassEnvVar} not configured`)
+
+  // Same send-time suppression check as deliverOutreach above — a reply
+  // thread can go quiet for a while between the inbound message and a human
+  // actually sending the response, during which the contact could have
+  // opted out via a different message in the meantime.
+  const replyRows = (await sql`SELECT person_id FROM crm_outreach_replies WHERE id = ${replyId}`) as unknown as { person_id: string | null }[]
+  const replyPersonId = replyRows[0]?.person_id
+  if (replyPersonId) {
+    const suppressed = (await sql`SELECT 1 FROM crm_do_not_contact WHERE crm_key = ${crm.key} AND person_id = ${replyPersonId}`) as unknown as unknown[]
+    if (suppressed.length > 0) throw new Error('Blocked: this contact has opted out of outreach (crm_do_not_contact)')
+  }
 
   const subject = subjectBase?.toLowerCase().startsWith('re:') ? subjectBase : `Re: ${subjectBase || 'your message'}`
 
