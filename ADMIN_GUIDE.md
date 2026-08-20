@@ -123,6 +123,19 @@ Both have a native AI chat assistant named **Miko** built in (Twenty's own Agent
 
 ---
 
+## Database backups (self-hosted Postgres) — added 2026-08-20
+
+Every self-hosted Twenty CRM stack's Postgres data now gets backed up nightly, independent of whatever backup feature (or lack of one) applies to the platform it happens to run on:
+
+- **Main VPS** (`2.25.139.207`): `/root/pg-backup.sh`, cron `0 8 * * *`. Covers `crm-stack` and `crm-reseller-stack` (both running).
+- **Hetzner box** (`46.224.28.213`): `/opt/bario-storage/pg-backup.sh`, cron `15 8 * * *`. Covers `unique-crm-stack` and `bario-crm-stack` — **both stacks were found stopped since 2026-08-19 14:23** (deliberate shutdown pattern in the docker logs, cause/intent unconfirmed as of this writing) — the script skips gracefully when a stack isn't running and will resume backing it up automatically if it's ever restarted. A one-off filesystem-level tarball of both stacks' `pgdata` was taken 2026-08-20 as a safety net regardless of what happens with the restart question.
+
+Both scripts: `docker exec` into each stack's own `db` container (matches its Postgres version exactly), `pg_dump | gzip`, upload via `mc` to the shared **private** `bario-db-backups` bucket on the self-hosted MinIO instance (same box/storage as X-Drive, separate bucket). 30-day expiration lifecycle rule set directly on the bucket; local copies pruned after 14 days. To restore: `mc cp bariolocal/bario-db-backups/<stack>/<file>.sql.gz .` (alias `bariolocal` on the Hetzner box where MinIO itself runs, `bariomain` on the main VPS), `gunzip`, `psql`/`docker exec -i <container> psql -U twenty twenty < file.sql`.
+
+**Not yet covered — needs the user's help, not just infra access**: BARIO's own main Supabase database (hosts every customer site) and spott.ca's separate Supabase project. Both are plain Postgres underneath (`DATABASE_URL_UNPOOLED` in each project), so the exact same `pg_dump`-to-MinIO approach works — but that connection string is marked Sensitive in Vercel and comes back empty from `vercel env pull`/`.env.local`, so it has to come from the user directly (Supabase dashboard → Settings → Database) rather than being retrievable by Claude on its own.
+
+---
+
 ## User-facing how-to (what your customers do)
 
 **Sign up** — `bario.ca/signup`: email + password (min 8 characters). Creates the account immediately; most features need a verified email first (see below).
