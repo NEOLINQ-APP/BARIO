@@ -15,17 +15,21 @@ import { buildRobotsTxt, buildSitemapXml, getSiteSlugs } from '@/lib/siteSitemap
 // (394% over the free-tier quota in one billing cycle, confirmed via
 // Postgres logs before this fix).
 //
-// Fix: a short 30s TTL instead of no caching. Edits still show up within
-// well under a minute (vs. previously "instantly" but at the cost of never
-// caching a single request), while repeat visitors within that window are
-// served from cache instead of hitting the database again. Error/state-
-// change responses (404, maintenance lockout) intentionally keep the old
-// no-store behavior below — those need to reflect a state flip (site just
-// published, lockout just cleared) faster than 30s, and they're much
-// cheaper to regenerate than a full page render anyway.
-export const revalidate = 30
+// 2026-08-15 fix was a 30s TTL, which helped but wasn't enough on its own —
+// egress hit the free-tier cap again by 2026-08-19 (confirmed by Supabase's
+// own dashboard: ~10MB DB, 2.69GB egress in one cycle), severely enough
+// that the connection pool itself became unusable and every DB-touching
+// route platform-wide started hanging/timing out, not just this one.
+// Pushed to 300s (5 min) here — a real site edit now takes up to 5 minutes
+// to show live instead of 30s, which is a fair trade against the platform
+// going fully unusable. Error/state-change responses (404, maintenance
+// lockout) intentionally keep the old no-store behavior below — those need
+// to reflect a state flip (site just published, lockout just cleared)
+// faster than any positive-response cache window, and they're much cheaper
+// to regenerate than a full page render anyway.
+export const revalidate = 300
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, must-revalidate' }
-const CACHED_HEADERS = { 'Cache-Control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=60' }
+const CACHED_HEADERS = { 'Cache-Control': 'public, max-age=300, s-maxage=300, stale-while-revalidate=600' }
 
 // [[...path]] is an OPTIONAL catch-all — params.path is undefined at the
 // site root (middleware forwards '' there) and a string[] for any deeper
