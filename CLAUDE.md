@@ -90,29 +90,35 @@ check both independently if unsure.
 
 ## Infrastructure this project touches
 
-- **Main VPS** (`2.25.139.207`, key `~/.ssh/bario_vps`): runs the Twenty CRM
-  reseller stack, AFC Logistics' and Sunbuilt Group's own dedicated Twenty
-  CRM stacks (`afc-crm-stack`, `sunbuilt-crm-stack`), client sites migrated
-  off it onto Bario (afclogistics.ca, sunbuiltgroup.com), n8n, `miko-voice`
-  (Victoria's voice AI backend — see below), and `code.bario.ca` (a
-  code-server instance for phone/browser-based Claude Code access, set up
-  2026-07-27 — nginx + certbot in front of it, password-protected).
-  **This box runs genuinely close to its memory limit already** (8GB RAM,
-  multiple Twenty CRM stacks + everything else) — real OOM/thrashing
-  incident 2026-08-16 from adding 2 more CRM stacks here (load average 74,
-  swap maxed, every service degraded until they were removed). **Do not add
-  another heavy service here** (another Twenty CRM stack, another
-  Docker-Compose app) without checking `free -h`/`uptime` first — put new
-  heavy services on the Hetzner replacement box instead (next bullet).
+- **Main VPS** (`2.25.139.207`, also reachable via its Hostinger-assigned
+  hostname `srv1709559.hstgr.cloud` — confirmed 2026-08-18 via DNS lookup,
+  same box, not a different server. Key `~/.ssh/bario_vps`): client sites
+  migrated off it onto Bario (afclogistics.ca, sunbuiltgroup.com), n8n,
+  `miko-voice` (Victoria's voice AI backend — see below), and
+  `code.bario.ca` (a code-server instance for phone/browser-based Claude
+  Code access, set up 2026-07-27 — nginx + certbot in front of it,
+  password-protected). **Twenty CRM is fully gone from this platform as of
+  2026-08-20** — every stack (the multi-workspace reseller platform, an old
+  unrelated `crm.neolinq.pro` instance, and both business-line stacks that
+  used to live on the Hetzner box below) was found to hold zero real
+  external customer data, backed up to MinIO, and fully removed
+  (containers, images, pgdata, and the `crm-provision-agent` PM2 service
+  that stood up new ones) — see the Victoria section below for what
+  replaced it. **This box still runs genuinely close to its memory limit**
+  (8GB RAM) — real OOM/thrashing incident 2026-08-16 from adding 2 CRM
+  stacks here (load average 74, swap maxed, every service degraded until
+  they were removed) is the reason that ceiling gets taken seriously. **Do
+  not add another heavy service here** (a Docker-Compose app, another
+  always-on Node service) without checking `free -h`/`uptime` first — put
+  new heavy services on the Hetzner replacement box instead (next bullet).
 - **Hetzner replacement VPS** (`46.224.28.213`, key `~/.ssh/bario_vps2`,
   8vCPU/16GB, plenty of headroom): the intended eventual replacement for the
   main VPS above (see `TODO.md`/memory for the full Hostinger→Hetzner
-  migration plan — most services haven't moved yet). Already running for
-  real as of 2026-08-16: Unique Group Inc.'s and Bario.ca's own dedicated
-  Twenty CRM stacks (`unique-crm-stack`, `bario-crm-stack` — same
-  docker-compose/nginx/certbot pattern as `afc-crm-stack` on the main VPS,
-  bind-mounted `./pgdata` so `docker compose down -v` does **not** wipe the
-  DB, only `rm -rf pgdata` after `down` actually does).
+  migration plan — most services haven't moved yet). Runs the self-hosted
+  MinIO instance (`storage.bario.ca` — X-Drive and all internal backups).
+  Unique Group Inc.'s and Bario.ca's dedicated Twenty CRM stacks used to run
+  here too; both fully decommissioned 2026-08-20 alongside the rest of
+  Twenty CRM (see above).
 - **Mail reseller VPS** (`148.230.94.192`, key `~/.ssh/bario_mail_vps`,
   hostname `reseller.bario.ca`): cPanel/WHM installed 2026-07-27. Still needs
   license application, first-time WHM setup wizard, and white-labeling before
@@ -151,13 +157,16 @@ and Julianna's (`bario.ca/victoria-family/[member]`).
   only gets a warm greeting + web_search. Each of the three has their own
   private notes/contacts/appointments namespace in `personal.json` — never
   merge them or let one person's data surface on another's call.
-- **Cross-call CRM memory, all 4 business lines**: every call gets logged to
-  that business's own Twenty CRM (contact + note) via
-  `app/api/admin/victoria/log-call` (called from server.js at hangup), and a
-  returning caller is briefed from their prior notes at call-setup time via
-  `app/api/internal/victoria/caller-context`. AFC's and Sunbuilt's CRMs live
-  on the main VPS; Unique's and Bario.ca's live on the Hetzner box (see
-  above) — `lib/crmOutreach.ts`'s `OUTREACH_CRMS` has all 4.
+- **Cross-call CRM memory, all 4 business lines**: every call gets logged as
+  a real `bo_customers`/`bo_notes` contact+note in that business's own
+  Bario One CRM organization via `app/api/admin/victoria/log-call` (called
+  from server.js at hangup), and a returning caller is briefed from their
+  prior notes at call-setup time via
+  `app/api/internal/victoria/caller-context`. All 4 businesses (not just
+  AFC/Sunbuilt) route through this path now — see
+  `lib/barioOneCrmCallLog.ts`'s `BARIO_ONE_CALL_LOG_ORG_IDS`. Twenty CRM
+  (what this used to write to) is fully gone as of 2026-08-20 — see the
+  main VPS entry above.
 
 ## Working conventions specific to this project
 
