@@ -29,20 +29,19 @@ export async function GET(req: Request) {
     if (viaPasscode && !onlyCrmKey) {
       return NextResponse.json({ error: 'crmKey is required' }, { status: 400 })
     }
-    // AFC and Sunbuilt repointed to their real Bario One CRM 2026-08-18
-    // (their standalone Twenty stacks were deleted) — Unique Group has no
-    // CRM behind it at all (it's Bario's own agency, not a client).
+    // All 4 businesses now repointed to their real Bario One CRM (afc/
+    // sunbuilt 2026-08-18, unique/bario 2026-08-20 once their standalone
+    // Twenty stacks were confirmed migrated/empty and fully decommissioned)
+    // — nothing left routing through lib/crmOutreach.ts's crmGraphQL for
+    // this path.
     const crms = onlyCrmKey ? OUTREACH_CRMS.filter((c) => c.key === onlyCrmKey) : OUTREACH_CRMS
     const sql = await db()
 
-    // Per-CRM try/catch so one business's fetch failing (a real risk now
-    // that afc/sunbuilt and unique/bario are on two different backends)
-    // doesn't wipe out the other businesses' contact lists too.
     const results = []
     for (const crm of crms) {
       try {
-        if (crm.key === 'afc' || crm.key === 'sunbuilt') {
-          const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[crm.key]
+        const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[crm.key]
+        if (orgId) {
           const contacts = await listBoContactsWithPhone(sql, orgId)
           results.push({ crm: crm.key, businessName: crm.businessName, contacts })
           continue

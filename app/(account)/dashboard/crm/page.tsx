@@ -1,10 +1,19 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import CrmWorkspace from '@/components/CrmWorkspace'
+import { getActiveOrgForUser, createOrganizationWithOwner } from '@/lib/barioOne'
+import { hasModule, ensureModulesForOrg } from '@/lib/barioOneModules'
 
 export const dynamic = 'force-dynamic'
 
+// Twenty CRM (the dedicated-per-customer Docker stack this page used to
+// provision) was fully decommissioned 2026-08-20 — zero real external
+// customers had ever completed self-serve signup through it (confirmed via
+// crm_stacks before removal), so there was nothing to migrate on this
+// path specifically. This URL now routes straight into Bario One's own
+// CRM instead: same "you land here and have a working CRM" promise, just
+// backed by bo_customers/bo_deals rather than a several-minute Twenty
+// provision, and with no separate infrastructure to run per customer.
 export default async function CrmPage() {
   const session = await getSession()
   if (!session) redirect('/login')
@@ -14,18 +23,20 @@ export default async function CrmPage() {
   const user = rows[0]
   if (!user) redirect('/login')
 
-  return (
-    <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
-      <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold">CRM</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2 mb-6">
-          A real, private CRM — your own dedicated instance on its own subdomain, leads, contacts, and deals, powered by Twenty CRM.
-        </p>
+  const active = await getActiveOrgForUser(sql, user.id)
+  if (active) {
+    const org = await ensureModulesForOrg(sql, active.org)
+    if (hasModule(org, 'crm')) redirect('/dashboard/bario-one/crm')
+    // Already has a Bario One org, just not the CRM module — send them to
+    // Bario One's own dashboard, which already has the real module
+    // upgrade/enable UX; not reinvented here.
+    redirect('/dashboard/bario-one')
+  }
 
-        <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-6">
-          <CrmWorkspace />
-        </div>
-      </div>
-    </main>
-  )
+  // No Bario One organization yet at all — auto-create one with the crm
+  // module on the same 14-day no-card trial every self-serve signup gets,
+  // so this legacy URL still hands the customer working CRM access
+  // immediately instead of a dead end.
+  await createOrganizationWithOwner(sql, user.id, `${user.email.split('@')[0]}'s Business`, ['crm'])
+  redirect('/dashboard/bario-one/crm')
 }

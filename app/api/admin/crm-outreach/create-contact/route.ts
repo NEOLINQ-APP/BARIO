@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin'
-import { findCrm, crmGraphQL } from '@/lib/crmOutreach'
 import { BARIO_ONE_CALL_LOG_ORG_IDS, createBoContact } from '@/lib/barioOneCrmCallLog'
 import { verifyDialerPasscode } from '@/lib/dialerAccess'
 import { db } from '@/lib/db'
@@ -35,31 +34,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'crmKey, a name, and a phone number are required' }, { status: 400 })
     }
 
-    // AFC and Sunbuilt repointed to their real Bario One CRM 2026-08-18.
-    if (crmKey === 'afc' || crmKey === 'sunbuilt') {
+    // All 4 businesses now repointed to their real Bario One CRM (afc/
+    // sunbuilt 2026-08-18, unique/bario 2026-08-20) — the crmGraphQL/Twenty
+    // path below is unreachable for any real OUTREACH_CRMS key now, kept
+    // only as a guard for an unrecognized crmKey.
+    const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[crmKey]
+    if (orgId) {
       const sql = await db()
-      const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[crmKey]
       const customerId = await createBoContact(sql, orgId, { firstName, lastName, phone, email, companyName })
       return NextResponse.json({ ok: true, personId: customerId })
     }
 
-    const crm = findCrm(crmKey)
-    if (!crm) return NextResponse.json({ error: 'That business has no CRM to add a contact to' }, { status: 400 })
-
-    const personData: Record<string, unknown> = {
-      name: { firstName: firstName || 'Unknown', lastName: lastName || '' },
-      phones: { primaryPhoneNumber: phone, primaryPhoneCallingCode: '' },
-    }
-    if (email) personData.emails = { primaryEmail: email, additionalEmails: [] }
-    if (companyName) personData.jobTitle = companyName
-
-    const data = await crmGraphQL(
-      crm,
-      `mutation($data: PersonCreateInput!) { createPerson(data: $data) { id } }`,
-      { data: personData }
-    )
-
-    return NextResponse.json({ ok: true, personId: data?.createPerson?.id })
+    return NextResponse.json({ error: 'That business has no CRM to add a contact to' }, { status: 400 })
   } catch (err: any) {
     return errorResponse(err)
   }
