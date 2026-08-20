@@ -25,11 +25,15 @@ export async function POST(req: Request) {
     const body = String(form.get('Body') ?? '').trim()
 
     const business = DIALER_BUSINESSES.find((b) => b.twilioNumber === to)
-    if (business && body) {
-      await sendSms(business.forwardToNumber, `[${business.businessName} text from ${from}]: ${body}`, to)
-    } else {
+    const forwardToNumber = business?.forwardToNumber
+    if (business && forwardToNumber && body) {
+      await sendSms(forwardToNumber, `[${business.businessName} text from ${from}]: ${body}`, to)
+    } else if (!business) {
       console.error('business-sms: no matching business for To=', to)
     }
+    // A business with no forwardToNumber (e.g. a personal Dialer identity
+    // that opted out of PSTN forwarding) intentionally receives no SMS
+    // relay -- not an error, just nothing configured to forward to.
   } catch (err) {
     console.error('business-sms forward failed', err)
   }

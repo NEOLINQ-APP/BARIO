@@ -9,7 +9,15 @@ export type DialerBusiness = {
   key: string
   businessName: string
   twilioNumber: string
-  forwardToNumber: string
+  // Optional -- personal/family Dialer identities (e.g. Jade's) can opt out
+  // of PSTN forwarding entirely: the Dialer PWA itself is the only phone,
+  // with no fallback number to ring/text if it isn't open. Every consumer
+  // that reads this (miko-voice's AI-answer route, business-sms's SMS
+  // relay) only ever fires for a number whose own Twilio voice_url/sms_url
+  // is explicitly pointed at those routes -- a forwarding-less business's
+  // number is never wired that way, so this being undefined for them is
+  // safe, not just type-permissive.
+  forwardToNumber?: string
   twimlAppSid: string
   // Set only for businesses that get their own self-serve client-facing
   // Dialer at /dialer/<key> (app/dialer/<key>/page.tsx), gated by this
@@ -51,6 +59,16 @@ export const DIALER_BUSINESSES: DialerBusiness[] = [
     forwardToNumber: '+18259639988',
     twimlAppSid: 'AP3987c6b53d478f20f20da8e7956a4057',
     clientPasscodeEnvVar: 'BARIO_DIALER_PASSCODE',
+  },
+  {
+    key: 'jade',
+    businessName: 'Jade',
+    twilioNumber: '+18254500808',
+    // No forwarding -- her own request. Inbound calls to this number ring
+    // her open Dialer app (app/api/twilio/dialer-inbound) and nothing else
+    // if she's not connected, same as an unanswered call would do.
+    twimlAppSid: 'APfd60368cf8ba30f2bc6f358f0075c26d',
+    clientPasscodeEnvVar: 'JADE_DIALER_PASSCODE',
   },
 ]
 
