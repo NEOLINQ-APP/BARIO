@@ -5,6 +5,7 @@ import { hasSafeAction, runSafeAction } from '@/lib/neoActions'
 import { hasApprovalAction, getApprovalAction } from '@/lib/neoApprovalActions'
 import { getStripe } from '@/lib/stripe'
 import { sendSms } from '@/lib/twilio'
+import { getLatestProductionDeployments } from '@/lib/vercel'
 
 // NEO's detection loop — runs every 15 minutes (vercel.json), same cadence
 // and auth pattern as the existing wp-hosting-health cron. Every check
@@ -106,6 +107,42 @@ async function checkSentryConfigured(sql: any) {
   await recordIncident(sql, { source: SOURCE, category, severity: 'info', description })
 }
 
+// Catches a broken production build/deploy — distinct from checkKeyEndpoints
+// above, which only sees the currently-*live* site and stays green even
+// while newer deploys keep failing behind it (confirmed as a real gap
+// 2026-08-20: a TypeScript error blocked every deploy for ~10 minutes with
+// no NEO incident raised, since bario.ca itself was still being served fine
+// from the last good deployment). Severity is 'warning' not 'critical' for
+// exactly that reason — the site is still up, it's new changes that can't
+// ship. Detect-only, same as every other check here: NEO reports this for a
+// human to look at, it never touches code or triggers a deploy itself (see
+// lib/neoActions.ts's registry for why that boundary exists).
+async function checkVercelDeploys(sql: any) {
+  const category = 'vercel_deploy_failed'
+  try {
+    const deployments = await getLatestProductionDeployments(5)
+    const latest = deployments[0]
+    if (latest && (latest.state === 'ERROR' || latest.state === 'CANCELED')) {
+      const description = `Latest production deploy failed (state: ${latest.state}) — ${latest.url}`
+      await recordIncident(sql, {
+        source: SOURCE,
+        category,
+        severity: 'warning',
+        description,
+        details: { uid: latest.uid, state: latest.state, url: latest.url, created: latest.created },
+      })
+      await autoResolveIfMissing(sql, SOURCE, category, [description])
+    } else {
+      await autoResolveIfMissing(sql, SOURCE, category, [])
+    }
+  } catch (err: any) {
+    // A Vercel API hiccup (rate limit, transient network error) shouldn't
+    // itself become a false-positive incident — just skip this run and try
+    // again on the next 15-minute tick.
+    console.error('NEO: vercel deploy check failed', err)
+  }
+}
+
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   const isCron = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
@@ -116,7 +153,7 @@ export async function GET(req: Request) {
 
   const sql = await db()
 
-  await Promise.all([checkKeyEndpoints(sql), checkWpHostingNodes(sql), checkStripe(sql), checkSentryConfigured(sql)])
+  await Promise.all([checkKeyEndpoints(sql), checkWpHostingNodes(sql), checkStripe(sql), checkSentryConfigured(sql), checkVercelDeploys(sql)])
 
   // Any freshly-'detected' incident whose category has a registered safe
   // action gets fixed immediately; everything else waits at 'needs_review'
