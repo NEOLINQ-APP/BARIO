@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { BoAutomation, BoAutomationActionType, BoAutomationTrigger } from '@/lib/db'
 import { sendEmail } from '@/lib/email'
 import { sendSms } from '@/lib/twilio'
+import { isSuppressed } from '@/lib/barioOneSuppression'
 
 export const AUTOMATION_TRIGGERS: BoAutomationTrigger[] = ['deal.created', 'deal.stage_changed', 'customer.created', 'invoice.paid']
 export const AUTOMATION_ACTIONS: BoAutomationActionType[] = ['create_task', 'add_tag', 'add_note', 'send_email', 'send_sms']
@@ -88,6 +89,7 @@ async function executeOne(sql: any, organizationId: string, rule: BoAutomation, 
         const subject = typeof config.subject === 'string' ? config.subject.trim() : ''
         const body = typeof config.body === 'string' ? config.body.trim() : ''
         if (!subject || !body) throw new Error('Missing subject or body')
+        if (await isSuppressed(sql, context.customerId)) throw new Error('Blocked: this customer has opted out of contact (do_not_contact)')
         const rows = (await sql`SELECT email FROM bo_customers WHERE id = ${context.customerId} AND organization_id = ${organizationId}`) as unknown as { email: string | null }[]
         if (!rows[0]?.email) throw new Error('Customer has no email on file')
         await sendEmail(rows[0].email, subject, body.replace(/\n/g, '<br/>'))
@@ -101,6 +103,7 @@ async function executeOne(sql: any, organizationId: string, rule: BoAutomation, 
         if (!context.customerId) throw new Error('No customer in context')
         const body = typeof config.body === 'string' ? config.body.trim() : ''
         if (!body) throw new Error('Missing message body')
+        if (await isSuppressed(sql, context.customerId)) throw new Error('Blocked: this customer has opted out of contact (do_not_contact)')
         const rows = (await sql`SELECT phone FROM bo_customers WHERE id = ${context.customerId} AND organization_id = ${organizationId}`) as unknown as { phone: string | null }[]
         if (!rows[0]?.phone) throw new Error('Customer has no phone number on file')
         await sendSms(rows[0].phone, body)

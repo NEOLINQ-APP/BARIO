@@ -74,8 +74,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (auth instanceof NextResponse) return auth
     const { sql, org, membership } = auth
 
-    const { companyName, contactName, phone, email, address, tags, customFields, assignedToUserId, signals } = await req.json()
-    const existing = (await sql`SELECT id, custom_fields_json, assigned_to_user_id, lead_signals_json FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown as { id: string; custom_fields_json: string; assigned_to_user_id: string | null; lead_signals_json: string }[]
+    const { companyName, contactName, phone, email, address, tags, customFields, assignedToUserId, signals, doNotContact, doNotContactReason } = await req.json()
+    const existing = (await sql`SELECT id, custom_fields_json, assigned_to_user_id, lead_signals_json, do_not_contact, do_not_contact_reason FROM bo_customers WHERE id = ${params.id} AND organization_id = ${org.id}`) as unknown as { id: string; custom_fields_json: string; assigned_to_user_id: string | null; lead_signals_json: string; do_not_contact: boolean; do_not_contact_reason: string | null }[]
     if (existing.length === 0 || !isRecordVisibleToMember(membership, existing[0].assigned_to_user_id)) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
@@ -106,6 +106,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         ? assignedToUserId || null
         : existing[0].assigned_to_user_id
 
+    const nextDoNotContact = typeof doNotContact === 'boolean' ? doNotContact : existing[0].do_not_contact
+    const nextDoNotContactReason = nextDoNotContact ? (typeof doNotContactReason === 'string' ? doNotContactReason.trim() || null : existing[0].do_not_contact_reason) : null
+
     await sql`
       UPDATE bo_customers SET
         company_name = ${companyName ?? null},
@@ -117,6 +120,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         custom_fields_json = ${customFieldsJson},
         lead_signals_json = ${leadSignalsJson},
         assigned_to_user_id = ${nextAssignedToUserId},
+        do_not_contact = ${nextDoNotContact},
+        do_not_contact_reason = ${nextDoNotContactReason},
         updated_at = now()
       WHERE id = ${params.id} AND organization_id = ${org.id}
     `

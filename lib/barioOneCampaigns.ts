@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { BoOrganization, BoEmailCampaign } from '@/lib/db'
 import { getCrmMailboxCreds, sendViaCrmMailbox } from '@/lib/barioOneCrmMailbox'
 import { sendEmail } from '@/lib/email'
+import { getOrCreateUnsubscribeToken } from '@/lib/barioOneSuppression'
 
 // Shared by the admin bulk-send UI and Miko's send_email_campaign tool —
 // same send path the existing 1:1 customer email route uses (CRM mailbox
@@ -76,8 +77,12 @@ async function personalizeForRecipient(
 export async function sendCampaignNow(sql: any, org: BoOrganization, campaign: BoEmailCampaign): Promise<BoEmailCampaign> {
   await sql`UPDATE bo_email_campaigns SET status = 'sending', updated_at = now() WHERE id = ${campaign.id}`
 
+  // Suppression hardening (Phase 7): a bulk campaign is exactly the send
+  // path CASL/CAN-SPAM opt-out enforcement matters most for — never send
+  // to a customer who's asked not to be contacted.
   const recipients = (await sql`
-    SELECT id, email, contact_name, company_name FROM bo_customers WHERE organization_id = ${org.id} AND email IS NOT NULL AND email <> ''
+    SELECT id, email, contact_name, company_name FROM bo_customers
+    WHERE organization_id = ${org.id} AND email IS NOT NULL AND email <> '' AND do_not_contact IS NOT TRUE
   `) as unknown as { id: string; email: string; contact_name: string; company_name: string | null }[]
 
   const creds = getCrmMailboxCreds(org)
@@ -100,12 +105,15 @@ export async function sendCampaignNow(sql: any, org: BoOrganization, campaign: B
         html = personalized.body.trim().replace(/\n/g, '<br/>')
       }
 
+      const unsubToken = await getOrCreateUnsubscribeToken(sql, recipient.id)
+      const htmlWithFooter = `${html}<br/><br/><p style="color:#94a3b8;font-size:11px;">Don't want these emails? <a href="https://www.bario.ca/api/bario-one/unsubscribe?token=${unsubToken}">Unsubscribe</a></p>`
+
       let messageId: string | null = null
       if (creds) {
-        const result = await sendViaCrmMailbox(creds, { to: recipient.email, subject, html })
+        const result = await sendViaCrmMailbox(creds, { to: recipient.email, subject, html: htmlWithFooter })
         messageId = result.messageId
       } else {
-        await sendEmail(recipient.email, subject, html)
+        await sendEmail(recipient.email, subject, htmlWithFooter)
       }
       await sql`
         INSERT INTO bo_notes (id, organization_id, customer_id, kind, body, direction, from_email, message_id, campaign_id)

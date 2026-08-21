@@ -15,7 +15,7 @@ const PRIORITY_BADGE: Record<Priority, { emoji: string; label: string; classes: 
 }
 
 type Data = {
-  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[]; customFields: Record<string, unknown>; assigned_to_user_id: string | null; current_score: number | null; current_priority: Priority | null }
+  customer: { id: string; company_name: string | null; contact_name: string; phone: string | null; email: string | null; address: string | null; tags: string[]; customFields: Record<string, unknown>; assigned_to_user_id: string | null; current_score: number | null; current_priority: Priority | null; do_not_contact: boolean; do_not_contact_reason: string | null }
   deals: { id: string; title: string; stage: string; value_cents: number }[]
   tasks: { id: string; title: string; status: string; due_at: string | null }[]
   notes: { id: string; kind: 'note' | 'email' | 'sms' | 'comment'; body: string; created_at: string; author_email: string | null; direction: 'outbound' | 'inbound' | null; from_email: string | null }[]
@@ -159,6 +159,54 @@ function renderWithMentions(body: string, members: OrgMember[]) {
       part
     )
   })
+}
+
+// Manual counterpart to the automatic unsubscribe link on bulk campaigns
+// (lib/barioOneCampaigns.ts) — covers the case where someone opts out by
+// replying "stop" or asking on a call rather than clicking the email link.
+// Checked by every real send path (campaigns, automations) before a
+// message goes out — see lib/barioOneSuppression.ts's isSuppressed().
+function DoNotContactToggle({ customerId, doNotContact, reason, onChanged }: {
+  customerId: string
+  doNotContact: boolean
+  reason: string | null
+  onChanged: (v: boolean, reason: string | null) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [reasonInput, setReasonInput] = useState(reason || '')
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    try {
+      await fetch(`/api/bario-one/crm/customers/${customerId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ doNotContact: next, doNotContactReason: reasonInput }),
+      })
+      onChanged(next, next ? reasonInput || null : null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={doNotContact} disabled={busy} onChange={(e) => toggle(e.target.checked)} className="rounded border-slate-300 dark:border-zinc-700" />
+        Do not contact
+      </label>
+      {doNotContact ? (
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">Excluded from campaigns and automations{reason ? ` — ${reason}` : ''}.</p>
+      ) : (
+        <input
+          value={reasonInput}
+          onChange={(e) => setReasonInput(e.target.value)}
+          placeholder="Reason (optional, e.g. asked to stop)"
+          className="mt-1 w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] text-xs"
+        />
+      )}
+    </div>
+  )
 }
 
 function AssignedToPicker({ customerId, assignedToUserId, myRole, members, onChanged }: {
@@ -405,6 +453,14 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
             <p>📧 {customer.email || '—'}</p>
             <p>📞 {customer.phone || '—'}</p>
             <p>📍 {customer.address || '—'}</p>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800">
+            <DoNotContactToggle
+              customerId={customerId}
+              doNotContact={customer.do_not_contact}
+              reason={customer.do_not_contact_reason}
+              onChanged={(v, reason) => setData((prev) => (prev ? { ...prev, customer: { ...prev.customer, do_not_contact: v, do_not_contact_reason: reason } } : prev))}
+            />
           </div>
           <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800">
             <AssignedToPicker

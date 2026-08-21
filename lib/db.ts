@@ -2467,6 +2467,20 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS campaign_id TEXT`
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS data_completeness_pct INTEGER`
 
+  // Phase 7 (2026-08-20) — Bario One's own opt-out flag. Twenty CRM's
+  // crm_do_not_contact table (person_id-keyed) doesn't apply here — Bario
+  // One customers ARE bo_customers rows directly, no separate person
+  // identity to key against, so this is just columns on the table itself.
+  // unsubscribe_token backs a real public one-click unsubscribe link
+  // embedded in bulk campaign emails (lib/barioOneCampaigns.ts) — CASL/
+  // CAN-SPAM require every commercial bulk email to have one; generated
+  // lazily (see lib/barioOneSuppression.ts) rather than backfilled for
+  // every existing row.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS do_not_contact BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS do_not_contact_reason TEXT`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_customers_unsubscribe_token_idx ON bo_customers (unsubscribe_token) WHERE unsubscribe_token IS NOT NULL`
+
   // Phase 2 (2026-08-20) — the manual signal inputs (need/intent/fit/timing)
   // that calculateLeadScore() can't derive from bo_customers' own columns.
   // Persisted so recalculateLeadScore() can be re-run automatically (on
@@ -3211,6 +3225,9 @@ export type BoCustomer = {
   campaign_id: string | null
   data_completeness_pct: number | null
   lead_signals_json: string
+  do_not_contact: boolean
+  do_not_contact_reason: string | null
+  unsubscribe_token: string | null
   created_at: string
   updated_at: string
 }
