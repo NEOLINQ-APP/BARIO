@@ -8,7 +8,17 @@ import { sendEmail } from '@/lib/email'
 import { placeMikoOutboundCall, sendSms } from '@/lib/twilio'
 import { ALL_PLATFORMS } from '@/lib/marketing/platforms'
 import { runAgencyTask } from '@/lib/agentAgency/orchestrate'
+import { researchLeads, addLeadsToOrg } from '@/lib/barioOneAssistantTools'
 import type { MarketingPlatform } from '@/lib/db'
+
+// House-account orgs Victoria is allowed to generate leads for on Sherwin's
+// instruction -- deliberately just these two, not any Bario One customer
+// org. The generate-leads admin route this mirrors (app/api/admin/
+// bario-one/organizations/[id]/generate-leads) exists specifically to
+// bypass paying customers' own LEAD_GEN_LIVE kill switch/quota for Bario's
+// own house accounts; using it for a customer org here would circumvent
+// protections built for their benefit, not Sherwin's.
+const LEAD_GEN_ORG_SLUGS: Record<string, string> = { bario: 'bario-ca', unique: 'unique-group-inc' }
 
 function isValidPhoneNumber(v: unknown): v is string {
   return typeof v === 'string' && /^\+?[0-9]{7,15}$/.test(v.trim())
@@ -194,6 +204,19 @@ export const VICTORIA_APP_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'generate_leads',
+    description: "Research real, live leads and add them straight into one of Bario's own house-account CRMs (Bario.ca's own, or Unique Group Inc.'s) — real AI-powered web search, not made up. Only for Bario's own two house accounts, not any paying customer's CRM. Give a specific, real search query (e.g. \"small construction companies in Edmonton without a website\") and how many to find.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        organization: { type: 'string', enum: ['bario', 'unique'], description: "'bario' for Bario.ca's own CRM, 'unique' for Unique Group Inc.'s" },
+        query: { type: 'string' },
+        count: { type: 'number', description: 'How many leads to find, default 5, max 10' },
+      },
+      required: ['organization', 'query'],
+    },
+  },
+  {
     name: 'queue_coding_task',
     description:
       "Queue a real coding/engineering task for Claude to do on the BARIO codebase — fixing a bug, adding a feature, changing a page, etc. This does NOT do the work now: an hourly automated pass picks up queued tasks, does the real work, commits it (does not auto-deploy to production), and reports back as new messages in this same chat once it's done or has an update. Tell Sherwin it's queued and roughly when to expect the first update (next hourly pass), not that it's done. Only call this for genuine coding work — not for things Victoria can already do herself (invoices, email, calls, texts, images, social drafts).",
@@ -339,6 +362,26 @@ export async function executeVictoriaAppTool(sql: any, userId: string, name: str
         VALUES (${randomUUID()}, ${userId}, ${type}, ${toNumber}, ${message}, ${runAt.toISOString()})
       `
       return { ok: true, scheduledFor: runAt.toISOString() }
+    }
+    case 'generate_leads': {
+      const orgKey = String(args.organization ?? '').trim()
+      const slug = LEAD_GEN_ORG_SLUGS[orgKey]
+      if (!slug) return { error: "organization must be 'bario' or 'unique'." }
+      const query = String(args.query ?? '').trim()
+      if (!query) return { error: 'No search query given — ask Sherwin what kind of leads he wants.' }
+      const count = Number.isFinite(args.count) ? Math.min(Math.max(Math.round(args.count), 1), 10) : 5
+      try {
+        const orgRows = (await sql`SELECT id, name FROM bo_organizations WHERE slug = ${slug}`) as unknown as { id: string; name: string }[]
+        const org = orgRows[0]
+        if (!org) return { error: `Could not find the ${orgKey} organization — tell Sherwin something's wrong on the CRM side.` }
+        const leads = await researchLeads(query, count)
+        if (leads.length === 0) return { error: 'Could not find any real leads matching that — try a broader or more specific search.' }
+        const added = await addLeadsToOrg(sql, org.id, leads, org.name)
+        return { ok: true, organization: org.name, addedCount: added.length, leads: added.map((a) => a.customer) }
+      } catch (err) {
+        console.error('generate_leads failed', err)
+        return { error: 'Lead research failed — tell Sherwin something went wrong.' }
+      }
     }
     case 'send_email': {
       try {
