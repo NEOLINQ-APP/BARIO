@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BoCustomer, BoDeal, BoTask, LeadPriority } from '@/lib/db'
 import { getLeadScoreWeights, type LeadScoreWeights } from '@/lib/leadScoreConfig'
+import { createAgentTask } from '@/lib/agentTasks'
 
 // The only sanctioned write path to lead scoring/priority/duplicate-check
 // data. Agents (and any future automation) must go through these functions
@@ -244,6 +245,28 @@ export async function recalculateLeadScore(sql: any, organizationId: string, cus
   })
 
   await recordPriorityChange(sql, organizationId, customerId, score, breakdown, priority, reason)
+
+  // First real use of the agent orchestration layer (Phase 3): a lead
+  // newly turning red (not one that was already red — recalculation runs
+  // on every edit, and re-queuing the same follow-up on every touch would
+  // just spam the task list) queues a real ATLAS-owned agent_task, routed
+  // to the 'sales' specialist through lib/agentAgency/. Never blocks the
+  // caller's own write on the agency actually running.
+  if (priority === 'red' && customer.current_priority !== 'red') {
+    try {
+      await createAgentTask(sql, {
+        title: `Follow up with hot lead: ${customer.contact_name}${customer.company_name ? ` (${customer.company_name})` : ''}`,
+        objective: `This lead just scored ${score}/100 (red/hot priority). Reason: ${reason}. Draft a specific, ready-to-send follow-up message (email or call talking points) for ${customer.contact_name}${customer.company_name ? ` at ${customer.company_name}` : ''} that moves them toward a next step appropriate to a hot lead — don't just say "reach out," write the actual message.`,
+        targetAgent: 'sales',
+        sourceAgent: 'lead_pipeline',
+        leadId: customerId,
+        contextJson: JSON.stringify({ score, breakdown, phone: customer.phone, email: customer.email }),
+      })
+    } catch (err) {
+      console.error('recalculateLeadScore: failed to queue hot-lead follow-up task', err)
+    }
+  }
+
   return { score, priority, reason }
 }
 

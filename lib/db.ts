@@ -1367,9 +1367,16 @@ async function ensureSchema() {
     {
       id: 'agent-miko', slug: 'miko', name: 'Miko',
       role: 'CRM Assistant (AFC Logistics / Sunbuilt Group)',
-      description: "Lives inside each client's own Twenty CRM instance as their in-app AI copilot for leads and outreach.",
-      responsibilities: "Answer questions about leads/contacts/deals inside AFC Logistics' and Sunbuilt Group's own separate CRM workspaces; draft outreach; surface what's in the CRM to whoever is logged into that workspace.",
-      channels: 'In-app chat inside afc.crm.bario.ca / sunbuilt.crm.bario.ca',
+      description: "Lives inside each client's own Bario One CRM organization as their in-app AI copilot for leads and outreach (Twenty CRM, described here previously, was fully decommissioned 2026-08-20).",
+      responsibilities: "Answer questions about leads/contacts/deals inside AFC Logistics' and Sunbuilt Group's own Bario One CRM organizations; draft outreach; surface what's in the CRM to whoever is logged into that workspace.",
+      channels: 'In-app chat inside dashboard/bario-one/crm for each org',
+    },
+    {
+      id: 'agent-atlas', slug: 'atlas', name: 'ATLAS',
+      role: 'CRM & Ops Orchestrator',
+      description: "Dispatches structured work (hot-lead follow-ups, research, drafting) to Bario's Router->Specialist->Critic->Delivery AI agency and tracks it as a real agent_tasks row, rather than any single specialist just answering in chat. Named separately from Miko/Victoria to avoid colliding with either (see the multi-agent CRM plan's naming note).",
+      responsibilities: "Create agent_tasks when a lead's priority turns red (lib/leadPipeline.ts's recalculateLeadScore) or when an admin manually queues one; route each to the right specialist (sales/research/writer/etc.) via lib/agentAgency/orchestrate.ts; record the reviewed result back onto the task.",
+      channels: 'Automatic (lead-priority triggers) + manual queue at /admin/agents',
     },
     {
       id: 'agent-amber', slug: 'amber', name: 'Amber',
@@ -2485,6 +2492,14 @@ async function ensureSchema() {
   await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS expected_output TEXT`
   await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ`
 
+  // Phase 3 (2026-08-20) — the actual output of a task once
+  // lib/agentTasks.ts's processAgentTask() has run it through the
+  // Router->Specialist->Critic->Delivery agency (lib/agentAgency/). NULL
+  // means "not processed yet" -- that's what the agent-tasks cron scans
+  // for, so a task with target_agent set but no result is exactly the
+  // agency's work queue.
+  await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS result_json TEXT`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -2659,6 +2674,19 @@ export type AgentTask = {
   title: string
   description: string | null
   status: 'open' | 'in_progress' | 'done'
+  lead_id: string | null
+  contact_id: string | null
+  company_id: string | null
+  objective: string | null
+  context_json: string | null
+  data_confidence: string | null
+  source_agent: string | null
+  target_agent: string | null
+  permissions_json: string | null
+  restrictions_json: string | null
+  expected_output: string | null
+  deadline: string | null
+  result_json: string | null
   created_at: string
   updated_at: string
 }

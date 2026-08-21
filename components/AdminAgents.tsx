@@ -3,7 +3,25 @@
 import { useEffect, useState } from 'react'
 import ThemeToggle from '@/components/ThemeToggle'
 
-type Task = { id: string; title: string; description: string | null; status: 'open' | 'in_progress' | 'done' }
+type Task = {
+  id: string
+  title: string
+  description: string | null
+  status: 'open' | 'in_progress' | 'done'
+  target_agent: string | null
+  result_json: string | null
+}
+
+const SPECIALISTS = ['research', 'writer', 'coder', 'data_analyst', 'designer', 'marketer', 'sales', 'support', 'ops_automation', 'legal_review', 'finance', 'recruiter', 'project_manager']
+
+function parseResult(resultJson: string | null): { finalDelivery?: string; error?: string; verdict?: string; revisions?: number } | null {
+  if (!resultJson) return null
+  try {
+    return JSON.parse(resultJson)
+  } catch {
+    return null
+  }
+}
 type AgentWithTasks = {
   id: string
   slug: string
@@ -25,8 +43,10 @@ const TASK_STYLE: Record<string, string> = {
 function AgentCard({ agent, onChanged }: { agent: AgentWithTasks; onChanged: () => void }) {
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDesc, setTaskDesc] = useState('')
+  const [targetAgent, setTargetAgent] = useState('')
   const [adding, setAdding] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null)
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault()
@@ -36,11 +56,12 @@ function AgentCard({ agent, onChanged }: { agent: AgentWithTasks; onChanged: () 
       const res = await fetch(`/api/admin/agents/${agent.id}/tasks`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: taskTitle, description: taskDesc }),
+        body: JSON.stringify({ title: taskTitle, description: taskDesc, targetAgent: targetAgent || undefined }),
       })
       if (res.ok) {
         setTaskTitle('')
         setTaskDesc('')
+        setTargetAgent('')
         onChanged()
       }
     } finally {
@@ -55,6 +76,16 @@ function AgentCard({ agent, onChanged }: { agent: AgentWithTasks; onChanged: () 
       body: JSON.stringify({ status }),
     })
     onChanged()
+  }
+
+  async function runTask(taskId: string) {
+    setRunningTaskId(taskId)
+    try {
+      await fetch(`/api/admin/agents/${agent.id}/tasks/${taskId}/run`, { method: 'POST' })
+      onChanged()
+    } finally {
+      setRunningTaskId(null)
+    }
   }
 
   const openTasks = agent.tasks.filter((t) => t.status !== 'done')
@@ -94,39 +125,95 @@ function AgentCard({ agent, onChanged }: { agent: AgentWithTasks; onChanged: () 
             <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-2">Tasks</p>
             <div className="space-y-1.5">
               {agent.tasks.length === 0 && <p className="text-xs text-slate-500 dark:text-zinc-500">No tasks added yet.</p>}
-              {[...openTasks, ...doneTasks].map((t) => (
-                <div key={t.id} className="flex items-start justify-between gap-2 text-xs bg-white/50 dark:bg-black/20 rounded-lg p-2">
-                  <div>
-                    <p className={t.status === 'done' ? 'line-through text-slate-400 dark:text-zinc-600' : 'text-slate-700 dark:text-zinc-300'}>{t.title}</p>
-                    {t.description && <p className="text-slate-500 dark:text-zinc-500">{t.description}</p>}
+              {[...openTasks, ...doneTasks].map((t) => {
+                const result = parseResult(t.result_json)
+                return (
+                  <div key={t.id} className="bg-white/50 dark:bg-black/20 rounded-lg p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className={t.status === 'done' ? 'line-through text-slate-400 dark:text-zinc-600' : 'text-slate-700 dark:text-zinc-300'}>{t.title}</p>
+                        {t.description && <p className="text-slate-500 dark:text-zinc-500">{t.description}</p>}
+                        {t.target_agent && (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 text-[10px] font-medium">
+                            → {t.target_agent}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {t.target_agent && (
+                          <button
+                            onClick={() => runTask(t.id)}
+                            disabled={runningTaskId === t.id}
+                            className="px-2 py-0.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[10px] font-semibold disabled:opacity-50"
+                          >
+                            {runningTaskId === t.id ? 'Running…' : result ? 'Re-run' : 'Run now'}
+                          </button>
+                        )}
+                        <select
+                          value={t.status}
+                          onChange={(e) => setTaskStatus(t.id, e.target.value)}
+                          className={`px-1.5 py-0.5 rounded-full text-xs border-0 ${TASK_STYLE[t.status]}`}
+                        >
+                          <option value="open">Open</option>
+                          <option value="in_progress">In progress</option>
+                          <option value="done">Done</option>
+                        </select>
+                      </div>
+                    </div>
+                    {result && (
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400">
+                        {result.error ? (
+                          <p className="text-red-500 dark:text-red-400">Error: {result.error}</p>
+                        ) : (
+                          <>
+                            <p className="whitespace-pre-wrap">{result.finalDelivery}</p>
+                            <p className="text-slate-400 dark:text-zinc-600 mt-1">{result.verdict} · {result.revisions} revision{result.revisions === 1 ? '' : 's'}</p>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <select
-                    value={t.status}
-                    onChange={(e) => setTaskStatus(t.id, e.target.value)}
-                    className={`shrink-0 px-1.5 py-0.5 rounded-full text-xs border-0 ${TASK_STYLE[t.status]}`}
-                  >
-                    <option value="open">Open</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="done">Done</option>
-                  </select>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
-            <form onSubmit={addTask} className="flex gap-2 mt-3">
-              <input
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="Add a task…"
-                className="flex-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
-              />
-              <button
-                type="submit"
-                disabled={adding || !taskTitle.trim()}
-                className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs disabled:opacity-50"
-              >
-                Add
-              </button>
+            <form onSubmit={addTask} className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="Add a task…"
+                  className="flex-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+                />
+                <select
+                  value={targetAgent}
+                  onChange={(e) => setTargetAgent(e.target.value)}
+                  title="Run through the AI agency as this specialist (optional — leave blank for a plain manual to-do)"
+                  className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+                >
+                  <option value="">Manual to-do</option>
+                  {SPECIALISTS.map((s) => (
+                    <option key={s} value={s}>
+                      Run as: {s}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  disabled={adding || !taskTitle.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+              {targetAgent && (
+                <input
+                  value={taskDesc}
+                  onChange={(e) => setTaskDesc(e.target.value)}
+                  placeholder="Objective the agency should see (falls back to the title above if left blank)"
+                  className="w-full px-2 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs"
+                />
+              )}
             </form>
           </div>
         </div>
