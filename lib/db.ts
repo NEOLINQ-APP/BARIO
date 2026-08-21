@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v9-2026-08-21-business-os-steps3-15'
+const CURRENT_SCHEMA_VERSION = 'v10-2026-08-21-spott-integration-phase2'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2739,6 +2739,54 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS spott_reviews_org_idx ON spott_reviews (organization_id)`
 
+  // Phase 2 (2026-08-21) — Spott CRM integration. spott_listings gets
+  // cache columns only (Spott stays authoritative for the business
+  // profile — see the plan's D1); BARIO never silently overwrites what
+  // Spott sends back.
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS public_url TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'not_connected'`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS description TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS phone TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS email TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS website TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS address TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS hours_json TEXT`
+  await sql`ALTER TABLE spott_listings ADD COLUMN IF NOT EXISTS hero_image_url TEXT`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS spott_listings_org_connected_idx ON spott_listings (organization_id) WHERE sync_status != 'not_connected'`
+
+  // Credentials isolated from the constantly-read listing row (D3) — a
+  // stray SELECT * on spott_listings can never leak a secret, same
+  // reasoning as bo_webhooks keeping its own secret in its own row.
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_connection_credentials (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT NOT NULL UNIQUE REFERENCES spott_listings(id),
+      api_key TEXT NOT NULL,
+      webhook_signing_secret TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+
+  // spott_leads — only the relational bits (D2: generic multi-touch
+  // attribution stays in lead_sources, never forked here).
+  await sql`ALTER TABLE spott_leads ADD COLUMN IF NOT EXISTS promotion_id TEXT`
+  await sql`ALTER TABLE spott_leads ADD COLUMN IF NOT EXISTS external_lead_id TEXT`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS spott_leads_external_idx ON spott_leads (organization_id, external_lead_id) WHERE external_lead_id IS NOT NULL`
+
+  // Inbound webhook idempotency — Spott's queue WILL redeliver on a
+  // 5xx/timeout even after this side actually processed the event; a
+  // duplicate delivery must be a no-op, never a second bo_customers row.
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_webhook_events (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      event_type TEXT NOT NULL,
+      processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS spott_webhook_events_org_idx ON spott_webhook_events (organization_id)`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -3696,6 +3744,7 @@ export type MarketingAsset = {
 // Business OS Step 7 — Spott integration architecture. No live sync
 // writes any of this yet; see lib/spottIntegration.ts.
 export type SpottCategory = { id: string; name: string; created_at: string }
+export type SpottListingSyncStatus = 'not_connected' | 'pending' | 'synced' | 'conflict' | 'error'
 export type SpottListing = {
   id: string
   organization_id: string
@@ -3703,8 +3752,31 @@ export type SpottListing = {
   external_spott_id: string | null
   name: string
   status: string
+  public_url: string | null
+  sync_status: SpottListingSyncStatus
+  last_synced_at: string | null
+  description: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  address: string | null
+  hours_json: string | null
+  hero_image_url: string | null
   created_at: string
   updated_at: string
+}
+export type SpottConnectionCredentials = {
+  id: string
+  listing_id: string
+  api_key: string
+  webhook_signing_secret: string
+  created_at: string
+}
+export type SpottWebhookEvent = {
+  id: string
+  organization_id: string
+  event_type: string
+  processed_at: string
 }
 export type SpottPromotion = {
   id: string
@@ -3719,6 +3791,8 @@ export type SpottLead = {
   organization_id: string
   listing_id: string | null
   customer_id: string | null
+  promotion_id: string | null
+  external_lead_id: string | null
   contact_name: string | null
   phone: string | null
   email: string | null
