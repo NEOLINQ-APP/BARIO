@@ -4,6 +4,7 @@ import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { getPipelineStages } from '@/lib/barioOnePipelines'
 import { recalculateLeadScore } from '@/lib/leadPipeline'
+import { qualifyLead, queueClosePlan } from '@/lib/leadCloser'
 import { errorResponse } from '@/lib/errors'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -13,8 +14,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const { sql, org, membership } = auth
 
     const existing = (await sql`
-      SELECT id, custom_fields_json, pipeline_id, stage, customer_id, assigned_to_user_id FROM bo_deals WHERE id = ${params.id} AND organization_id = ${org.id}
-    `) as unknown as { id: string; custom_fields_json: string; pipeline_id: string | null; stage: string; customer_id: string; assigned_to_user_id: string | null }[]
+      SELECT id, custom_fields_json, pipeline_id, stage, customer_id, assigned_to_user_id, title, value_cents FROM bo_deals WHERE id = ${params.id} AND organization_id = ${org.id}
+    `) as unknown as { id: string; custom_fields_json: string; pipeline_id: string | null; stage: string; customer_id: string; assigned_to_user_id: string | null; title: string; value_cents: number }[]
     if (existing.length === 0 || !isRecordVisibleToMember(membership, existing[0].assigned_to_user_id)) {
       return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
     }
@@ -71,6 +72,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // reflect that in its score immediately, not wait for someone to
       // touch the customer record separately.
       await recalculateLeadScore(sql, org.id, existing[0].customer_id)
+
+      // Phase 5 (CLOSER): two distinct stage-triggered checkpoints, neither
+      // of which overlaps Phase 3's red-priority trigger (that's about lead
+      // priority; these are about pipeline progress).
+      if (dealStage === 'opportunity') {
+        await qualifyLead(sql, org.id, existing[0].customer_id)
+      } else if (dealStage === 'quote') {
+        const finalTitle = title || existing[0].title
+        const finalValueCents = Number.isFinite(valueCents) ? Math.round(valueCents) : existing[0].value_cents
+        await queueClosePlan(sql, org.id, existing[0].customer_id, finalTitle, finalValueCents)
+      }
     }
 
     return NextResponse.json({ ok: true })
