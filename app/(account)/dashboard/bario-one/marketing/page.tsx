@@ -27,13 +27,25 @@ export default async function BarioOneMarketingPage() {
         {gate.locked ? (
           <BarioOneLockedModule moduleKey="crm" />
         ) : (
-          <a
-            href="/dashboard/bario-one/crm/automations"
-            className="block rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-5 hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors"
-          >
-            <p className="font-semibold">Campaigns &amp; automations →</p>
-            <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">Send email campaigns and set up rule-based follow-ups.</p>
-          </a>
+          <div className="space-y-3">
+            <a
+              href="/dashboard/bario-one/crm/automations"
+              className="block rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-5 hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors"
+            >
+              <p className="font-semibold">Email campaigns &amp; automations →</p>
+              <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">Send email campaigns and set up rule-based follow-ups.</p>
+            </a>
+            <a
+              href="/dashboard/bario-one/marketing/seo"
+              className="block rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-5 hover:border-amber-500 dark:hover:border-[#d4af37] transition-colors"
+            >
+              <p className="font-semibold">SEO →</p>
+              <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">Audit your site and get an AI-scored fix list.</p>
+            </a>
+            <p className="text-xs text-slate-400 dark:text-zinc-500 pt-2">
+              SMS, promotions, coupons, referrals, reviews, and QR codes are on the way — see the Marketing section in the sidebar for what's coming next.
+            </p>
+          </div>
         )}
       </div>
     </main>

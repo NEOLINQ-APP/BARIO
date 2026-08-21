@@ -12,6 +12,16 @@ const EVENT_OPTIONS = [
   { value: 'customer.created', label: 'Customer created' },
   { value: 'pos_sale.completed', label: 'POS sale completed' },
   { value: 'shift.scheduled', label: 'Shift scheduled' },
+  // Business OS Steps 3-15 — only the event types with a real call site
+  // are offered here. spott.*/review.*/referral.*/campaign.* exist on
+  // BoWebhookEvent (so the type system + delivery log are ready for them)
+  // but nothing fires them yet — listing them here would let a customer
+  // "subscribe" to an event that can never actually arrive.
+  { value: 'lead.created', label: 'Lead created' },
+  { value: 'lead.updated', label: 'Lead updated' },
+  { value: 'deal.won', label: 'Deal won' },
+  { value: 'appointment.booked', label: 'Appointment booked' },
+  { value: 'appointment.completed', label: 'Appointment completed' },
 ]
 
 function AddWebhookForm({ onAdded }: { onAdded: () => void }) {

@@ -16,6 +16,33 @@ type OrgInfo = {
   hasLiveBilling: boolean
 } | null
 
+// Business OS Step 11 — every field is a real query (see
+// app/api/bario-one/dashboard/summary). Genuinely-empty data (Spott
+// Leads, Marketing Leads today) is 0, never fabricated.
+type DashboardSummary = {
+  revenueCents: number
+  newLeads: number
+  customers: number
+  upcomingAppointments: number
+  openDeals: number
+  spottLeads: number
+  marketingLeads: number
+  conversionRate: number
+}
+
+function money(cents: number) {
+  return `$${(cents / 100).toLocaleString('en-CA', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
+      <p className="text-xs text-slate-500 dark:text-zinc-400">{label}</p>
+      <p className="text-xl font-bold mt-1 tabular-nums">{value}</p>
+    </div>
+  )
+}
+
 function OnboardingCard() {
   const [companyName, setCompanyName] = useState('')
   const [moduleKeys, setModuleKeys] = useState<BoModuleKey[]>(['crm'])
@@ -71,12 +98,19 @@ function OnboardingCard() {
 export default function BarioOneDashboard() {
   const [org, setOrg] = useState<OrgInfo>(undefined as any)
   const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
 
   async function load() {
     const res = await fetch('/api/bario-one/organization')
     const data = await res.json()
     setOrg(data.org)
     setLoading(false)
+    if (data.org) {
+      fetch('/api/bario-one/dashboard/summary')
+        .then((r) => r.json())
+        .then(setSummary)
+        .catch(() => {})
+    }
   }
 
   useEffect(() => {
@@ -120,6 +154,19 @@ export default function BarioOneDashboard() {
           </a>
         )}
       </div>
+
+      {summary && (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard label="Revenue" value={money(summary.revenueCents)} />
+          <StatCard label="New leads (this month)" value={String(summary.newLeads)} />
+          <StatCard label="Customers" value={String(summary.customers)} />
+          <StatCard label="Upcoming appointments" value={String(summary.upcomingAppointments)} />
+          <StatCard label="Open deals" value={String(summary.openDeals)} />
+          <StatCard label="Spott leads" value={String(summary.spottLeads)} />
+          <StatCard label="Marketing leads" value={String(summary.marketingLeads)} />
+          <StatCard label="Conversion rate" value={`${summary.conversionRate.toFixed(0)}%`} />
+        </div>
+      )}
 
       <div className="flex gap-4">
         <a href="/dashboard/bario-one/company" className="text-sm font-medium text-amber-600 dark:text-[#d4af37] hover:underline">

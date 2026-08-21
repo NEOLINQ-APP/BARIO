@@ -20,19 +20,28 @@ export async function GET(req: Request) {
     // applied here as a SQL predicate rather than a per-row filter so it
     // scales with the table instead of over-fetching).
     const employeeScope = membership.role === 'employee'
-    const q = new URL(req.url).searchParams.get('q')?.trim()
+    const searchParams = new URL(req.url).searchParams
+    const q = searchParams.get('q')?.trim()
+    // Business OS Steps 3-15 — the same bo_customers row serves Contacts/
+    // Leads/Customers in the new nav (no separate table per stage — see
+    // lib/customerLifecycle.ts). Additive: absent param = unchanged
+    // behavior, exactly as before this pass.
+    const stage = searchParams.get('stage')
+    const validStage = stage === 'contact' || stage === 'lead' || stage === 'customer' ? stage : null
     const rows = q
       ? ((await sql`
           SELECT * FROM bo_customers
           WHERE organization_id = ${org.id}
             AND (contact_name ILIKE ${'%' + q + '%'} OR company_name ILIKE ${'%' + q + '%'} OR email ILIKE ${'%' + q + '%'})
             AND (NOT ${employeeScope} OR assigned_to_user_id IS NULL OR assigned_to_user_id = ${membership.user_id})
+            AND (${validStage}::text IS NULL OR lifecycle_stage = ${validStage})
           ORDER BY created_at DESC
         `) as unknown as BoCustomer[])
       : ((await sql`
           SELECT * FROM bo_customers
           WHERE organization_id = ${org.id}
             AND (NOT ${employeeScope} OR assigned_to_user_id IS NULL OR assigned_to_user_id = ${membership.user_id})
+            AND (${validStage}::text IS NULL OR lifecycle_stage = ${validStage})
           ORDER BY created_at DESC
         `) as unknown as BoCustomer[])
 
@@ -82,6 +91,10 @@ export async function POST(req: Request) {
     }
 
     await triggerWebhooks(sql, org.id, 'customer.created', { customerId: id, contactName: contactName.trim() })
+    // Business OS Step 9 — a new bo_customers row IS a new lead in this
+    // schema (no separate Lead table — see lib/customerLifecycle.ts), so
+    // 'lead.created' fires alongside the existing 'customer.created'.
+    await triggerWebhooks(sql, org.id, 'lead.created', { customerId: id, contactName: contactName.trim() })
     await runAutomations(sql, org.id, 'customer.created', { customerId: id })
     await recalculateLeadScore(sql, org.id, id)
     await recalculateLifecycleStage(sql, org.id, id)

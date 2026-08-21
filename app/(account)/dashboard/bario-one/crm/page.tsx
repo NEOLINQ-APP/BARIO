@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
@@ -25,7 +26,13 @@ export default async function BarioOneCrmPage() {
           ← Bario One
         </a>
         <h1 className="text-2xl font-bold mt-3 mb-6">Bario CRM</h1>
-        {gate.locked ? <BarioOneLockedModule moduleKey="crm" /> : <BarioOneCrmList />}
+        {gate.locked ? (
+          <BarioOneLockedModule moduleKey="crm" />
+        ) : (
+          <Suspense fallback={<p className="text-sm text-slate-500 dark:text-zinc-400">Loading…</p>}>
+            <BarioOneCrmList />
+          </Suspense>
+        )}
       </div>
     </main>
   )

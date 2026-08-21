@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v8-2026-08-21-business-os'
+const CURRENT_SCHEMA_VERSION = 'v9-2026-08-21-business-os-steps3-15'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2609,6 +2609,136 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS bo_appointments_customer_idx ON bo_appointments (customer_id)`
   await sql`CREATE INDEX IF NOT EXISTS bo_appointments_starts_at_idx ON bo_appointments (organization_id, starts_at)`
 
+  // Business OS Steps 3-15 (2026-08-21) — Marketing foundation (Step 6).
+  // Four tables, not five: attribution folds into lead_sources below
+  // rather than a separate marketing_attribution table, per Step 8's own
+  // "do not duplicate/destroy existing attribution." Every row carries
+  // organization_id (the tenant_id requirement). Schema only this pass —
+  // no UI beyond a "Coming in Phase 2" placeholder writes to these yet.
+  await sql`
+    CREATE TABLE IF NOT EXISTS marketing_campaigns (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      audience_filter_json TEXT NOT NULL DEFAULT '{}',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS marketing_campaigns_org_idx ON marketing_campaigns (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS marketing_events (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      campaign_id TEXT REFERENCES marketing_campaigns(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS marketing_events_org_idx ON marketing_events (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS marketing_audiences (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      name TEXT NOT NULL,
+      filter_json TEXT NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS marketing_audiences_org_idx ON marketing_audiences (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS marketing_assets (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      asset_type TEXT NOT NULL,
+      url TEXT,
+      name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS marketing_assets_org_idx ON marketing_assets (organization_id)`
+
+  // Business OS Step 8 — unified lead attribution. lead_sources already
+  // existed (built earlier tonight) but was never wired to anything —
+  // confirmed via grep before extending it rather than creating a
+  // separate marketing_attribution table. bo_customers.source (the flat
+  // cache from Phases 4/6) is untouched — this becomes the real
+  // multi-touch detail table going forward, written to by
+  // lib/leadAttribution.ts's recordLeadSource().
+  await sql`ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS creative TEXT`
+  await sql`ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS landing_page TEXT`
+  await sql`ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS referrer TEXT`
+
+  // Business OS Step 7 — Spott integration architecture. spott_categories
+  // is deliberately NOT tenant-scoped (a shared taxonomy like "Plumbing"
+  // isn't per-business) — Step 7 only requires listings/leads to carry a
+  // tenant. spott_leads.customer_id is the whole point: "every Spott lead
+  // must be capable of being associated with an existing CRM contact or
+  // creating a new one" (see lib/spottIntegration.ts). No live Spott sync
+  // writes any of this yet — the architecture is ready to receive it.
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_listings (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      category_id TEXT REFERENCES spott_categories(id),
+      external_spott_id TEXT,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS spott_listings_org_idx ON spott_listings (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_promotions (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      listing_id TEXT REFERENCES spott_listings(id),
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS spott_promotions_org_idx ON spott_promotions (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_leads (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      listing_id TEXT REFERENCES spott_listings(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      contact_name TEXT,
+      phone TEXT,
+      email TEXT,
+      message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS spott_leads_org_idx ON spott_leads (organization_id)`
+  await sql`
+    CREATE TABLE IF NOT EXISTS spott_reviews (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      listing_id TEXT REFERENCES spott_listings(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      rating INTEGER,
+      body TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS spott_reviews_org_idx ON spott_reviews (organization_id)`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -3362,9 +3492,22 @@ export type LeadSource = {
   utm_campaign: string | null
   utm_content: string | null
   utm_term: string | null
+  creative: string | null
+  landing_page: string | null
+  referrer: string | null
   first_touch_at: string
   latest_touch_at: string
 }
+
+// Business OS Step 8 — the real vocabulary lib/leadAttribution.ts's
+// recordLeadSource() writes into lead_sources.source. Free-text column
+// (no CHECK constraint, matching this schema's convention), this is the
+// app-level source of truth for valid values.
+export const LEAD_SOURCE_VALUES = [
+  'spott', 'website', 'landing_page', 'email', 'sms', 'referral', 'qr_code',
+  'organic', 'google', 'facebook', 'instagram', 'direct', 'manual', 'ai',
+] as const
+export type LeadSourceValue = (typeof LEAD_SOURCE_VALUES)[number]
 
 export type BoEmailCampaign = {
   id: string
@@ -3424,7 +3567,7 @@ export type BoPipelineStage = {
   updated_at: string
 }
 
-export type BoAutomationTrigger = 'deal.created' | 'deal.stage_changed' | 'customer.created' | 'invoice.paid'
+export type BoAutomationTrigger = 'deal.created' | 'deal.stage_changed' | 'customer.created' | 'invoice.paid' | 'appointment.booked' | 'appointment.completed'
 export type BoAutomationActionType = 'create_task' | 'add_tag' | 'add_note' | 'send_email' | 'send_sms'
 
 export type BoAutomation = {
@@ -3510,6 +3653,86 @@ export type BoAppointment = {
   created_by_user_id: string | null
   created_at: string
   updated_at: string
+}
+
+// Business OS Steps 3-15 — Marketing foundation (Step 6). Schema-only this
+// pass; no UI writes to these yet beyond what's explicitly noted per-page.
+export type MarketingCampaign = {
+  id: string
+  organization_id: string
+  name: string
+  channel: string
+  status: string
+  audience_filter_json: string
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+export type MarketingEvent = {
+  id: string
+  organization_id: string
+  campaign_id: string | null
+  customer_id: string | null
+  event_type: string
+  payload_json: string
+  occurred_at: string
+}
+export type MarketingAudience = {
+  id: string
+  organization_id: string
+  name: string
+  filter_json: string
+  created_at: string
+}
+export type MarketingAsset = {
+  id: string
+  organization_id: string
+  asset_type: string
+  url: string | null
+  name: string | null
+  created_at: string
+}
+
+// Business OS Step 7 — Spott integration architecture. No live sync
+// writes any of this yet; see lib/spottIntegration.ts.
+export type SpottCategory = { id: string; name: string; created_at: string }
+export type SpottListing = {
+  id: string
+  organization_id: string
+  category_id: string | null
+  external_spott_id: string | null
+  name: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+export type SpottPromotion = {
+  id: string
+  organization_id: string
+  listing_id: string | null
+  title: string
+  status: string
+  created_at: string
+}
+export type SpottLead = {
+  id: string
+  organization_id: string
+  listing_id: string | null
+  customer_id: string | null
+  contact_name: string | null
+  phone: string | null
+  email: string | null
+  message: string | null
+  created_at: string
+}
+export type SpottReview = {
+  id: string
+  organization_id: string
+  listing_id: string | null
+  customer_id: string | null
+  rating: number | null
+  body: string | null
+  created_at: string
 }
 
 export type BoInvoiceType = 'estimate' | 'quote' | 'invoice' | 'work_order'
@@ -3752,7 +3975,16 @@ export type BoApiKey = {
   revoked_at: string | null
 }
 
-export type BoWebhookEvent = 'invoice.created' | 'invoice.sent' | 'invoice.paid' | 'customer.created' | 'pos_sale.completed' | 'shift.scheduled'
+export type BoWebhookEvent =
+  | 'invoice.created' | 'invoice.sent' | 'invoice.paid' | 'customer.created' | 'pos_sale.completed' | 'shift.scheduled'
+  // Business OS Steps 3-15 — lead.*/appointment.*/deal.won have real call
+  // sites this pass. spott.*/review.*/referral.*/campaign.* are added so
+  // the architecture "is capable of supporting" them (Step 9's own
+  // wording) — nothing fires them yet since no live Spott sync or
+  // campaign-send system exists to trigger them honestly.
+  | 'lead.created' | 'lead.updated' | 'appointment.booked' | 'appointment.completed' | 'deal.won'
+  | 'spott.lead_created' | 'spott.offer_claimed' | 'review.created' | 'referral.converted'
+  | 'campaign.launched' | 'campaign.paused'
 
 export type BoWebhook = {
   id: string

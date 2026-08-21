@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 type Customer = {
   id: string
@@ -203,19 +204,41 @@ function ImportExportButtons({ onImported }: { onImported: () => void }) {
 export default function BarioOneCrmList() {
   const [customers, setCustomers] = useState<Customer[] | null>(null)
   const [q, setQ] = useState('')
+  // Business OS Steps 3-15 — Contacts/Leads/Customers in the new nav all
+  // link to this same page with a ?stage= param rather than duplicating
+  // it into 3 separate pages (there's no separate Contact/Lead/Customer
+  // table — see lib/customerLifecycle.ts). Additive: no param behaves
+  // exactly as before.
+  const searchParams = useSearchParams()
+  const stage = searchParams.get('stage')
 
   async function load(query?: string) {
-    const res = await fetch(`/api/bario-one/crm/customers${query ? `?q=${encodeURIComponent(query)}` : ''}`)
+    const params = new URLSearchParams()
+    if (query) params.set('q', query)
+    if (stage) params.set('stage', stage)
+    const qs = params.toString()
+    const res = await fetch(`/api/bario-one/crm/customers${qs ? `?${qs}` : ''}`)
     const data = await res.json()
     setCustomers(data.customers ?? [])
   }
 
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage])
 
   return (
     <div className="space-y-4">
+      {stage && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-[#d4af37] font-medium capitalize">
+            {stage} view
+          </span>
+          <a href="/dashboard/bario-one/crm" className="text-slate-500 dark:text-zinc-400 hover:underline">
+            Clear filter
+          </a>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <input
           value={q}

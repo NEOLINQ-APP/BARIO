@@ -6,6 +6,7 @@ import { getPipelineStages } from '@/lib/barioOnePipelines'
 import { recalculateLeadScore } from '@/lib/leadPipeline'
 import { qualifyLead, queueClosePlan } from '@/lib/leadCloser'
 import { recalculateLifecycleStage } from '@/lib/customerLifecycle'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { errorResponse } from '@/lib/errors'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -77,6 +78,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // a lead to a real customer — the same stage change that already
       // triggers score/qualification recalculation below.
       await recalculateLifecycleStage(sql, org.id, existing[0].customer_id)
+      // Business OS Step 9 — real call site.
+      if (dealStage === 'won') {
+        await triggerWebhooks(sql, org.id, 'deal.won', { dealId: params.id, customerId: existing[0].customer_id })
+      }
 
       // Phase 5 (CLOSER): two distinct stage-triggered checkpoints, neither
       // of which overlaps Phase 3's red-priority trigger (that's about lead

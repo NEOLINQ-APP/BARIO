@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { requireBoModule } from '@/lib/barioOne'
+import { triggerWebhooks } from '@/lib/barioOneWebhooks'
+import { runAutomations } from '@/lib/barioOneAutomations'
 import type { BoAppointment } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -62,6 +64,9 @@ export async function POST(req: Request) {
       INSERT INTO bo_appointments (id, organization_id, customer_id, deal_id, assigned_to_user_id, title, location, starts_at, ends_at, notes, created_by_user_id)
       VALUES (${id}, ${org.id}, ${customerId || null}, ${dealId || null}, ${assignedToUserId || user.id}, ${title.trim()}, ${location || null}, ${startsAt}, ${endsAt || null}, ${notes || null}, ${user.id})
     `
+    // Business OS Step 9 — real call site, not just a type-union entry.
+    await triggerWebhooks(sql, org.id, 'appointment.booked', { appointmentId: id, customerId: customerId || null, startsAt })
+    await runAutomations(sql, org.id, 'appointment.booked', { customerId: customerId || undefined, dealId: dealId || undefined })
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     return errorResponse(err)
