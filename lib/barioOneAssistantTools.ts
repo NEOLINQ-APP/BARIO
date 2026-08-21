@@ -5,6 +5,7 @@ import { triggerWebhooks } from '@/lib/barioOneWebhooks'
 import { ensureDefaultPipeline } from '@/lib/barioOnePipelines'
 import { createCampaign } from '@/lib/barioOneCampaigns'
 import { getOwnAiKey } from '@/lib/barioOneOwnAiKey'
+import { findDuplicateLead, recalculateLeadScore } from '@/lib/leadPipeline'
 import type { BoOrganization, BoInvoice, BoInvoiceItem } from '@/lib/db'
 
 // Real monthly lead-gen quota, enforced 2026-08-19 per explicit user
@@ -398,11 +399,19 @@ async function insertLeadsIntoOrg(
   const added: { customer: string; dealId: string }[] = []
   for (const lead of leads) {
     if (!lead.companyName && !lead.contactName) continue
+
+    // Same duplicate check every other lead-creation path in this codebase
+    // goes through (lib/leadPipeline.ts's findDuplicateLead) — without it,
+    // re-running a similar search (or a client backup landing in the
+    // master org repeatedly) just piles up literal duplicate CRM rows.
+    const duplicate = await findDuplicateLead(sql, orgId, { email: lead.email, phone: lead.phone, companyName: lead.companyName })
+    if (duplicate) continue
+
     const customerId = randomUUID()
     const tags = backupSource ? '["lead","client-backup"]' : '["lead"]'
     await sql`
-      INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, created_by_user_id)
-      VALUES (${customerId}, ${orgId}, ${lead.companyName || null}, ${lead.contactName || lead.companyName}, ${lead.phone || null}, ${lead.email || null}, ${tags}, NULL)
+      INSERT INTO bo_customers (id, organization_id, company_name, contact_name, phone, email, tags_json, source, created_by_user_id)
+      VALUES (${customerId}, ${orgId}, ${lead.companyName || null}, ${lead.contactName || lead.companyName}, ${lead.phone || null}, ${lead.email || null}, ${tags}, 'scout', NULL)
     `
     const dealId = randomUUID()
     await sql`
@@ -416,6 +425,11 @@ async function insertLeadsIntoOrg(
         VALUES (${randomUUID()}, ${orgId}, ${customerId}, 'note', ${`Backed up from ${backupSource.orgName}'s CRM — generated ${when}. Kept here as a data-loss safeguard and for Bario.ca's own marketing pipeline.`})
       `
     }
+    // Ties SCOUT-discovered leads into the Phase 2 scoring pipeline — a
+    // freshly-found lead with only a company name and maybe a phone/email
+    // won't score high yet, but it's no longer silently blank in the CRM
+    // list view, and future edits/deal-stage changes keep it current.
+    await recalculateLeadScore(sql, orgId, customerId)
     added.push({ customer: (lead.companyName || lead.contactName) as string, dealId })
   }
   return added

@@ -13,11 +13,12 @@ export async function GET(req: Request) {
       SELECT
         u.email, u.plan, u.email_verified, sa.url, sa.created_at,
         (sa.ai_report_json IS NOT NULL) AS unlocked,
-        CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'score')::int ELSE NULL END AS score
+        CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'score')::int ELSE NULL END AS score,
+        CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'opportunityScore')::int ELSE NULL END AS opportunity_score
       FROM site_audits sa
       JOIN users u ON u.id = sa.user_id
       ORDER BY sa.created_at DESC
-    `) as unknown as { email: string; plan: string; email_verified: boolean; url: string; created_at: string; unlocked: boolean; score: number | null }[]
+    `) as unknown as { email: string; plan: string; email_verified: boolean; url: string; created_at: string; unlocked: boolean; score: number | null; opportunity_score: number | null }[]
 
     const csv = toCsv(rows, [
       { key: 'email', header: 'Email' },
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
       { key: 'email_verified', header: 'Email Verified' },
       { key: 'url', header: 'Site Audited' },
       { key: 'score', header: 'AI Report Score' },
+      { key: 'opportunity_score', header: 'Sales Opportunity Score' },
       { key: 'unlocked', header: 'Unlocked Deep Report' },
       { key: 'created_at', header: 'Audit Date' },
     ])

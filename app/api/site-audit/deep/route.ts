@@ -18,17 +18,37 @@ const issueSchema = z.object({
   why: z.string(),
   fix: z.string(),
 })
+const BARIO_SERVICES = [
+  'ai_website_builder',
+  'wordpress_hosting',
+  'vps_hosting',
+  'bario_one_crm',
+  'domain_registration',
+  'email_hosting',
+  'voice_ai_receptionist',
+] as const
+const recommendedServiceSchema = z.object({ service: z.enum(BARIO_SERVICES), reason: z.string() })
 const reportSchema = z.object({
   summary: z.string(),
   score: z.number().int().min(0).max(100),
   issues: z.array(issueSchema),
   quickWins: z.array(z.string()),
+  // AISHA extension (multi-agent CRM Phase 4): separate from `score` (site
+  // health) — this is "how likely is this specific business to actually
+  // buy something from Bario," so a technically-fine site with an
+  // expensive/unreliable host still scores high here even if `score` is
+  // high too. Surfaced in /admin/site-audit-leads so outreach can be
+  // prioritized by real sales opportunity, not just by how broken a site is.
+  opportunityScore: z.number().int().min(0).max(100),
+  recommendedServices: z.array(recommendedServiceSchema).max(3),
 })
 export type DeepAuditReport = z.infer<typeof reportSchema>
 
 const SYSTEM_PROMPT = `You are Bario's site-audit analyst. You are given REAL, server-crawled data from a specific website — its actual title tag, meta description, heading structure, visible text content, and rule-based technical findings (WordPress detection, alt-text coverage, HTTPS, sitemap/robots presence, etc). This is data a generic AI chatbot cannot obtain on its own, since it can't crawl and parse a live site itself — make the report reflect genuine analysis of what was actually found, not generic advice that could apply to any site.
 
 Write specific, concrete, prioritized findings referencing the ACTUAL content you were given (quote the real title/headline text, name the real missing elements) — never generic filler advice. If ruleBasedFindings.seo.isBarioHosted is true, do not treat a missing sitemap.xml/robots.txt as a mistake the site owner made — that is a known, planned platform gap on Bario's own side, not their fault; still note it factually but frame it accordingly.
+
+You are ALSO assessing this as a sales opportunity for Bario.ca (an all-in-one hosting + AI website builder + CRM platform for Canadian businesses) — separately from the site's technical health score above. A technically fine site on an expensive or unreliable host is still a real opportunity; a broken site with an owner who's clearly not going to spend money is not. Base opportunityScore and recommendedServices only on real signals in the data you were given (isBarioHosted, isWordPress, missing sitemap/HTTPS, thin/stale content, no visible CRM or booking system referenced in the copy, etc.) — never guess at things you can't see. If isBarioHosted is true, do not recommend hosting/domain/builder services (already a Bario customer for those) — focus on gaps they might still have (CRM, email hosting, voice AI receptionist).
 
 Respond with ONLY a single JSON object matching this exact shape, no other text:
 {
@@ -39,9 +59,14 @@ Respond with ONLY a single JSON object matching this exact shape, no other text:
       "title": "short label", "finding": "what's actually wrong, referencing real content", "why": "why it matters",
       "fix": "specific, actionable rewrite/fix — e.g. an actual suggested title tag or meta description text" }
   ],
-  "quickWins": ["3-5 short highest-impact-lowest-effort items"]
+  "quickWins": ["3-5 short highest-impact-lowest-effort items"],
+  "opportunityScore": <integer 0-100, likelihood this specific business would benefit from and buy a Bario service>,
+  "recommendedServices": [
+    { "service": "ai_website_builder" | "wordpress_hosting" | "vps_hosting" | "bario_one_crm" | "domain_registration" | "email_hosting" | "voice_ai_receptionist",
+      "reason": "one sentence, specific to this site, why this service fits" }
+  ]
 }
-Order "issues" most severe first. Base every issue strictly on the provided data — never invent findings not supported by it.`
+Order "issues" most severe first, "recommendedServices" most relevant first (at most 3). Base every issue and recommendation strictly on the provided data — never invent findings not supported by it.`
 
 async function callDeepAuditModel(findings: unknown, digest: unknown): Promise<DeepAuditReport> {
   const userContent = JSON.stringify({ ruleBasedFindings: findings, content: digest })

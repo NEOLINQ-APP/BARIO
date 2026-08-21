@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+type RecommendedService = { service: string; reason: string }
+
 type LeadRow = {
   id: string
   url: string
@@ -10,12 +12,24 @@ type LeadRow = {
   created_at: string
   unlocked: boolean
   score: number | null
+  opportunity_score: number | null
+  recommended_services: RecommendedService[] | null
   user_id: string
   email: string
   plan: string | null
   email_verified: boolean
   is_admin: boolean
   user_created_at: string
+}
+
+const SERVICE_LABEL: Record<string, string> = {
+  ai_website_builder: 'AI Website Builder',
+  wordpress_hosting: 'WordPress Hosting',
+  vps_hosting: 'VPS Hosting',
+  bario_one_crm: 'Bario One CRM',
+  domain_registration: 'Domain Registration',
+  email_hosting: 'Email Hosting',
+  voice_ai_receptionist: 'Voice AI Receptionist',
 }
 
 type Summary = { unique_leads: number; total_audits: number; unlocked_count: number }
@@ -35,9 +49,10 @@ export default function AdminSiteAuditLeads() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [sortByOpportunity, setSortByOpportunity] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/admin/site-audit-leads?page=${page}`)
+    fetch(`/api/admin/site-audit-leads?page=${page}${sortByOpportunity ? '&sort=opportunity' : ''}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.ok) {
@@ -46,7 +61,7 @@ export default function AdminSiteAuditLeads() {
           setTotal(data.total)
         }
       })
-  }, [page])
+  }, [page, sortByOpportunity])
 
   return (
     <div className="space-y-6">
@@ -70,12 +85,25 @@ export default function AdminSiteAuditLeads() {
           Every free account created through the site-audit funnel is a real business owner who cared enough to hand
           over an email and the URL they want fixed — work this list.
         </p>
-        <a
-          href="/api/admin/site-audit-leads/export"
-          className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 px-3 py-1.5 hover:border-amber-500 dark:hover:border-[#d4af37] whitespace-nowrap"
-        >
-          Export CSV
-        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSortByOpportunity((v) => !v)}
+            className={`text-xs rounded-lg border px-3 py-1.5 whitespace-nowrap ${
+              sortByOpportunity
+                ? 'border-amber-500 dark:border-[#d4af37] bg-amber-500/10 text-amber-700 dark:text-[#d4af37]'
+                : 'border-slate-300 dark:border-zinc-700'
+            }`}
+          >
+            {sortByOpportunity ? '✓ ' : ''}Sort by opportunity
+          </button>
+          <a
+            href="/api/admin/site-audit-leads/export"
+            className="text-xs rounded-lg border border-slate-300 dark:border-zinc-700 px-3 py-1.5 hover:border-amber-500 dark:hover:border-[#d4af37] whitespace-nowrap"
+          >
+            Export CSV
+          </a>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
@@ -85,6 +113,7 @@ export default function AdminSiteAuditLeads() {
               <th className="px-4 py-2 font-medium">Email</th>
               <th className="px-4 py-2 font-medium">Site audited</th>
               <th className="px-4 py-2 font-medium">Score</th>
+              <th className="px-4 py-2 font-medium">Opportunity</th>
               <th className="px-4 py-2 font-medium">Deep report</th>
               <th className="px-4 py-2 font-medium">Plan</th>
               <th className="px-4 py-2 font-medium">Verified</th>
@@ -93,10 +122,10 @@ export default function AdminSiteAuditLeads() {
           </thead>
           <tbody>
             {leads === null && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500 dark:text-zinc-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-500 dark:text-zinc-400">Loading…</td></tr>
             )}
             {leads?.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500 dark:text-zinc-400">No audits yet.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-500 dark:text-zinc-400">No audits yet.</td></tr>
             )}
             {leads?.map((lead) => (
               <tr key={lead.id} className="border-t border-slate-200 dark:border-zinc-800">
@@ -113,6 +142,30 @@ export default function AdminSiteAuditLeads() {
                   {lead.score === null
                     ? <span className="text-slate-400 dark:text-zinc-500">—</span>
                     : <span className={lead.score < 60 ? 'text-red-500 font-semibold' : lead.score < 80 ? 'text-amber-500 font-semibold' : 'text-emerald-500 font-semibold'}>{lead.score}/100</span>}
+                </td>
+                <td className="px-4 py-2">
+                  {lead.opportunity_score === null ? (
+                    <span className="text-slate-400 dark:text-zinc-500">—</span>
+                  ) : (
+                    <div>
+                      <span
+                        className={
+                          lead.opportunity_score >= 70
+                            ? 'text-emerald-500 font-semibold'
+                            : lead.opportunity_score >= 40
+                              ? 'text-amber-500 font-semibold'
+                              : 'text-slate-400 dark:text-zinc-500'
+                        }
+                      >
+                        {lead.opportunity_score}/100
+                      </span>
+                      {lead.recommended_services && lead.recommended_services.length > 0 && (
+                        <div className="text-[10px] text-slate-500 dark:text-zinc-400 mt-0.5" title={lead.recommended_services.map((s) => s.reason).join(' · ')}>
+                          {lead.recommended_services.map((s) => SERVICE_LABEL[s.service] ?? s.service).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-4 py-2">
                   {lead.unlocked

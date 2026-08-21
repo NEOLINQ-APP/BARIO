@@ -21,6 +21,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1)
     const offset = (page - 1) * PAGE_SIZE
+    const sortByOpportunity = url.searchParams.get('sort') === 'opportunity'
 
     const countRows = (await sql`SELECT count(*)::int AS count FROM site_audits`) as unknown as { count: number }[]
     const total = countRows[0]?.count ?? 0
@@ -33,17 +34,32 @@ export async function GET(req: Request) {
       FROM site_audits sa
     `) as unknown as { unique_leads: number; total_audits: number; unlocked_count: number }[]
 
-    const rows = await sql`
-      SELECT
-        sa.id, sa.url, sa.status, sa.credits_charged, sa.created_at,
-        (sa.ai_report_json IS NOT NULL) AS unlocked,
-        CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'score')::int ELSE NULL END AS score,
-        u.id AS user_id, u.email, u.plan, u.email_verified, u.is_admin, u.created_at AS user_created_at
-      FROM site_audits sa
-      JOIN users u ON u.id = sa.user_id
-      ORDER BY sa.created_at DESC
-      LIMIT ${PAGE_SIZE} OFFSET ${offset}
+    // opportunity_score/recommended_services come from the AISHA extension
+    // to the deep-audit report (app/api/site-audit/deep) — NULL for any
+    // audit that was never unlocked, or unlocked before that field existed.
+    const selectCols = sql`
+      sa.id, sa.url, sa.status, sa.credits_charged, sa.created_at,
+      (sa.ai_report_json IS NOT NULL) AS unlocked,
+      CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'score')::int ELSE NULL END AS score,
+      CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'opportunityScore')::int ELSE NULL END AS opportunity_score,
+      CASE WHEN sa.ai_report_json IS NOT NULL THEN sa.ai_report_json::json->'recommendedServices' ELSE NULL END AS recommended_services,
+      u.id AS user_id, u.email, u.plan, u.email_verified, u.is_admin, u.created_at AS user_created_at
     `
+    const rows = sortByOpportunity
+      ? await sql`
+          SELECT ${selectCols}
+          FROM site_audits sa
+          JOIN users u ON u.id = sa.user_id
+          ORDER BY (CASE WHEN sa.ai_report_json IS NOT NULL THEN (sa.ai_report_json::json->>'opportunityScore')::int ELSE NULL END) DESC NULLS LAST, sa.created_at DESC
+          LIMIT ${PAGE_SIZE} OFFSET ${offset}
+        `
+      : await sql`
+          SELECT ${selectCols}
+          FROM site_audits sa
+          JOIN users u ON u.id = sa.user_id
+          ORDER BY sa.created_at DESC
+          LIMIT ${PAGE_SIZE} OFFSET ${offset}
+        `
 
     return NextResponse.json({
       ok: true,
