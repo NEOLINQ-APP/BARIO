@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { recalculateLeadScore } from '@/lib/leadPipeline'
 
 // Repoints Victoria's call-logging + caller-context (previously written
 // against each business's own standalone Twenty CRM instance, see
@@ -39,16 +40,27 @@ export async function findOrCreateBoCustomerByPhone(sql: any, orgId: string, pho
   const id = randomUUID()
   const contactName = displayName?.trim() || 'Unknown Caller'
   await sql`
-    INSERT INTO bo_customers (id, organization_id, contact_name, phone, tags_json)
-    VALUES (${id}, ${orgId}, ${contactName}, ${phoneE164}, '["victoria-call"]')
+    INSERT INTO bo_customers (id, organization_id, contact_name, phone, tags_json, source)
+    VALUES (${id}, ${orgId}, ${contactName}, ${phoneE164}, '["victoria-call"]', 'victoria_call')
   `
+  // Ties Victoria's call intake into the Phase 2 scoring pipeline — a new
+  // caller now gets a real score/priority (data-quality signals at
+  // minimum) instead of showing blank in the CRM list the way every
+  // Victoria-sourced lead did before Phase 6.
+  await recalculateLeadScore(sql, orgId, id)
   return id
 }
 
-export async function setBoCustomerEmailIfMissing(sql: any, customerId: string, email: string): Promise<void> {
+export async function setBoCustomerEmailIfMissing(sql: any, orgId: string, customerId: string, email: string): Promise<void> {
   const target = email.trim().toLowerCase()
   if (!target) return
-  await sql`UPDATE bo_customers SET email = ${target}, updated_at = now() WHERE id = ${customerId} AND email IS NULL`
+  const updated = (await sql`
+    UPDATE bo_customers SET email = ${target}, updated_at = now() WHERE id = ${customerId} AND email IS NULL RETURNING id
+  `) as unknown as { id: string }[]
+  // Only recalculate when the email actually changed (the RETURNING check)
+  // — a no-op call (email already set) shouldn't write a fresh
+  // lead_scores/priority_history row for nothing.
+  if (updated.length > 0) await recalculateLeadScore(sql, orgId, customerId)
 }
 
 // Repoints app/api/public/site-lead's real, live "a visitor submitted the
@@ -70,9 +82,10 @@ export async function findOrCreateBoCustomerByEmail(sql: any, orgId: string, ema
   const id = randomUUID()
   const contactName = displayName?.trim() || 'Unknown'
   await sql`
-    INSERT INTO bo_customers (id, organization_id, contact_name, email, phone, tags_json)
-    VALUES (${id}, ${orgId}, ${contactName}, ${target}, ${phone}, '["website-lead"]')
+    INSERT INTO bo_customers (id, organization_id, contact_name, email, phone, tags_json, source)
+    VALUES (${id}, ${orgId}, ${contactName}, ${target}, ${phone}, '["website-lead"]', 'website_form')
   `
+  await recalculateLeadScore(sql, orgId, id)
   return id
 }
 
@@ -93,9 +106,10 @@ export async function createBoContact(sql: any, orgId: string, opts: { firstName
   const id = randomUUID()
   const contactName = `${opts.firstName} ${opts.lastName}`.trim() || 'Unknown'
   await sql`
-    INSERT INTO bo_customers (id, organization_id, contact_name, company_name, phone, email, tags_json)
-    VALUES (${id}, ${orgId}, ${contactName}, ${opts.companyName || null}, ${opts.phone}, ${opts.email || null}, '["dialer-added"]')
+    INSERT INTO bo_customers (id, organization_id, contact_name, company_name, phone, email, tags_json, source)
+    VALUES (${id}, ${orgId}, ${contactName}, ${opts.companyName || null}, ${opts.phone}, ${opts.email || null}, '["dialer-added"]', 'dialer')
   `
+  await recalculateLeadScore(sql, orgId, id)
   return id
 }
 

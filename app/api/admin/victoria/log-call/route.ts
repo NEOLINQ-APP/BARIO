@@ -68,7 +68,7 @@ export async function POST(req: Request) {
           const customerId = await findOrCreateBoCustomerByPhone(sql, orgId, otherPartyNumber, callerName)
           if (customerId) {
             await logBoCallNote(sql, orgId, customerId, direction, summary, durationSeconds, personalNotes)
-            if (callerEmail) await setBoCustomerEmailIfMissing(sql, customerId, callerEmail)
+            if (callerEmail) await setBoCustomerEmailIfMissing(sql, orgId, customerId, callerEmail)
           }
         } catch (err) {
           console.error(`Bario One CRM call sync failed for ${businessKey}/${callSid}:`, err)
