@@ -53,6 +53,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     } catch {
       leadSignals = {}
     }
+    let suggestedProducts: { productId: string; name: string; reason: string }[] = []
+    try {
+      suggestedProducts = customer.suggested_products_json ? JSON.parse(customer.suggested_products_json) : []
+    } catch {
+      suggestedProducts = []
+    }
 
     return NextResponse.json({
       customer: { ...customer, tags: JSON.parse(customer.tags_json), customFields: JSON.parse(customer.custom_fields_json) },
@@ -62,6 +68,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       customFieldDefs: customFieldDefs.map((f) => ({ ...f, options: JSON.parse(f.options_json) })),
       priorityReason: latestPriorityRows[0]?.reason ?? null,
       leadSignals,
+      suggestedProducts,
     })
   } catch (err: any) {
     return errorResponse(err)

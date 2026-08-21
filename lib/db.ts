@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v5-2026-08-20-phases2-7'
+const CURRENT_SCHEMA_VERSION = 'v6-2026-08-20-phase8'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2479,6 +2479,11 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS do_not_contact BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS do_not_contact_reason TEXT`
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT`
+  // Phase 8 (business matching engine) — cached result of matching this
+  // lead against the org's own bo_products catalog (lib/businessMatching.ts),
+  // so the CRM detail view doesn't re-run an AI call on every page load;
+  // refreshed only when someone clicks "Find matches" again.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS suggested_products_json TEXT`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_customers_unsubscribe_token_idx ON bo_customers (unsubscribe_token) WHERE unsubscribe_token IS NOT NULL`
 
   // Phase 2 (2026-08-20) — the manual signal inputs (need/intent/fit/timing)
@@ -3228,6 +3233,7 @@ export type BoCustomer = {
   do_not_contact: boolean
   do_not_contact_reason: string | null
   unsubscribe_token: string | null
+  suggested_products_json: string | null
   created_at: string
   updated_at: string
 }

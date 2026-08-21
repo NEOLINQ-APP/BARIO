@@ -22,6 +22,7 @@ type Data = {
   customFieldDefs: FieldDef[]
   priorityReason: string | null
   leadSignals: Record<string, unknown>
+  suggestedProducts: { productId: string; name: string; reason: string }[]
 } | null
 
 type LeadSignals = {
@@ -204,6 +205,59 @@ function DoNotContactToggle({ customerId, doNotContact, reason, onChanged }: {
           placeholder="Reason (optional, e.g. asked to stop)"
           className="mt-1 w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-[#0b111c] text-xs"
         />
+      )}
+    </div>
+  )
+}
+
+// Phase 8 business matching engine — matches this lead against the org's
+// own bo_products catalog (lib/businessMatching.ts). Cached in
+// suggested_products_json until someone clicks Find matches again, so
+// loading the lead doesn't re-run an AI call every time.
+function SuggestedProductsPanel({ customerId, initial, onMatched }: {
+  customerId: string
+  initial: { productId: string; name: string; reason: string }[]
+  onMatched: (matches: { productId: string; name: string; reason: string }[]) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function findMatches() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/bario-one/crm/customers/${customerId}/match-products`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Could not find matches')
+      onMatched(data.matches)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">Suggested products</p>
+        <button onClick={findMatches} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold disabled:opacity-50">
+          {busy ? 'Matching…' : initial.length > 0 ? 'Re-match' : 'Find matches'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{error}</p>}
+      {initial.length === 0 && !error && !busy && (
+        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">What from your catalog to pitch this lead — click Find matches.</p>
+      )}
+      {initial.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {initial.map((m) => (
+            <li key={m.productId} className="text-sm">
+              <span className="font-medium">{m.name}</span>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">{m.reason}</p>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -487,6 +541,12 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
                 : prev
             )
           }
+        />
+
+        <SuggestedProductsPanel
+          customerId={customerId}
+          initial={data.suggestedProducts}
+          onMatched={(matches) => setData((prev) => (prev ? { ...prev, suggestedProducts: matches } : prev))}
         />
 
         {customFieldDefs.length > 0 && (
