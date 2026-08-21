@@ -5,6 +5,7 @@ import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { getPipelineStages } from '@/lib/barioOnePipelines'
 import { recalculateLeadScore } from '@/lib/leadPipeline'
 import { qualifyLead, queueClosePlan } from '@/lib/leadCloser'
+import { recalculateLifecycleStage } from '@/lib/customerLifecycle'
 import { errorResponse } from '@/lib/errors'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -72,6 +73,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // reflect that in its score immediately, not wait for someone to
       // touch the customer record separately.
       await recalculateLeadScore(sql, org.id, existing[0].customer_id)
+      // Business OS Phase 1: a deal reaching 'won' is exactly what promotes
+      // a lead to a real customer — the same stage change that already
+      // triggers score/qualification recalculation below.
+      await recalculateLifecycleStage(sql, org.id, existing[0].customer_id)
 
       // Phase 5 (CLOSER): two distinct stage-triggered checkpoints, neither
       // of which overlaps Phase 3's red-priority trigger (that's about lead

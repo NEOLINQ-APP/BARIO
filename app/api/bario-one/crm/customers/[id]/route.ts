@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { isRecordVisibleToMember, requireBoModule } from '@/lib/barioOne'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { recalculateLeadScore } from '@/lib/leadPipeline'
+import { recalculateLifecycleStage } from '@/lib/customerLifecycle'
 import type { BoCustomer, BoCustomField, BoDeal, BoTask, BoNote } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -134,6 +135,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     `
 
     const recalculated = await recalculateLeadScore(sql, org.id, params.id)
+    await recalculateLifecycleStage(sql, org.id, params.id)
     return NextResponse.json({ ok: true, ...recalculated })
   } catch (err: any) {
     return errorResponse(err)

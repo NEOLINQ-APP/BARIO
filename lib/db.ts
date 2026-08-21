@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v7-2026-08-20-victoria-scheduling'
+const CURRENT_SCHEMA_VERSION = 'v8-2026-08-21-business-os'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2543,6 +2543,72 @@ async function ensureSchema() {
   // agency's work queue.
   await sql`ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS result_json TEXT`
 
+  // Business OS Phase 1 (2026-08-21) — formal lifecycle stage. bo_customers
+  // remains the single identity anchor (contact -> lead -> customer is a
+  // state on the SAME row, never a different table) — this just makes
+  // that lifecycle explicit instead of inferring it from tags/priority/
+  // deal existence. NULL means "not yet classified" (every pre-existing
+  // row) — same nullable-until-computed shape as current_score/
+  // current_priority above. See lib/customerLifecycle.ts for the only
+  // sanctioned write path (recalculateLifecycleStage), same pattern as
+  // lib/leadPipeline.ts's recalculateLeadScore().
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT`
+  await sql`CREATE INDEX IF NOT EXISTS bo_customers_lifecycle_stage_idx ON bo_customers (organization_id, lifecycle_stage)`
+
+  // Business OS Phase 1 — external identity linking. Purely a place for a
+  // FUTURE Spott.ca sync (a completely separate product/Supabase project,
+  // no existing integration point today) to attach without inventing a
+  // second identity table — this is exactly what keeps "a Spott customer,
+  // a CRM customer, and a marketing customer" from ever being three
+  // different rows for the same person. Nothing writes these yet.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS external_source TEXT`
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS external_ref_id TEXT`
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS bo_customers_external_ref_unique
+    ON bo_customers (organization_id, external_source, external_ref_id)
+    WHERE external_source IS NOT NULL AND external_ref_id IS NOT NULL
+  `
+
+  // Business OS Phase 1 — bo_notes.kind grows 5 new values (spott_activity/
+  // referral/review/website_visit/ai_conversation) so "Customer -> every
+  // touch" stays ONE ordered table, the same precedent that already let
+  // 'comment' get added with zero schema change (kind is free-text, not a
+  // Postgres enum/CHECK — no constraint exists on it). metadata_json holds
+  // the structured fields a few of these carry that a plain body string
+  // doesn't fit (a review's rating/source URL, a website visit's page/
+  // referrer, an AI conversation's session id) — every existing kind
+  // leaves this at '{}', unaffected.
+  await sql`ALTER TABLE bo_notes ADD COLUMN IF NOT EXISTS metadata_json TEXT NOT NULL DEFAULT '{}'`
+
+  // Business OS Phase 1 — bo_appointments. Genuinely new: confirmed by
+  // exhaustive grep that nothing under Bario One has ever modeled an
+  // appointment before (bo_tasks is a plain due-date checklist, no time
+  // range or location). Shaped as a direct sibling of bo_tasks (same org/
+  // customer/deal/assignee columns), with the two fields a calendar-shaped
+  // record needs beyond a task's single due_at: a real start/end range and
+  // a location.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_appointments (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT REFERENCES bo_customers(id),
+      deal_id TEXT REFERENCES bo_deals(id),
+      assigned_to_user_id TEXT REFERENCES users(id),
+      title TEXT NOT NULL,
+      location TEXT,
+      starts_at TIMESTAMPTZ NOT NULL,
+      ends_at TIMESTAMPTZ,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      notes TEXT,
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_appointments_org_idx ON bo_appointments (organization_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_appointments_customer_idx ON bo_appointments (customer_id)`
+  await sql`CREATE INDEX IF NOT EXISTS bo_appointments_starts_at_idx ON bo_appointments (organization_id, starts_at)`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -3234,6 +3300,7 @@ export type BoMembership = {
 }
 
 export type LeadPriority = 'red' | 'yellow' | 'green' | 'grey'
+export type BoCustomerLifecycleStage = 'contact' | 'lead' | 'customer'
 
 export type BoCustomer = {
   id: string
@@ -3258,6 +3325,9 @@ export type BoCustomer = {
   do_not_contact_reason: string | null
   unsubscribe_token: string | null
   suggested_products_json: string | null
+  lifecycle_stage: BoCustomerLifecycleStage | null
+  external_source: string | null
+  external_ref_id: string | null
   created_at: string
   updated_at: string
 }
@@ -3414,13 +3484,32 @@ export type BoNote = {
   organization_id: string
   customer_id: string
   author_user_id: string | null
-  kind: 'note' | 'email' | 'sms' | 'comment'
+  kind: 'note' | 'email' | 'sms' | 'comment' | 'spott_activity' | 'referral' | 'review' | 'website_visit' | 'ai_conversation'
   body: string
   mentioned_user_ids_json: string
   message_id: string | null
   direction: 'outbound' | 'inbound' | null
   from_email: string | null
+  metadata_json: string
   created_at: string
+}
+
+export type BoAppointmentStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show'
+export type BoAppointment = {
+  id: string
+  organization_id: string
+  customer_id: string | null
+  deal_id: string | null
+  assigned_to_user_id: string | null
+  title: string
+  location: string | null
+  starts_at: string
+  ends_at: string | null
+  status: BoAppointmentStatus
+  notes: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 export type BoInvoiceType = 'estimate' | 'quote' | 'invoice' | 'work_order'
