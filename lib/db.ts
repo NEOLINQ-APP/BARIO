@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v4-2026-08-20'
+const CURRENT_SCHEMA_VERSION = 'v5-2026-08-20-phases2-7'
 
 async function ensureSchema() {
   const sql = getSql()
