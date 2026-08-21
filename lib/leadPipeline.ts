@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import type { LeadPriority } from '@/lib/db'
-import type { LeadScoreWeights } from '@/lib/leadScoreConfig'
+import type { BoCustomer, BoDeal, BoTask, LeadPriority } from '@/lib/db'
+import { getLeadScoreWeights, type LeadScoreWeights } from '@/lib/leadScoreConfig'
 
 // The only sanctioned write path to lead scoring/priority/duplicate-check
 // data. Agents (and any future automation) must go through these functions
@@ -165,6 +165,86 @@ export async function recordPriorityChange(
     UPDATE bo_customers SET current_score = ${score}, current_priority = ${priority}, updated_at = now()
     WHERE id = ${customerId}
   `
+}
+
+type LeadSignalInputs = Parameters<typeof calculateLeadScore>[1]
+
+// Everything calculateLeadScore() can take is either (a) objectively
+// derivable from data already on the record/deals — data quality signals,
+// and pipeline-stage-implied intent — or (b) something only a human (or a
+// future SCOUT/CLOSER agent) can actually judge, like "is this a strong
+// need" or "does this fit our ICP." This function only computes (a); (b)
+// comes from bo_customers.lead_signals_json, entered once via the CRM UI
+// and then reused on every automatic recalculation until changed.
+function deriveAutoSignals(customer: BoCustomer, deals: BoDeal[], tasks: BoTask[]): LeadSignalInputs {
+  const stages = new Set(deals.map((d) => d.stage.toLowerCase()))
+  const tags: string[] = (() => {
+    try {
+      return JSON.parse(customer.tags_json || '[]')
+    } catch {
+      return []
+    }
+  })()
+
+  return {
+    hasValidPhone: !!customer.phone && customer.phone.replace(/\D/g, '').length >= 10,
+    hasValidEmail: !!customer.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email),
+    hasLocation: !!customer.address,
+    hasSource: !!customer.source,
+    hasNeed: tags.length > 0, // a tagged lead has at least some qualifying context recorded
+    // Deal-stage-implied intent — deliberately tolerant of custom pipeline
+    // stage keys (an org can rename/add stages), so this only fires on the
+    // stock stage names rather than assuming every org's pipeline matches.
+    quoteRequested: stages.has('quote') || stages.has('won'),
+    readyToPurchase: stages.has('quote'),
+    appointmentRequested: tasks.length > 0, // a follow-up task exists for this lead
+    isEmergency: tags.some((t) => t.toLowerCase() === 'emergency'),
+  }
+}
+
+// The one function that should actually run scoring end-to-end: derives
+// what it can from real data, layers the human-entered signals on top
+// (manual values always win — a person's judgment about need/fit/intent
+// beats any heuristic), and writes the result. Called after every
+// customer create/edit and every deal stage change so a lead's
+// score/priority never goes stale without anyone having to remember to
+// press a button.
+export async function recalculateLeadScore(sql: any, organizationId: string, customerId: string): Promise<{ score: number; priority: LeadPriority; reason: string } | null> {
+  const customerRows = (await sql`SELECT * FROM bo_customers WHERE id = ${customerId} AND organization_id = ${organizationId}`) as unknown as BoCustomer[]
+  const customer = customerRows[0]
+  if (!customer) return null
+
+  const [deals, tasks] = await Promise.all([
+    sql`SELECT * FROM bo_deals WHERE customer_id = ${customerId} AND organization_id = ${organizationId}` as Promise<BoDeal[]>,
+    sql`SELECT * FROM bo_tasks WHERE customer_id = ${customerId} AND organization_id = ${organizationId}` as Promise<BoTask[]>,
+  ])
+
+  let manualSignals: Record<string, unknown> = {}
+  try {
+    manualSignals = JSON.parse(customer.lead_signals_json || '{}')
+  } catch {
+    manualSignals = {}
+  }
+
+  const autoSignals = deriveAutoSignals(customer, deals, tasks)
+  // Only overlay manual keys that are actually present — an unset manual
+  // field must fall back to the derived value, not clobber it with
+  // `undefined` (which would silently zero out that scoring line).
+  const signals: LeadSignalInputs = { ...autoSignals }
+  for (const [key, value] of Object.entries(manualSignals)) {
+    if (key === 'disqualified' || key === 'disqualifiedReason') continue
+    if (value !== undefined) (signals as any)[key] = value
+  }
+
+  const weights = await getLeadScoreWeights(sql)
+  const { score, breakdown } = calculateLeadScore(weights, signals)
+  const { priority, reason } = calculatePriority(score, {
+    disqualified: manualSignals.disqualified === true,
+    disqualifiedReason: typeof manualSignals.disqualifiedReason === 'string' ? manualSignals.disqualifiedReason : undefined,
+  })
+
+  await recordPriorityChange(sql, organizationId, customerId, score, breakdown, priority, reason)
+  return { score, priority, reason }
 }
 
 export async function getLeadTimeline(sql: any, customerId: string): Promise<Array<{ type: 'note' | 'priority_change'; at: string; data: any }>> {

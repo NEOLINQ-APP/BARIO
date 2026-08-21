@@ -2460,6 +2460,13 @@ async function ensureSchema() {
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS campaign_id TEXT`
   await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS data_completeness_pct INTEGER`
 
+  // Phase 2 (2026-08-20) — the manual signal inputs (need/intent/fit/timing)
+  // that calculateLeadScore() can't derive from bo_customers' own columns.
+  // Persisted so recalculateLeadScore() can be re-run automatically (on
+  // every customer edit or deal stage change) without the signals being
+  // re-entered each time — last known values just carry forward.
+  await sql`ALTER TABLE bo_customers ADD COLUMN IF NOT EXISTS lead_signals_json TEXT NOT NULL DEFAULT '{}'`
+
   // agent_tasks gets the structured field set the multi-agent orchestration
   // layer needs (Phase 3+) — added now, alongside the rest of this schema,
   // even though nothing writes them yet, so Phase 3 doesn't need its own
@@ -3175,6 +3182,7 @@ export type BoCustomer = {
   source: string | null
   campaign_id: string | null
   data_completeness_pct: number | null
+  lead_signals_json: string
   created_at: string
   updated_at: string
 }

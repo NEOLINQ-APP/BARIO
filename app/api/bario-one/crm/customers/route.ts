@@ -4,7 +4,7 @@ import { requireBoModule } from '@/lib/barioOne'
 import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { triggerWebhooks } from '@/lib/barioOneWebhooks'
-import { findDuplicateLead } from '@/lib/leadPipeline'
+import { findDuplicateLead, recalculateLeadScore } from '@/lib/leadPipeline'
 import type { BoCustomer } from '@/lib/db'
 import { errorResponse } from '@/lib/errors'
 
@@ -82,6 +82,7 @@ export async function POST(req: Request) {
 
     await triggerWebhooks(sql, org.id, 'customer.created', { customerId: id, contactName: contactName.trim() })
     await runAutomations(sql, org.id, 'customer.created', { customerId: id })
+    await recalculateLeadScore(sql, org.id, id)
 
     return NextResponse.json({ ok: true, id })
   } catch (err: any) {

@@ -21,7 +21,125 @@ type Data = {
   notes: { id: string; kind: 'note' | 'email' | 'sms' | 'comment'; body: string; created_at: string; author_email: string | null; direction: 'outbound' | 'inbound' | null; from_email: string | null }[]
   customFieldDefs: FieldDef[]
   priorityReason: string | null
+  leadSignals: Record<string, unknown>
 } | null
+
+type LeadSignals = {
+  strongNeed?: boolean
+  problemIdentified?: boolean
+  goalIdentified?: boolean
+  businessIcpMatch?: boolean
+  customerTypeMatch?: boolean
+  locationMatch?: boolean
+  serviceMatch?: boolean
+  hasProviderCapacity?: boolean
+  isEmergency?: boolean
+  timing?: 'today' | 'this_week' | 'this_month' | 'one_to_three_months' | 'future' | ''
+  disqualified?: boolean
+  disqualifiedReason?: string
+}
+
+const SIGNAL_CHECKBOXES: { key: keyof LeadSignals; label: string }[] = [
+  { key: 'strongNeed', label: 'Strong need expressed' },
+  { key: 'problemIdentified', label: 'Problem identified' },
+  { key: 'goalIdentified', label: 'Goal identified' },
+  { key: 'businessIcpMatch', label: 'Fits ideal customer profile' },
+  { key: 'customerTypeMatch', label: 'Right customer type' },
+  { key: 'locationMatch', label: 'Location match' },
+  { key: 'serviceMatch', label: 'Service match' },
+  { key: 'hasProviderCapacity', label: 'We have capacity for this' },
+  { key: 'isEmergency', label: 'Emergency / urgent' },
+]
+
+function LeadSignalsPanel({ customerId, initial, onScoreUpdated }: {
+  customerId: string
+  initial: Record<string, unknown>
+  onScoreUpdated: (result: { score: number; priority: Priority; reason: string } | null) => void
+}) {
+  const [signals, setSignals] = useState<LeadSignals>(() => ({ timing: '', ...initial }))
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/bario-one/crm/customers/${customerId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ signals: { ...signals, timing: signals.timing || null } }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onScoreUpdated(data.score !== undefined ? { score: data.score, priority: data.priority, reason: data.reason } : null)
+        setSaved(true)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">
+      <p className="text-sm font-semibold">Lead signals</p>
+      <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">What you know about this lead's need/fit/intent — drives the score above alongside contact-info completeness and pipeline stage.</p>
+      <div className="mt-3 space-y-1.5">
+        {SIGNAL_CHECKBOXES.map(({ key, label }) => (
+          <label key={key} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!signals[key]}
+              onChange={(e) => setSignals((s) => ({ ...s, [key]: e.target.checked }))}
+              className="rounded border-slate-300 dark:border-zinc-700"
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <div className="mt-3">
+        <label className="block text-xs text-slate-500 dark:text-zinc-400 mb-1">Timing</label>
+        <select
+          value={signals.timing || ''}
+          onChange={(e) => setSignals((s) => ({ ...s, timing: e.target.value as LeadSignals['timing'] }))}
+          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm"
+        >
+          <option value="">Unknown</option>
+          <option value="today">Today</option>
+          <option value="this_week">This week</option>
+          <option value="this_month">This month</option>
+          <option value="one_to_three_months">1–3 months</option>
+          <option value="future">Someday / future</option>
+        </select>
+      </div>
+      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-zinc-800">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={!!signals.disqualified}
+            onChange={(e) => setSignals((s) => ({ ...s, disqualified: e.target.checked }))}
+            className="rounded border-slate-300 dark:border-zinc-700"
+          />
+          Disqualified / inactive (marks grey regardless of score)
+        </label>
+        {signals.disqualified && (
+          <input
+            value={signals.disqualifiedReason || ''}
+            onChange={(e) => setSignals((s) => ({ ...s, disqualifiedReason: e.target.value }))}
+            placeholder="Why? (e.g. outside service area, spam, closed lost)"
+            className="mt-2 w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm"
+          />
+        )}
+      </div>
+      <button
+        onClick={save}
+        disabled={busy}
+        className="mt-3 w-full px-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-semibold disabled:opacity-50"
+      >
+        {busy ? 'Saving…' : saved ? 'Saved ✓' : 'Save & recalculate'}
+      </button>
+    </div>
+  )
+}
 
 type OrgMember = { userId: string | null; email: string | null; role: string; status: string }
 
@@ -298,6 +416,22 @@ export default function BarioOneCrmDetail({ customerId }: { customerId: string }
             />
           </div>
         </div>
+
+        <LeadSignalsPanel
+          customerId={customerId}
+          initial={data.leadSignals}
+          onScoreUpdated={(result) =>
+            setData((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    customer: { ...prev.customer, current_score: result?.score ?? prev.customer.current_score, current_priority: result?.priority ?? prev.customer.current_priority },
+                    priorityReason: result?.reason ?? prev.priorityReason,
+                  }
+                : prev
+            )
+          }
+        />
 
         {customFieldDefs.length > 0 && (
           <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] p-4">

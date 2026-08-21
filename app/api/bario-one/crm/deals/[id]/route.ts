@@ -3,6 +3,7 @@ import { isRecordVisibleToMember, requireBoModule } from '@/lib/barioOne'
 import { runAutomations } from '@/lib/barioOneAutomations'
 import { mergeCustomFieldValues } from '@/lib/barioOneCustomFields'
 import { getPipelineStages } from '@/lib/barioOnePipelines'
+import { recalculateLeadScore } from '@/lib/leadPipeline'
 import { errorResponse } from '@/lib/errors'
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -65,6 +66,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         pipelineId: targetPipelineId ?? undefined,
         stage: dealStage,
       })
+      // Stage is a real intent signal (quoteRequested/readyToPurchase in
+      // deriveAutoSignals) — a lead that just moved into "quote" should
+      // reflect that in its score immediately, not wait for someone to
+      // touch the customer record separately.
+      await recalculateLeadScore(sql, org.id, existing[0].customer_id)
     }
 
     return NextResponse.json({ ok: true })
