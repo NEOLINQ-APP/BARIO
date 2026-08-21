@@ -54,6 +54,7 @@ export default function VictoriaAppChat() {
   const [ttsSupported, setTtsSupported] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const contactsFileRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
   // Tracks whether the mic was turned off by the user (the button) vs. the
   // browser's own recognition session ending on its own — Chrome in
@@ -81,6 +82,21 @@ export default function VictoriaAppChat() {
   const [speakerSupported, setSpeakerSupported] = useState(true)
   const deviceRef = useRef<DeviceType | null>(null)
   const callRef = useRef<CallType | null>(null)
+
+  const [contactsOpen, setContactsOpen] = useState(false)
+  const [contactsBusy, setContactsBusy] = useState(false)
+  const [contactsStatus, setContactsStatus] = useState<string | null>(null)
+  const [contactPickerSupported, setContactPickerSupported] = useState(false)
+
+  useEffect(() => {
+    // Android Chrome/Edge only — no iOS Safari support, and even there it
+    // requires a manual per-use tap (no silent bulk read). Feature-detected
+    // so the button simply doesn't render anywhere else; file upload below
+    // is the path that works everywhere.
+    setContactPickerSupported(
+      typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window
+    )
+  }, [])
 
   useEffect(() => {
     setSpeakerOn(window.localStorage.getItem(SPEAKER_PREF_KEY) === 'true')
@@ -280,6 +296,53 @@ export default function VictoriaAppChat() {
     setUploading(false)
   }
 
+  async function handleContactsFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setContactsBusy(true)
+    setContactsStatus(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/victoria-app/contacts/import', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Import failed')
+      setContactsStatus(`Added ${data.imported} contact${data.imported === 1 ? '' : 's'}${data.skipped ? ` (${data.skipped} already saved)` : ''}.`)
+    } catch (err: any) {
+      setContactsStatus(`Couldn't import that file — ${err.message ?? 'please try again'}.`)
+    }
+    setContactsBusy(false)
+  }
+
+  async function handleContactPickerImport() {
+    setContactsBusy(true)
+    setContactsStatus(null)
+    try {
+      const picked = await (navigator as any).contacts.select(['name', 'tel'], { multiple: true })
+      const contacts = picked
+        .map((c: any) => ({ name: (c.name?.[0] || '').trim(), phoneNumber: (c.tel?.[0] || '').trim() }))
+        .filter((c: { name: string; phoneNumber: string }) => c.name && c.phoneNumber)
+      if (contacts.length === 0) {
+        setContactsStatus('No contacts with both a name and phone number were selected.')
+        setContactsBusy(false)
+        return
+      }
+      const res = await fetch('/api/victoria-app/contacts/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contacts }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Import failed')
+      setContactsStatus(`Added ${data.imported} contact${data.imported === 1 ? '' : 's'}${data.skipped ? ` (${data.skipped} already saved)` : ''}.`)
+    } catch (err: any) {
+      // AbortError fires on a plain cancel — not a real failure worth showing.
+      if (err?.name !== 'AbortError') setContactsStatus(`Couldn't import contacts — ${err.message ?? 'please try again'}.`)
+    }
+    setContactsBusy(false)
+  }
+
   // Guards against the new auto-restart-on-end behavior leaving a
   // recognition session (and its restart loop) running after the page
   // itself goes away.
@@ -361,8 +424,49 @@ export default function VictoriaAppChat() {
               <p className="text-xs text-slate-500 dark:text-zinc-400">Your assistant, always on</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setContactsOpen((v) => !v)}
+              title="Import phone contacts into Victoria"
+              className={`h-9 w-9 flex items-center justify-center rounded-xl border text-sm ${
+                contactsOpen ? 'border-cyan-400 bg-cyan-500/10 text-cyan-600' : 'border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400'
+              }`}
+            >
+              👤
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
+
+        {contactsOpen && (
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4">
+            <div className="text-sm font-semibold">Import contacts</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              Add people to {currentPersona.name}&apos;s contact list so she can call or text them by name. Export contacts from
+              your phone as a vCard (.vcf) or CSV file, then upload it here.
+            </p>
+            <input ref={contactsFileRef} type="file" onChange={handleContactsFilePick} className="hidden" accept=".vcf,.csv,text/vcard,text/csv" />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => contactsFileRef.current?.click()}
+                disabled={contactsBusy}
+                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-semibold disabled:opacity-50"
+              >
+                {contactsBusy ? 'Importing…' : 'Upload file'}
+              </button>
+              {contactPickerSupported && (
+                <button
+                  onClick={handleContactPickerImport}
+                  disabled={contactsBusy}
+                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-zinc-700 text-sm font-semibold disabled:opacity-50"
+                >
+                  Pick from phone
+                </button>
+              )}
+            </div>
+            {contactsStatus && <p className="text-xs text-slate-600 dark:text-zinc-300 mt-2">{contactsStatus}</p>}
+          </div>
+        )}
 
         <div className="mt-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4">
           {callState === 'idle' ? (
