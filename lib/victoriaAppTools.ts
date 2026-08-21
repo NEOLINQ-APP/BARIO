@@ -14,6 +14,12 @@ function isValidPhoneNumber(v: unknown): v is string {
   return typeof v === 'string' && /^\+?[0-9]{7,15}$/.test(v.trim())
 }
 
+// Same real number lib/victoriaFamilyTools.ts's alert_dad tool texts —
+// Sherwin's own cell, the default target for schedule_reminder when he
+// doesn't give a specific number (a wake-up call/reminder is normally for
+// himself).
+const SHERWIN_OWN_NUMBER = '+17802410880'
+
 // Victoria's tool set for the assistant app (app/api/victoria/app/chat) —
 // Sherwin's own single-operator work tool, texting/talking to Victoria to
 // get real things done. Mirrors the risk-tiering already established
@@ -161,6 +167,20 @@ export const VICTORIA_APP_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'schedule_reminder',
+    description: "Schedule a real call or text for a FUTURE time — a wake-up call, a reminder call, a scheduled text. Unlike make_call/send_text (immediate only), this doesn't run now; a background check every few minutes fires it once the time arrives. runAt must be a real, absolute ISO 8601 datetime you've resolved from whatever he said (\"tomorrow at 7am\", \"in 20 minutes\") using the current date/time you were given — never pass a relative phrase.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['call', 'text'] },
+        toNumber: { type: 'string', description: "Phone number to call/text, e.g. +17801234567. Omit to default to Sherwin's own number." },
+        message: { type: 'string', description: 'For a text: the exact message to send. For a call: what Victoria should say/accomplish when she calls.' },
+        runAt: { type: 'string', description: 'Absolute ISO 8601 datetime, e.g. "2026-08-21T07:00:00-06:00"' },
+      },
+      required: ['type', 'message', 'runAt'],
+    },
+  },
+  {
     name: 'send_email',
     description: 'Actually send a real email. Only call this after the user has explicitly confirmed sending a drafted email in their own message — never on the same turn a draft was first shown.',
     input_schema: {
@@ -304,6 +324,21 @@ export async function executeVictoriaAppTool(sql: any, userId: string, name: str
         console.error('send_text failed', err)
         return { error: 'Failed to send the text — tell Sherwin something went wrong.' }
       }
+    }
+    case 'schedule_reminder': {
+      const type = args.type === 'text' ? 'text' : 'call'
+      const toNumber = String(args.toNumber ?? SHERWIN_OWN_NUMBER).trim()
+      if (!isValidPhoneNumber(toNumber)) return { error: 'Not a valid phone number — ask Sherwin to confirm it.' }
+      const message = String(args.message ?? '').trim()
+      if (!message) return { error: 'No message/context given for the reminder.' }
+      const runAt = new Date(String(args.runAt ?? ''))
+      if (isNaN(runAt.getTime())) return { error: 'runAt was not a valid datetime — resolve it to a real ISO 8601 timestamp before calling this.' }
+      if (runAt.getTime() <= Date.now()) return { error: 'That time has already passed — ask Sherwin for a future time.' }
+      await sql`
+        INSERT INTO victoria_scheduled_actions (id, user_id, action_type, to_number, message, run_at)
+        VALUES (${randomUUID()}, ${userId}, ${type}, ${toNumber}, ${message}, ${runAt.toISOString()})
+      `
+      return { ok: true, scheduledFor: runAt.toISOString() }
     }
     case 'send_email': {
       try {

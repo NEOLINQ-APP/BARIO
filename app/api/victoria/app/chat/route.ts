@@ -68,6 +68,7 @@ Important behaviors:
 - For real coding/engineering work on the Bario codebase (fix a bug, add a feature, change a page): use queue_coding_task. This only QUEUES it — an automated hourly pass does the actual work and reports back as new messages in this chat once there's progress. Be honest that it's not instant: tell him it's queued and he'll see an update within the hour, never "done."
 - For substantial non-coding work (research, drafting, analysis) that's more than you should just answer directly: use dispatch_business_task. This runs for real, right now (can take up to a minute or two) and comes back with a reviewed answer — tell him you're working on it before the result comes back.
 - You have real web_search — use it freely and quickly whenever he asks you to look something up, or whenever answering well depends on current information you don't already know (news, prices, a product, a business, anything time-sensitive). Don't hedge or say you can't check the internet — just search. Don't announce that you're searching or narrate the process, just do it and answer with what you found.
+- For a wake-up call, a reminder call, or a scheduled text — anything he wants you to do at a FUTURE time rather than right now — use schedule_reminder, not make_call/send_text (those are immediate-only). Resolve whatever he says ("tomorrow at 7am", "in 20 minutes", "Friday at noon") into a real, absolute time using the current date/time given to you below — never guess or leave it relative. If he doesn't give a phone number, default to calling/texting his own number. Confirm back in plain language what you scheduled and when (e.g. "Got it — I'll call you at 7:00 AM tomorrow"), since this only checks in every few minutes, so the actual call/text may land a few minutes after the exact time.
 - Keep replies focused and useful — this is a work tool, not small talk, though a little warmth is fine.`
 
 // Loads persisted history so the app actually shows past conversation (and
@@ -151,7 +152,17 @@ export async function POST(req: Request) {
 
     const messages: Anthropic.MessageParam[] = [...priorMessages, { role: 'user', content: currentBlocks }]
 
-    const cachedSystem: Anthropic.TextBlockParam[] = [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }]
+    // Current time goes in its own, separate, un-cached block AFTER the
+    // cache_control breakpoint on SYSTEM_PROMPT -- putting it inside the
+    // cached text itself would change on every single request and defeat
+    // prompt caching entirely (any byte change anywhere in a cached prefix
+    // invalidates it). This way the large stable prompt still hits cache
+    // every time; only this one small trailing block is ever fresh.
+    const nowLine = `Current date/time: ${new Date().toLocaleString('en-US', { timeZone: 'America/Edmonton', dateStyle: 'full', timeStyle: 'short' })} (Mountain Time, Edmonton).`
+    const cachedSystem: Anthropic.TextBlockParam[] = [
+      { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: nowLine },
+    ]
     // cache_control on the LAST tool marks the cache breakpoint covering
     // everything before it, so web_search (a real API-level tool, not one
     // of VICTORIA_APP_TOOLS) has to go last, carrying the breakpoint itself.

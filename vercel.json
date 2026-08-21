@@ -8,6 +8,7 @@
     { "path": "/api/cron/bo-invoice-recurring", "schedule": "0 6 * * *" },
     { "path": "/api/cron/neo-health-check", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/bo-campaigns-scheduled", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/agent-tasks", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/agent-tasks", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/victoria-scheduled-actions", "schedule": "*/5 * * * *" }
   ]
 }

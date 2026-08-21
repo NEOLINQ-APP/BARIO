@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v6-2026-08-20-phase8'
+const CURRENT_SCHEMA_VERSION = 'v7-2026-08-20-victoria-scheduling'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -238,6 +238,30 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS victoria_app_messages_user_idx ON victoria_app_messages (user_id, created_at)`
+
+  // Deferred calls/texts Victoria places on her own -- a wake-up call, a
+  // reminder call, a scheduled text -- distinct from make_call/send_text
+  // (lib/victoriaAppTools.ts), which only ever execute immediately. The
+  // app/api/cron/victoria-scheduled-actions cron polls for
+  // status='pending' AND run_at <= now() every 5 minutes (matches the
+  // finest existing cron cadence in this project, bo-campaigns-scheduled)
+  // and actually places the call/sends the text at that point, using the
+  // exact same lib/twilio.ts functions the immediate tools already use.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_scheduled_actions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      action_type TEXT NOT NULL CHECK(action_type IN ('call','text')),
+      to_number TEXT NOT NULL,
+      message TEXT NOT NULL,
+      run_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','failed','cancelled')),
+      result TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      completed_at TIMESTAMPTZ
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS victoria_scheduled_actions_due_idx ON victoria_scheduled_actions (status, run_at)`
 
   // Family members (Mya, Julianna, ...) get their own Victoria app access —
   // link + access_token instead of a real Bario login, since they're not
