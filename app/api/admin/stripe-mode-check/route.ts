@@ -78,7 +78,39 @@ export async function GET(req: Request) {
         : { ok: false, error: data.error?.message, code: data.error?.code, type: data.error?.type }
     }
 
-    return NextResponse.json({ ok: true, livemode: balance.livemode, lookedUp, lookupError, account, fix })
+    let paymentLinkStatus: any = undefined
+    if (new URL(req.url).searchParams.get('checkPaymentLinks') === 'true') {
+      // Match the two known Bario Voice reconnection links by URL (their
+      // buy.stripe.com slug isn't the same as the plink_ id, so list +
+      // filter rather than guess), then list each link's real Checkout
+      // Sessions to see if any actually completed -- this is the
+      // authoritative "did they pay" answer, not a DB lookup (these
+      // charges were never tracked in a bo_invoices row to begin with).
+      const targets: Record<string, string> = {
+        afc: 'https://buy.stripe.com/fZu28lcWI0l48p7cZjdUY00',
+        sunbuilt: 'https://buy.stripe.com/4gMfZb7Co3xg5cV2kFdUY01',
+      }
+      const links = await stripe.paymentLinks.list({ limit: 100 })
+      paymentLinkStatus = {}
+      for (const [key, url] of Object.entries(targets)) {
+        const link = links.data.find((l) => l.url === url)
+        if (!link) {
+          paymentLinkStatus[key] = { error: `No payment link found matching ${url}` }
+          continue
+        }
+        const sessions = await stripe.checkout.sessions.list({ payment_link: link.id, limit: 20 })
+        const paid = sessions.data.filter((s) => s.payment_status === 'paid')
+        paymentLinkStatus[key] = {
+          linkId: link.id,
+          totalSessions: sessions.data.length,
+          paidCount: paid.length,
+          paid: paid.map((s) => ({ id: s.id, amountTotal: s.amount_total, currency: s.currency, customerEmail: s.customer_details?.email, created: new Date(s.created * 1000).toISOString() })),
+          allSessions: sessions.data.map((s) => ({ id: s.id, status: s.status, payment_status: s.payment_status, created: new Date(s.created * 1000).toISOString(), expiresAt: s.expires_at ? new Date(s.expires_at * 1000).toISOString() : null })),
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, livemode: balance.livemode, lookedUp, lookupError, account, fix, paymentLinkStatus })
   } catch (err: any) {
     return errorResponse(err)
   }
