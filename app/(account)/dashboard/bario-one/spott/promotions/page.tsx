@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import BarioOneComingSoon from '@/components/BarioOneComingSoon'
+import { getBoModuleGate } from '@/lib/barioOneModuleGate'
+import BarioOneSpottPromotions from '@/components/BarioOneSpottPromotions'
+import BarioOneLockedModule from '@/components/BarioOneLockedModule'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,11 +14,14 @@ export default async function Page() {
   const rows = (await sql`SELECT id FROM users WHERE id = ${session.userId}`) as unknown as User[]
   if (!rows[0]) redirect('/login')
 
+  const gate = await getBoModuleGate(sql, session.userId, 'crm')
+  if (!gate.hasOrg) redirect('/dashboard/bario-one')
+
   return (
     <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">
       <div className="max-w-2xl">
         <h1 className="text-2xl font-bold mb-6">Spott Promotions</h1>
-        <BarioOneComingSoon title="Promote on Spott" phase="Phase 2" description="Spott isn't connected to Bario One yet — see the Spott overview for details." />
+        {gate.locked ? <BarioOneLockedModule moduleKey="crm" /> : <BarioOneSpottPromotions />}
       </div>
     </main>
   )

@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v10-2026-08-21-spott-integration-phase2'
+const CURRENT_SCHEMA_VERSION = 'v11-2026-08-21-spott-integration-phase2c'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2787,6 +2787,22 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS spott_webhook_events_org_idx ON spott_webhook_events (organization_id)`
 
+  // Phase 2 continued — the promotions/reviews cache tables need Spott's
+  // own id (to upsert on redelivery instead of duplicating) plus the
+  // fields the real pages display. Still a cache, per D1 — Spott's own
+  // spott_promotions/reviews rows stay authoritative.
+  await sql`ALTER TABLE spott_promotions ADD COLUMN IF NOT EXISTS external_promotion_id TEXT`
+  await sql`ALTER TABLE spott_promotions ADD COLUMN IF NOT EXISTS description TEXT`
+  await sql`ALTER TABLE spott_promotions ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`
+  await sql`ALTER TABLE spott_promotions ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ`
+  await sql`ALTER TABLE spott_promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS spott_promotions_external_idx ON spott_promotions (organization_id, external_promotion_id) WHERE external_promotion_id IS NOT NULL`
+
+  await sql`ALTER TABLE spott_reviews ADD COLUMN IF NOT EXISTS external_review_id TEXT`
+  await sql`ALTER TABLE spott_reviews ADD COLUMN IF NOT EXISTS owner_reply TEXT`
+  await sql`ALTER TABLE spott_reviews ADD COLUMN IF NOT EXISTS owner_reply_at TIMESTAMPTZ`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS spott_reviews_external_idx ON spott_reviews (organization_id, external_review_id) WHERE external_review_id IS NOT NULL`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -3782,9 +3798,14 @@ export type SpottPromotion = {
   id: string
   organization_id: string
   listing_id: string | null
+  external_promotion_id: string | null
   title: string
+  description: string | null
+  starts_at: string | null
+  ends_at: string | null
   status: string
   created_at: string
+  updated_at: string
 }
 export type SpottLead = {
   id: string
@@ -3804,8 +3825,11 @@ export type SpottReview = {
   organization_id: string
   listing_id: string | null
   customer_id: string | null
+  external_review_id: string | null
   rating: number | null
   body: string | null
+  owner_reply: string | null
+  owner_reply_at: string | null
   created_at: string
 }
 
@@ -4057,7 +4081,7 @@ export type BoWebhookEvent =
   // wording) — nothing fires them yet since no live Spott sync or
   // campaign-send system exists to trigger them honestly.
   | 'lead.created' | 'lead.updated' | 'appointment.booked' | 'appointment.completed' | 'deal.won'
-  | 'spott.lead_created' | 'spott.offer_claimed' | 'review.created' | 'referral.converted'
+  | 'spott.lead_created' | 'spott.offer_claimed' | 'spott.listing_updated' | 'review.created' | 'referral.converted'
   | 'campaign.launched' | 'campaign.paused'
 
 export type BoWebhook = {
