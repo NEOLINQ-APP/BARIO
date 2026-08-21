@@ -93,6 +93,33 @@ export async function GET(req: Request) {
       byRep = repRows.map((r) => ({ userId: r.assigned_to_user_id, email: r.email, wonCount: r.won_count, wonValueCents: r.won_value_cents }))
     }
 
+    // Phase 9 (revenue attribution) — closes the loop on Phases 4/6's
+    // source tagging (bo_customers.source: victoria_call/website_form/
+    // dialer/scout/manual) by rolling won-deal revenue up by the channel
+    // that originated the lead. Uses bo_deals.updated_at as the close date
+    // (same documented proxy/limitation as avgDaysToClose above), and
+    // counts every deal ever created for that source's customers, not just
+    // ones closed in the date range, so a source's overall lead->revenue
+    // conversion isn't sliced thin by an arbitrary window.
+    const sourceRows = (await sql`
+      SELECT
+        COALESCE(c.source, 'manual') AS source,
+        COUNT(DISTINCT c.id)::int AS lead_count,
+        COUNT(*) FILTER (WHERE d.stage = 'won')::int AS won_count,
+        COUNT(*) FILTER (WHERE d.stage = 'lost')::int AS lost_count,
+        COALESCE(SUM(d.value_cents) FILTER (WHERE d.stage = 'won'), 0)::int AS won_value_cents
+      FROM bo_customers c
+      LEFT JOIN bo_deals d ON d.customer_id = c.id AND d.organization_id = ${org.id}
+      WHERE c.organization_id = ${org.id}
+        AND (NOT ${employeeScope} OR c.assigned_to_user_id IS NULL OR c.assigned_to_user_id = ${membership.user_id})
+      GROUP BY COALESCE(c.source, 'manual')
+      ORDER BY won_value_cents DESC
+    `) as unknown as { source: string; lead_count: number; won_count: number; lost_count: number; won_value_cents: number }[]
+    const bySource = sourceRows.map((r) => ({
+      ...r,
+      winRate: r.won_count + r.lost_count > 0 ? (r.won_count / (r.won_count + r.lost_count)) * 100 : 0,
+    }))
+
     return NextResponse.json({
       from,
       to,
@@ -106,6 +133,7 @@ export async function GET(req: Request) {
       taskCompletionRate,
       taskCount: taskRows.length,
       byRep,
+      bySource,
     })
   } catch (err: any) {
     return errorResponse(err)

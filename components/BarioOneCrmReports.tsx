@@ -15,6 +15,15 @@ type Summary = {
   taskCompletionRate: number
   taskCount: number
   byRep: { userId: string; email: string | null; wonCount: number; wonValueCents: number }[]
+  bySource: { source: string; lead_count: number; won_count: number; lost_count: number; won_value_cents: number; winRate: number }[]
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  manual: 'Manually added',
+  victoria_call: 'Victoria (phone)',
+  website_form: 'Website form',
+  dialer: 'Bario Dialer',
+  scout: 'SCOUT (AI research)',
 }
 
 function money(cents: number) {
@@ -122,6 +131,23 @@ export default function BarioOneCrmReports() {
               ))}
             </div>
           </div>
+
+          {summary.bySource.length > 0 && (
+            <div>
+              <p className="text-sm font-semibold mb-2">Revenue by lead source</p>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mb-2">All-time per source, not scoped to the date range above — a channel's overall lead-to-revenue performance shouldn't be sliced thin by a short window.</p>
+              <div className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] divide-y divide-slate-200 dark:divide-zinc-800">
+                {summary.bySource.map((s) => (
+                  <div key={s.source} className="flex items-center justify-between p-3 text-sm">
+                    <span className="text-slate-500 dark:text-zinc-400">{SOURCE_LABEL[s.source] ?? s.source}</span>
+                    <span>{s.lead_count} lead{s.lead_count === 1 ? '' : 's'}</span>
+                    <span className="text-slate-400">{s.winRate.toFixed(0)}% win rate</span>
+                    <span className="font-medium">{money(s.won_value_cents)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {summary.byRep.length > 0 && (
             <div>
