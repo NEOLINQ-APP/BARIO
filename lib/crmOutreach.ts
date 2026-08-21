@@ -385,17 +385,21 @@ export async function logWebLeadNote(crm: CrmConfig, personId: string, source: s
   )
 }
 
-export async function crmGraphQL(crm: CrmConfig, query: string, variables: Record<string, unknown>) {
-  const apiKey = process.env[crm.apiKeyEnvVar]
-  if (!apiKey) throw new Error(`${crm.apiKeyEnvVar} is not set`)
-  const res = await fetch(crm.graphqlUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ query, variables }),
-  })
-  const json = await res.json()
-  if (json.errors) throw new Error(`${crm.key} GraphQL error: ${JSON.stringify(json.errors)}`)
-  return json.data
+// Disabled 2026-08-20, per explicit user decision: every CrmConfig in
+// OUTREACH_CRMS still points at a Twenty CRM GraphQL endpoint
+// (afc.crm.bario.ca etc.), and Twenty was fully decommissioned that same
+// day — every one of those endpoints is now dead. Rather than let every
+// caller (the crm-leadgen/crm-outreach-replies/crm-outreach-scheduled/
+// crm-email-enrich crons, and the /admin/crm-leadgen draft/send/reply
+// routes) fail with a raw fetch/DNS error, this throws one clear, honest
+// message immediately — "disable it cleanly," not silently. The real fix
+// (repoint this whole module to read/write Bario One's bo_customers/
+// bo_notes instead of Twenty) is a deliberately separate, larger piece of
+// work, not done here.
+export async function crmGraphQL(crm: CrmConfig, _query: string, _variables: Record<string, unknown>): Promise<any> {
+  throw new Error(
+    `Outreach for ${crm.businessName} is temporarily disabled — its Twenty CRM instance (${crm.graphqlUrl}) was decommissioned 2026-08-20. This needs to be repointed to Bario One CRM before outreach drafting/sending/replies can run again.`
+  )
 }
 
 // Shared by the immediate-send route and the scheduled-send cron so the two

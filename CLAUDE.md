@@ -168,6 +168,25 @@ and Julianna's (`bario.ca/victoria-family/[member]`).
   (what this used to write to) is fully gone as of 2026-08-20 — see the
   main VPS entry above.
 
+## Known-disabled feature: CRM Outreach (AFC/Sunbuilt email drafting)
+
+`lib/crmOutreach.ts`'s `crmGraphQL()` throws immediately (2026-08-20) — every
+`OUTREACH_CRMS` entry still points at a Twenty CRM GraphQL endpoint
+(`afc.crm.bario.ca/graphql` etc.), and Twenty was fully decommissioned that
+same day. This cleanly disables the whole outreach drafting/send/reply
+pipeline (`/admin/crm-leadgen/*` routes, the `crm-leadgen`/
+`crm-outreach-replies`/`crm-outreach-scheduled`/`crm-email-enrich` crons —
+none of which are in `vercel.json`'s schedule, so they were never actually
+firing on a timer, only reachable via manual/admin trigger) rather than
+letting them fail with a raw fetch/DNS error. **Not fixed yet, by explicit
+user choice** (asked 2026-08-20: real repoint vs. clean disable vs. leave
+broken — chose clean disable). The real fix is a deliberately separate,
+larger piece of work: rewrite this module to read/write Bario One's
+`bo_customers`/`bo_notes` instead of Twenty, the same repoint
+`lib/barioOneCrmCallLog.ts` already did for Victoria's call-logging path.
+Contacts list + click-to-call (`/admin/crm-outreach`'s other routes) are
+unaffected — already repointed to Bario One, or never depended on Twenty.
+
 ## Working conventions specific to this project
 
 - One feature per git commit, descriptive messages explaining *why* not just

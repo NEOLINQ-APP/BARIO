@@ -42,8 +42,8 @@ export default function AdminHome() {
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Filed by Aria (pre/post-login assistant) whenever a customer asks for a refund — she never approves anything, this is the review queue.</p>
           </a>
           <a href="/admin/crm-outreach" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
-            <div className="font-semibold">CRM Outreach</div>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Review and send AI-drafted outreach emails for AFC Logistics / Sunbuilt Group.</p>
+            <div className="font-semibold">CRM Outreach ⏸️</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Temporarily disabled — its drafting/send/reply pipeline still points at Twenty CRM, decommissioned 2026-08-20. Needs a repoint to Bario One CRM before it works again.</p>
           </a>
           <a href="/admin/site-audit-leads" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Site Audit Leads 🎯</div>
