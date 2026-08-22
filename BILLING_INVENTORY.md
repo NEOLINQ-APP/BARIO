@@ -40,22 +40,21 @@ individual anniversary dates through 2027 unless cancelled first.
 ### Hetzner Cloud (3 servers)
 Pulled via `GET /v1/servers` + `GET /v1/pricing` with `HETZNER_API_TOKEN`.
 
-| Server | Type | Monthly | Created | Notes |
-|---|---|---|---|---|
-| `sandbox-host-us.bario.ca` | cpx31 | $20.49 | 2026-08-01 | Bario Build's code-sandbox host (`SANDBOX_HOST_URL`) |
-| `srv-90f87f7776.vps.bario.ca` | cx33 | $9.99 | 2026-08-06 | not yet identified against CLAUDE.md's named VPS list — verify which box this is |
-| `srv-e1c44e8a4b.vps.bario.ca` | cx43 | $18.49 | 2026-08-08 | matches CLAUDE.md's "Hetzner replacement VPS", `46.224.28.213`, MinIO/storage.bario.ca |
+| Server | IP | Type | Monthly | Created | What's on it |
+|---|---|---|---|---|---|
+| `sandbox-host-us.bario.ca` | 178.156.185.177 | cpx31 | $20.49 | 2026-08-01 | Bario Build's code-sandbox host (`SANDBOX_HOST_URL`) |
+| `srv-90f87f7776.vps.bario.ca` | 178.104.58.155 | cx33 | $9.99 | 2026-08-06 | **Identified**: the live WordPress shared-hosting node (Product B) — multi-tenant Docker+Caddy, `wp_hosting_nodes` id `6620cdee-87e1-45d6-89e6-f60945583d32`. See [[bario_wp_shared_hosting]]. It's a real `vps_instances` order (medium tier, owned by the agency account `uniquegroup.org@gmail.com`, `app_type: 'blank'` — the WP-node-agent stack was installed manually on top, not via BARIO's automated WP flow) rather than a manually-provisioned box. **No local SSH key matches it** (its registered public key's comment is `wp-node-1`, not present in `~/.ssh/`) — access it via whatever machine/session originally set it up, or re-add a key through the node-agent if that's lost. |
+| `srv-e1c44e8a4b.vps.bario.ca` | 46.224.28.213 | cx43 | $18.49 | 2026-08-08 | Confirmed: the "Hetzner replacement VPS", MinIO/storage.bario.ca (X-Drive + backups). Also a real `vps_instances` order (large tier, same owner). |
 
-**Total: $48.97/mo**
+**Total: $48.97/mo.** All 3 are real Hetzner Cloud servers, not billed through Hostinger.
 
-⚠️ **Open question, not resolved this pass**: CLAUDE.md separately describes
-a "Mail reseller VPS" (`148.230.94.192`, `reseller.bario.ca`, Mailcow) that
-doesn't obviously match any of the 3 Hetzner servers above by IP, and isn't
-one of the 2 Hostinger KVMs either (those are named "KVM 4"/"KVM 2", not
-tied to an IP in the subscription pull). **Next agent: confirm which
-provider actually bills the mail VPS** — either it's a 3rd, so-far-uncounted
-Hostinger VPS product not surfaced by the subscriptions endpoint, or it's on
-a provider not checked this pass.
+**Resolved**: the "Mail reseller VPS" (`148.230.94.192`, `reseller.bario.ca`,
+Mailcow) is confirmed NOT one of these 3 Hetzner servers — it predates all of
+them (provisioned 2026-07-27, before the earliest Hetzner box existed
+2026-08-01) and isn't in this Hetzner account's server list at all. It's
+provisioned through a different channel not itself checked this pass (a
+separate Hetzner/other-provider account, or a manual one-off) — worth a
+follow-up if its own billing needs auditing.
 
 ### Vercel (covers both bario.ca and spott.ca — one shared team)
 Pulled via `GET /v2/teams/{teamId}` with `VERCEL_API_TOKEN`.
@@ -106,8 +105,7 @@ this session:
 
 ## For the next agent
 
-1. Resolve the mail-VPS provider mismatch flagged above.
-2. Pull Supabase's actual plan tier for the `tqllzodsdwtsmsdrhwyk` project —
+1. Pull Supabase's actual plan tier for the `tqllzodsdwtsmsdrhwyk` project —
    Management API or dashboard, account `surewinmendoza.ca@gmail.com`.
 3. Get a real Vercel usage/invoice number (not just plan config) to see if
    overages are pushing the real Vercel bill above the $20/mo base.
