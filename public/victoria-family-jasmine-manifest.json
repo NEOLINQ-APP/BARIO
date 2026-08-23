@@ -2,7 +2,7 @@
   "name": "Victoria — Jasmine & Scarlett's Assistant",
   "short_name": "Victoria",
   "description": "Talk to Victoria anytime — questions, reminders, or just to check in.",
-  "start_url": "/victoria-family/jasmine",
+  "start_url": "/victoria-family/jasmine?token=2f5bb9850acb8583d75c3c3f652d50b6",
   "scope": "/victoria-family/jasmine",
   "display": "standalone",
   "background_color": "#0b111c",

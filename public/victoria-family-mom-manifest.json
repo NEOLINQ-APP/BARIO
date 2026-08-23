@@ -2,7 +2,7 @@
   "name": "Victoria — Mom's Assistant",
   "short_name": "Victoria",
   "description": "Talk to Victoria anytime — questions, reminders, safety, or just to check in.",
-  "start_url": "/victoria-family/mom",
+  "start_url": "/victoria-family/mom?token=9df5d701dc5f5225b9216b59df7bc475",
   "scope": "/victoria-family/mom",
   "display": "standalone",
   "background_color": "#0b111c",

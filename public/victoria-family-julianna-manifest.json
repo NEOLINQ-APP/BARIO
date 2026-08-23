@@ -2,7 +2,7 @@
   "name": "Victoria — Julianna's Assistant",
   "short_name": "Victoria",
   "description": "Talk to Victoria anytime — restaurants, weather, safety, or just to check in.",
-  "start_url": "/victoria-family/julianna",
+  "start_url": "/victoria-family/julianna?token=8e06e739ebe7880c11a3f6f11e0ab82c",
   "scope": "/victoria-family/julianna",
   "display": "standalone",
   "background_color": "#0b111c",

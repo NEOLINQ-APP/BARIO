@@ -2,7 +2,7 @@
   "name": "Victoria — Mya's Assistant",
   "short_name": "Victoria",
   "description": "Talk to Victoria anytime — restaurants, weather, safety, or just to check in.",
-  "start_url": "/victoria-family/mya",
+  "start_url": "/victoria-family/mya?token=f7e6fcd3e6f9e8ec5ee3f51652f3603f",
   "scope": "/victoria-family/mya",
   "display": "standalone",
   "background_color": "#0b111c",
