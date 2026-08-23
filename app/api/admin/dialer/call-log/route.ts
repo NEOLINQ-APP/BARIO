@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { findDialerBusiness } from '@/lib/dialerBusinesses'
 import { verifyDialerPasscode } from '@/lib/dialerAccess'
 import { errorResponse } from '@/lib/errors'
+import { BARIO_ONE_CALL_LOG_ORG_IDS, findOrCreateBoCustomerByPhone } from '@/lib/barioOneCrmCallLog'
 
 // Bario Dialer's call history. The call itself happens entirely
 // browser-to-Twilio (Voice SDK/WebRTC) — this just logs it from the
@@ -70,6 +71,33 @@ export async function POST(req: Request) {
   }
 }
 
+// Logs a real Dialer call (human staff, not Victoria) into the same CRM a
+// Victoria call would land in — reuses the exact write-path primitive
+// (findOrCreateBoCustomerByPhone), but with its own note title/kind so it's
+// never mistaken for one of Victoria's AI-handled calls when a staff member
+// reads it back later.
+async function logDialerCallToCrm(sql: Awaited<ReturnType<typeof db>>, opts: {
+  businessKey: string
+  toNumber: string
+  contactName: string | null
+  durationSeconds: number
+}) {
+  const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[opts.businessKey]
+  if (!orgId) return // e.g. 'mom' has no business CRM behind it
+  const digits = opts.toNumber.replace(/\D/g, '')
+  if (digits.length < 10) return // placeholder/unknown number, nothing real to log
+
+  const customerId = await findOrCreateBoCustomerByPhone(sql, orgId, opts.toNumber, opts.contactName)
+  if (!customerId) return
+
+  const when = new Date().toLocaleString('en-CA', { timeZone: 'America/Edmonton', dateStyle: 'medium', timeStyle: 'short' })
+  const body = `Dialer call — ${when}\n\n${opts.durationSeconds}s call via the Bario Dialer.`
+  await sql`
+    INSERT INTO bo_notes (id, organization_id, customer_id, kind, body)
+    VALUES (${randomUUID()}, ${orgId}, ${customerId}, 'call', ${body})
+  `
+}
+
 export async function PATCH(req: Request) {
   const body = await req.json().catch(() => ({}))
   const id = typeof body?.id === 'string' ? body.id : null
@@ -90,16 +118,35 @@ export async function PATCH(req: Request) {
   try {
     // businessKey (when passcode-verified) additionally scopes the update so
     // an AFC passcode can only ever touch AFC's own call-log rows.
-    if (businessKey) {
-      await sql`
-        UPDATE dialer_call_log SET status = ${status}, duration_seconds = ${durationSeconds}, ended_at = now()
-        WHERE id = ${id} AND business_key = ${businessKey}
-      `
-    } else {
-      await sql`
-        UPDATE dialer_call_log SET status = ${status}, duration_seconds = ${durationSeconds}, ended_at = now() WHERE id = ${id}
-      `
+    const rows = businessKey
+      ? await sql`
+          UPDATE dialer_call_log SET status = ${status}, duration_seconds = ${durationSeconds}, ended_at = now()
+          WHERE id = ${id} AND business_key = ${businessKey}
+          RETURNING business_key, to_number, contact_name
+        `
+      : await sql`
+          UPDATE dialer_call_log SET status = ${status}, duration_seconds = ${durationSeconds}, ended_at = now()
+          WHERE id = ${id}
+          RETURNING business_key, to_number, contact_name
+        `
+
+    // Only a call that actually connected is a real CRM-worthy interaction —
+    // a cancelled/rejected/failed attempt never reached a person.
+    const row = (rows as any[])[0]
+    if (row && status === 'completed') {
+      try {
+        await logDialerCallToCrm(sql, {
+          businessKey: row.business_key,
+          toNumber: row.to_number,
+          contactName: row.contact_name,
+          durationSeconds,
+        })
+      } catch (err) {
+        // Never let a CRM-logging failure break the call-log update itself.
+        console.error('Dialer CRM call logging failed', err)
+      }
     }
+
     return NextResponse.json({ ok: true })
   } catch (err: any) {
     return errorResponse(err)
