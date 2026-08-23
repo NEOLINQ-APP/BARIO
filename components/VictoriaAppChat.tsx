@@ -589,7 +589,8 @@ export default function VictoriaAppChat() {
               e.preventDefault()
               send()
             }}
-            className="p-3 border-t border-slate-200 dark:border-zinc-800 flex items-center gap-2"
+            className="p-3 border-t border-slate-200 dark:border-zinc-800 flex flex-wrap items-center gap-2"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
           >
             <input ref={fileRef} type="file" onChange={handleFilePick} className="hidden" accept="image/*,application/pdf" />
             <button
@@ -634,12 +635,12 @@ export default function VictoriaAppChat() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={`Ask ${currentPersona.name} anything…`}
               disabled={busy}
-              className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white dark:bg-[#0b111c] border border-slate-300 dark:border-zinc-700 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500"
             />
             <button
               type="submit"
               disabled={busy || (!input.trim() && pendingAttachments.length === 0)}
-              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-semibold disabled:opacity-50"
+              className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-sm font-semibold disabled:opacity-50"
             >
               Send
             </button>
