@@ -247,6 +247,19 @@ export default function VictoriaAppChat() {
     window.speechSynthesis.speak(utterance)
   }
 
+  // iOS Safari silently drops speechSynthesis.speak() calls not triggered
+  // synchronously inside a real user gesture -- by the time speak() runs
+  // after `await fetch(...)` in send(), that window has closed. Fix: unlock
+  // the API synchronously inside the actual tap that started this turn.
+  function primeSpeech() {
+    if (!ttsSupported || !speakReplies) return
+    try {
+      const unlock = new SpeechSynthesisUtterance(' ')
+      unlock.volume = 0
+      window.speechSynthesis.speak(unlock)
+    } catch {}
+  }
+
   async function send(overrideText?: string) {
     const text = (overrideText ?? input).trim()
     if ((!text && pendingAttachments.length === 0) || busy) return
@@ -408,14 +421,15 @@ export default function VictoriaAppChat() {
       recognitionRef.current?.stop()
       return
     }
+    primeSpeech()
     micManuallyStoppedRef.current = false
     startRecognitionSession()
   }
 
   return (
-    <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased">
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between gap-4">
+    <main className="h-[100dvh] overflow-hidden bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased flex flex-col">
+      <div className="max-w-3xl w-full mx-auto px-6 pt-6 pb-3 flex flex-col flex-1 min-h-0">
+        <div className="flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/victoria-avatar-192.png" alt={currentPersona.name} className="h-10 w-10 rounded-full" />
@@ -539,7 +553,7 @@ export default function VictoriaAppChat() {
           {callError && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{callError}</p>}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] flex flex-col h-[34rem]">
+        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`max-w-[85%] ${m.role === 'user' ? 'ml-auto' : ''}`}>
@@ -587,6 +601,7 @@ export default function VictoriaAppChat() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              primeSpeech()
               send()
             }}
             className="p-3 border-t border-slate-200 dark:border-zinc-800 flex flex-wrap items-center gap-2"
@@ -619,7 +634,15 @@ export default function VictoriaAppChat() {
               <button
                 type="button"
                 onClick={() => {
-                  if (speakReplies) window.speechSynthesis.cancel()
+                  if (speakReplies) {
+                    window.speechSynthesis.cancel()
+                  } else {
+                    try {
+                      const unlock = new SpeechSynthesisUtterance(' ')
+                      unlock.volume = 0
+                      window.speechSynthesis.speak(unlock)
+                    } catch {}
+                  }
                   setSpeakReplies((v) => !v)
                 }}
                 title={speakReplies ? `${currentPersona.name} will stop speaking her replies` : `${currentPersona.name} will speak her replies out loud`}

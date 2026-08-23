@@ -275,6 +275,22 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
     window.speechSynthesis.speak(utterance)
   }
 
+  // iOS Safari silently drops speechSynthesis.speak() calls that aren't
+  // triggered synchronously inside a real user gesture -- by the time
+  // speak(data.reply) runs after `await fetch(...)` in send(), that window
+  // has closed, so replies never get spoken even with speakReplies on. The
+  // fix is to "unlock" the API right here, synchronously, inside whatever
+  // tap/click actually started this turn (send button, mic button) --
+  // once unlocked, later async speak() calls in the same page session work.
+  function primeSpeech() {
+    if (!ttsSupported || !speakReplies) return
+    try {
+      const unlock = new SpeechSynthesisUtterance(' ')
+      unlock.volume = 0
+      window.speechSynthesis.speak(unlock)
+    } catch {}
+  }
+
   async function send(overrideText?: string) {
     const text = (overrideText ?? input).trim()
     if ((!text && pendingAttachments.length === 0) || busy || !token) return
@@ -310,6 +326,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
       recognitionRef.current?.stop()
       return
     }
+    primeSpeech()
     const recognition = new SpeechRecognition()
     recognition.continuous = false
     recognition.interimResults = false
@@ -408,7 +425,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
   }
 
   return (
-    <main className="min-h-screen bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased">
+    <main className="h-[100dvh] overflow-hidden bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 antialiased flex flex-col">
       <style>{`
         @keyframes victoria-float {
           0%, 100% { transform: translateY(0) rotate(0deg); filter: drop-shadow(0 0 6px rgba(56,189,248,0.5)); }
@@ -416,8 +433,8 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
         }
         .victoria-avatar-animated { animation: victoria-float 3s ease-in-out infinite; }
       `}</style>
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between gap-4">
+      <div className="max-w-3xl w-full mx-auto px-6 pt-6 pb-3 flex flex-col flex-1 min-h-0">
+        <div className="flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/victoria-avatar-192.png" alt="Victoria" className="h-12 w-12 rounded-full victoria-avatar-animated" />
@@ -428,7 +445,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4">
+        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-4 shrink-0">
           {callState === 'idle' ? (
             <div className="flex items-center gap-3 flex-wrap">
               <button
@@ -506,7 +523,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
           {locationError && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{locationError}</p>}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] flex flex-col h-[34rem]">
+        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`max-w-[85%] ${m.role === 'user' ? 'ml-auto' : ''}`}>
@@ -554,6 +571,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              primeSpeech()
               send()
             }}
             className="p-3 border-t border-slate-200 dark:border-zinc-800 flex flex-wrap items-center gap-2"
@@ -586,7 +604,17 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
               <button
                 type="button"
                 onClick={() => {
-                  if (speakReplies) window.speechSynthesis.cancel()
+                  if (speakReplies) {
+                    window.speechSynthesis.cancel()
+                  } else {
+                    // Unlock speechSynthesis right on this tap too, not just
+                    // on the next send -- belt-and-suspenders for iOS Safari.
+                    try {
+                      const unlock = new SpeechSynthesisUtterance(' ')
+                      unlock.volume = 0
+                      window.speechSynthesis.speak(unlock)
+                    } catch {}
+                  }
                   setSpeakReplies((v) => !v)
                 }}
                 title={speakReplies ? 'Victoria will stop speaking her replies' : 'Victoria will speak her replies out loud'}
