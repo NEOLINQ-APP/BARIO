@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { db, type VictoriaMessage } from '@/lib/db'
 import { sendVictoriaSms } from '@/lib/twilio'
 
-const anthropicClient = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null
+// 2026-08-23: switched from Anthropic to OpenAI's gpt-5.6-luna, same as the
+// app/family chat routes and the voice line -- the Anthropic account's
+// credit balance ran out, and this route (real inbound SMS/WhatsApp to
+// Victoria's number) was still fully on the dead client, silently falling
+// back to "Sorry, I had trouble replying just now" on every real text.
+const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null
+const MODEL = 'gpt-5.6-luna'
 
 const SHERWIN_NUMBER = '+17802410880'
 
@@ -24,10 +30,12 @@ const FAMILY: Record<string, string> = {
   '+17802671736': 'Jasmine',
   '+12503096641': 'Mom C',
   '+17809051234': 'Shamel',
+  '+18259639388': 'Mom',
 }
-const SCHEDULE_NAMES = new Set(['Mr. Mendoza', 'Mya', 'Juliana'])
+const SCHEDULE_NAMES = new Set(['Mr. Mendoza', 'Mya', 'Juliana', 'Mom'])
 
 const HISTORY_LIMIT = 20
+const MAX_ROUNDS = 5
 
 function normalize(raw: string): string {
   // Twilio prefixes WhatsApp senders as "whatsapp:+1XXXXXXXXXX" — strip that
@@ -47,11 +55,12 @@ function twiml(message: string) {
   )
 }
 
-const CREATE_APPOINTMENT_TOOL: Anthropic.Tool = {
+const CREATE_APPOINTMENT_TOOL = {
+  type: 'function' as const,
   name: 'create_appointment',
   description:
     "Add an appointment/reminder to Mr. Mendoza's personal calendar and schedule an SMS reminder ahead of it. datetime must be a specific date and time resolved from what he says (convert relative phrasing like 'tomorrow at 3pm' to a real ISO 8601 datetime using today's real date/time).",
-  input_schema: {
+  parameters: {
     type: 'object',
     properties: {
       title: { type: 'string' },
@@ -62,11 +71,12 @@ const CREATE_APPOINTMENT_TOOL: Anthropic.Tool = {
   },
 }
 
-const CHECK_CALL_LOG_TOOL: Anthropic.Tool = {
+const CHECK_CALL_LOG_TOOL = {
+  type: 'function' as const,
   name: 'check_call_log',
   description:
     "Look up recent calls across Unique Group Inc., AFC Logistics, and Sunbuilt Group so you can relay who's been calling and what each call was about — e.g. \"who called today\" or \"any messages for AFC.\"",
-  input_schema: {
+  parameters: {
     type: 'object',
     properties: {
       company: { type: 'string', enum: ['unique', 'afc', 'sunbuilt'], description: 'Limit to one company — omit to check all three.' },
@@ -75,11 +85,12 @@ const CHECK_CALL_LOG_TOOL: Anthropic.Tool = {
   },
 }
 
-const TAKE_MESSAGE_TOOL: Anthropic.Tool = {
+const TAKE_MESSAGE_TOOL = {
+  type: 'function' as const,
   name: 'take_message',
   description:
     "Take a message from someone not in Mr. Mendoza's known contacts and relay it to him right away by text. Use this whenever someone he doesn't have you recognize texts in with something for him — don't just reply politely and drop it.",
-  input_schema: {
+  parameters: {
     type: 'object',
     properties: {
       message: { type: 'string', description: 'What they want relayed to Mr. Mendoza, in your own words if needed.' },
@@ -163,6 +174,20 @@ async function createAppointmentOnVps(title: string, datetime: string, reminderM
   return false
 }
 
+async function executeSmsTool(name: string, args: any, from: string, canSchedule: boolean, isSherwin: boolean, knownName: string | undefined): Promise<string> {
+  if (name === 'create_appointment' && canSchedule) {
+    const ok = await createAppointmentOnVps(args.title, args.datetime, args.reminderMinutesBefore)
+    return ok ? 'Saved.' : 'Failed to save — tell him something went wrong.'
+  }
+  if (name === 'check_call_log' && isSherwin) {
+    return fetchCallLog(args.company, args.sinceHours)
+  }
+  if (name === 'take_message' && !knownName) {
+    return relayMessageToSherwin(from, args.message)
+  }
+  return 'That action is not available on this conversation.'
+}
+
 // Inbound SMS/WhatsApp webhook for Victoria's number (+18254650880) — lets
 // Mr. Mendoza and his family text her (either channel — Twilio mirrors the
 // TwiML reply back on whichever channel the inbound message arrived on) and
@@ -193,13 +218,13 @@ export async function POST(req: Request) {
     `
 
     const knownName = FAMILY[from]
-    if (!anthropicClient) {
+    if (!openaiClient) {
       return twiml(knownName ? `Hi ${knownName}, got your message! (I'm having a technical hiccup replying properly right now.)` : 'Got your message!')
     }
 
     const isSherwin = knownName === 'Mr. Mendoza'
-    // Only Mr. Mendoza, Mya, and Juliana share the family calendar — an
-    // explicit boundary he set. Other known contacts (Mark, Jamillah,
+    // Only Mr. Mendoza, Mya, Juliana, and Mom share the family calendar —
+    // an explicit boundary he set. Other known contacts (Mark, Jamillah,
     // Jasmine, Mom C, Shamel) are recognized/greeted by name but don't get
     // scheduling access.
     const canSchedule = !!knownName && SCHEDULE_NAMES.has(knownName)
@@ -208,16 +233,15 @@ export async function POST(req: Request) {
     // wrong day ("this Friday" resolved to the wrong date) since the model
     // has to do its own day-of-week arithmetic from a raw timestamp.
     // Spelling out the actual weekday name in Mountain Time removes that
-    // guesswork. This block is deliberately kept OUT of the cached system
-    // block below (see cachedSystem) since it changes on every request —
-    // caching it alongside the static instructions would defeat caching
-    // entirely (a new "cached" entry every single text, never a hit).
+    // guesswork.
     const nowInEdmonton = new Date().toLocaleString('en-CA', { timeZone: 'America/Edmonton', dateStyle: 'full', timeStyle: 'short' })
     const staticInstructions = `You are Victoria, the Mendoza family's personal AI assistant, texting over ${channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}. ${
       isSherwin
         ? "You're texting with Mr. Mendoza himself — your owner/handler. Be warm, direct, and helpful."
         : knownName === 'Mya' || knownName === 'Juliana'
         ? `You're texting with ${knownName}, one of Mr. Mendoza's daughters. Be warm, caring, and a little affectionate — like family, not a call center. He often has you pass along love/goodnight messages to his kids.`
+        : knownName === 'Mom'
+        ? `You're texting with Mom — Mr. Mendoza's own mother. Be warm, patient, and extra caring, like a devoted family assistant looking out for her. Watch for anything that sounds like a scam/fraud attempt (unexpected requests for money, cards, personal info, or a caller/text claiming to be a company or government agency) and gently flag it if it comes up.`
         : knownName
         ? `You're texting with ${knownName}, a personal contact of Mr. Mendoza's (not business). Be warm and friendly, like family/a good friend would be, not a call center.`
         : "You're texting with someone not in your known contacts. Be polite and brief, don't assume who they are, and use the take_message tool to relay whatever they need to Mr. Mendoza rather than just replying and letting it drop."
@@ -229,91 +253,40 @@ export async function POST(req: Request) {
       isSherwin
         ? ' You also keep track of every call across all three companies (Unique Group, AFC Logistics, Sunbuilt Group) — use check_call_log whenever asked who called, what was missed, or if there are any messages, and relay it back naturally rather than reading it like a raw log.'
         : ''
-    } You have a real memory of this conversation thread (see message history) — refer back to things naturally when relevant, the way a person who remembers past texts would. Keep replies SHORT — this is a text message, not a phone call. No more than 2-3 sentences.`
+    } You have a real memory of this conversation thread (see message history) — refer back to things naturally when relevant, the way a person who remembers past texts would. Keep replies SHORT — this is a text message, not a phone call. No more than 2-3 sentences. Never mention what model or company powers you.`
     const dateGrounding = `The real current date and time right now is: ${nowInEdmonton} (America/Edmonton time). Always resolve relative dates/times (like "tomorrow" or "next Friday at 3") against this real date, never against any other assumption — double-check day-of-week arithmetic carefully rather than guessing.`
+    const instructions = `${staticInstructions}\n\n${dateGrounding}`
 
-    const messages: Anthropic.MessageParam[] = [
-      ...history.map((m) => ({ role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.body })),
-      { role: 'user' as const, content: body },
-    ]
+    const priorInput: any[] = history.map((m) => ({
+      role: m.direction === 'inbound' ? 'user' : 'assistant',
+      content: m.body,
+    }))
+    const input: any[] = [...priorInput, { role: 'user', content: body }]
 
-    // Prompt caching: staticInstructions (and the tool schema, when offered)
-    // are identical across every text in this thread and every other
-    // thread — marking them cacheable means repeat reads cost a fraction
-    // of full input-token price. dateGrounding is a separate, UNCACHED
-    // trailing block since it changes on every request.
-    const cachedSystem: Anthropic.TextBlockParam[] = [
-      { type: 'text', text: staticInstructions, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: dateGrounding },
-    ]
-    const toolDefs: Anthropic.Tool[] = []
-    if (canSchedule) toolDefs.push(CREATE_APPOINTMENT_TOOL)
-    if (isSherwin) toolDefs.push(CHECK_CALL_LOG_TOOL)
-    if (!knownName) toolDefs.push(TAKE_MESSAGE_TOOL)
-    const cachedTools = toolDefs.length
-      ? [...toolDefs.slice(0, -1), { ...toolDefs[toolDefs.length - 1], cache_control: { type: 'ephemeral' as const } }]
-      : undefined
+    const tools: any[] = []
+    if (canSchedule) tools.push(CREATE_APPOINTMENT_TOOL)
+    if (isSherwin) tools.push(CHECK_CALL_LOG_TOOL)
+    if (!knownName) tools.push(TAKE_MESSAGE_TOOL)
 
-    let response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 300,
-      system: cachedSystem,
-      messages,
-      tools: cachedTools,
-    })
+    let response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: tools.length ? tools : undefined })
 
-    // Any known family member can create appointments (shared family
-    // calendar) — anyone outside FAMILY still can't, since canSchedule is
-    // false for them and the tool was never offered. check_call_log is
-    // Sherwin-only (business-sensitive across all 3 companies), same
-    // reasoning as the voice line's isSherwin gate.
-    const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-    if (canSchedule && toolUse?.name === 'create_appointment') {
-      const input = toolUse.input as { title: string; datetime: string; reminderMinutesBefore?: number }
-      const ok = await createAppointmentOnVps(input.title, input.datetime, input.reminderMinutesBefore)
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const functionCalls = response.output.filter((item: any) => item.type === 'function_call')
+      if (functionCalls.length === 0) break
 
-      response = await anthropicClient.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 300,
-        system: cachedSystem,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: response.content },
-          { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: ok ? 'Saved.' : 'Failed to save — tell him something went wrong.' }] },
-        ],
-      })
-    } else if (isSherwin && toolUse?.name === 'check_call_log') {
-      const input = toolUse.input as { company?: string; sinceHours?: number }
-      const result = await fetchCallLog(input.company, input.sinceHours)
+      input.push(...response.output)
+      for (const call of functionCalls as any[]) {
+        let args: any = {}
+        try { args = JSON.parse(call.arguments || '{}') } catch {}
+        const result = await executeSmsTool(call.name, args, from, canSchedule, isSherwin, knownName)
+        input.push({ type: 'function_call_output', call_id: call.call_id, output: result })
+      }
 
-      response = await anthropicClient.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 300,
-        system: cachedSystem,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: response.content },
-          { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: result }] },
-        ],
-      })
-    } else if (!knownName && toolUse?.name === 'take_message') {
-      const input = toolUse.input as { message: string }
-      const result = await relayMessageToSherwin(from, input.message)
-
-      response = await anthropicClient.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 300,
-        system: cachedSystem,
-        messages: [
-          ...messages,
-          { role: 'assistant', content: response.content },
-          { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: result }] },
-        ],
-      })
+      response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: tools.length ? tools : undefined })
     }
 
-    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
-    const reply = textBlock?.text?.trim() || 'Got it!'
+    const messageItem = response.output.find((item: any) => item.type === 'message') as any
+    const reply = messageItem?.content?.[0]?.text?.trim() || 'Got it!'
 
     await sql`
       INSERT INTO victoria_messages (id, phone_number, channel, direction, body)
