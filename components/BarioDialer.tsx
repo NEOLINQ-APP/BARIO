@@ -47,6 +47,7 @@ export default function BarioDialer({
   const [tab, setTab] = useState<Tab>('dial')
   const [number, setNumber] = useState(initialNumber ?? '')
   const [activeContactName, setActiveContactName] = useState<string | null>(null)
+  const [incomingCallerNumber, setIncomingCallerNumber] = useState<string | null>(null)
   const [callState, setCallState] = useState<CallState>('idle')
   const [muted, setMuted] = useState(false)
   const [speakerOn, setSpeakerOn] = useState(false)
@@ -288,7 +289,22 @@ export default function BarioDialer({
       const label = match ? BUSINESSES.find((b) => b.key === match[1])?.label : null
       const displayName = label ? `${label} (Internal)` : from || 'Incoming call'
       setActiveContactName(displayName)
+      setIncomingCallerNumber(match ? null : from || null)
       setCallState('incoming')
+
+      // Real caller-ID-by-name: for a real external number (not an internal
+      // Dialer-to-Dialer call), check that business's own CRM contacts for
+      // a known name -- read-only lookup, never creates a new contact.
+      if (!match && from) {
+        fetch(`/api/dialer/caller-lookup?businessKey=${businessKey}&phone=${encodeURIComponent(from)}`, {
+          headers: authHeaders,
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.name) setActiveContactName(d.companyName ? `${d.name} (${d.companyName})` : d.name)
+          })
+          .catch(() => {})
+      }
 
       fetch('/api/admin/dialer/call-log', {
         method: 'POST',
@@ -697,7 +713,10 @@ export default function BarioDialer({
           {callState === 'incoming' && (
             <div className="text-center py-6">
               <p className="text-base font-medium text-slate-400 mb-2">Incoming call</p>
-              <p className="text-3xl font-bold text-white mb-8 tabular-nums">{activeContactName ?? 'Unknown caller'}</p>
+              <p className="text-3xl font-bold text-white mb-1 tabular-nums">{activeContactName ?? incomingCallerNumber ?? 'Unknown caller'}</p>
+              <p className="text-base text-slate-400 mb-8 tabular-nums h-5">
+                {incomingCallerNumber && activeContactName && activeContactName !== incomingCallerNumber ? incomingCallerNumber : ''}
+              </p>
               <div className="flex gap-6 justify-center">
                 <button
                   onClick={declineIncomingCall}

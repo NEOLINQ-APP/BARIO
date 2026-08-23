@@ -28,7 +28,14 @@ export async function POST(req: Request) {
     return twiml('<Say>Sorry, this number is not set up correctly. Please try again later.</Say>')
   }
 
+  // Real bug fix (2026-08-23): without an explicit callerId, the Client leg
+  // of this Dial was showing this business's own Twilio number instead of
+  // the real external caller's number in the Dialer app. {{From}} is
+  // Twilio's own TwiML templating syntax -- it's substituted server-side
+  // with this inbound request's real From value before Twilio parses the
+  // Dial verb, guaranteeing the original caller's number is what the
+  // Client SDK actually receives as call.parameters.From.
   return twiml(
-    `<Dial timeout="25"><Client>admin-${business.key}</Client></Dial><Say>${business.businessName} isn't available right now. Please try again later.</Say>`
+    `<Dial timeout="25" callerId="{{From}}"><Client>admin-${business.key}</Client></Dial><Say>${business.businessName} isn't available right now. Please try again later.</Say>`
   )
 }
