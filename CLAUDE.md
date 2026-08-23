@@ -115,7 +115,11 @@ check both independently if unsure.
   8vCPU/16GB, plenty of headroom): the intended eventual replacement for the
   main VPS above (see `TODO.md`/memory for the full Hostinger→Hetzner
   migration plan — most services haven't moved yet). Runs the self-hosted
-  MinIO instance (`storage.bario.ca` — X-Drive and all internal backups).
+  MinIO instance (`storage.bario.ca` — X-Drive and all internal backups),
+  bound to `127.0.0.1` only (nginx is the sole public entry point) as of
+  2026-08-23. Also has an unused, harmless isolated Docker network + gVisor
+  install left over from an abandoned sandbox-consolidation attempt (see
+  `BILLING_INVENTORY.md`) — nothing runs on them, safe to ignore or clean up.
   Unique Group Inc.'s and Bario.ca's dedicated Twenty CRM stacks used to run
   here too; both fully decommissioned 2026-08-20 alongside the rest of
   Twenty CRM (see above).

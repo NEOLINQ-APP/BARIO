@@ -37,34 +37,37 @@ The 8 Business Email trials are the only thing that changes this number
 significantly if left alone — they convert to real charges on their
 individual anniversary dates through 2027 unless cancelled first.
 
-### Hetzner Cloud (3 servers)
+### Hetzner Cloud (3 BARIO-infra servers, excluding real customer VPS orders)
 Pulled via `GET /v1/servers` + `GET /v1/pricing` with `HETZNER_API_TOKEN`.
 
 | Server | IP | Type | Monthly | Created | What's on it |
 |---|---|---|---|---|---|
-| `sandbox-host-us.bario.ca` | 178.156.185.177 | cpx31 | $20.49 | 2026-08-01 | Bario Build's code-sandbox host (`SANDBOX_HOST_URL`) |
 | `srv-90f87f7776.vps.bario.ca` | 178.104.58.155 | cx33 | $9.99 | 2026-08-06 | **Identified**: the live WordPress shared-hosting node (Product B) — multi-tenant Docker+Caddy, `wp_hosting_nodes` id `6620cdee-87e1-45d6-89e6-f60945583d32`. See [[bario_wp_shared_hosting]]. It's a real `vps_instances` order (medium tier, owned by the agency account `uniquegroup.org@gmail.com`, `app_type: 'blank'` — the WP-node-agent stack was installed manually on top, not via BARIO's automated WP flow) rather than a manually-provisioned box. **No local SSH key matches it** (its registered public key's comment is `wp-node-1`, not present in `~/.ssh/`) — access it via whatever machine/session originally set it up, or re-add a key through the node-agent if that's lost. |
 | `srv-e1c44e8a4b.vps.bario.ca` | 46.224.28.213 | cx43 | $18.49 | 2026-08-08 | Confirmed: the "Hetzner replacement VPS", MinIO/storage.bario.ca (X-Drive + backups). Also a real `vps_instances` order (large tier, same owner). |
+| `mail-host-1.bario.ca` | 91.98.116.193 | cx33 | $9.99 | 2026-08-22 | New Mailcow mail server, replaced the Hostinger box — see below. |
 
-**Total: $48.97/mo.** All 3 are real Hetzner Cloud servers, not billed through Hostinger.
+**Total: $38.47/mo** (was $48.97/mo before the sandbox host was deleted 2026-08-23 — see below). All 3 are real Hetzner Cloud servers, not billed through Hostinger. (A 4th server, `srv-f7e75b288c.vps.bario.ca`, appeared 2026-08-22 with a real `vps_instances` order id — a genuine paying customer's VPS, not BARIO's own infra, excluded from this table.)
 
-**Sandbox+MinIO consolidation — started 2026-08-22, NOT complete.** The plan
-was to move `sandbox-host-us.bario.ca`'s workload onto the MinIO box
-(`46.224.28.213`) to eliminate that $20.49/mo server, with real isolation so
-a sandbox escape still can't reach MinIO's data. What's actually done:
-MinIO rebound to `127.0.0.1`-only (closes direct/container access to
-9000-9001), a separate `sandbox-net` Docker network created, `DOCKER-USER`
-iptables rules blocking that network from reaching MinIO (persisted via a
-systemd unit, `sandbox-net-firewall.service`), and gVisor (`runsc`,
-ptrace platform) installed and registered in Docker's daemon config — all
-verified working. **NOT done**: the actual `sandbox-host-api` service was
-never started on the new box, Traefik was never set up there, the
-`bario-sandbox-node` image was never built there, `SANDBOX_HOST_URL` was
-never repointed, and the 19 live sandbox sessions on the OLD box were never
-migrated. `sandbox-host-us.bario.ca` is still running, still billed
-$20.49/mo, and is still the real production sandbox host — do not delete it
-or repoint `SANDBOX_HOST_URL` until the rest of this migration is actually
-finished and tested.
+**Sandbox host — DELETED 2026-08-23, full $20.49/mo saved.** Started as a
+plan to consolidate `sandbox-host-us.bario.ca`'s workload onto the MinIO
+box (`46.224.28.213`) rather than pay for 2 servers. Investigation found
+the whole premise was moot: Bario Build (the only thing that ever used this
+sandbox) was replaced by Adorable on 2026-08-17 (see TODO.md), and the box
+had been sitting completely idle since — `SANDBOX_HOST_URL` has zero
+references anywhere in the current codebase, zero Traefik access-log
+entries in the 24h before deletion, zero new sandbox sessions in the 48h
+before deletion. The 19 running containers on it were stale leftovers, not
+real traffic. Deleted outright via the Hetzner API (server id `157898430`)
+after confirming this — full $20.49/mo saved, not a partial win.
+
+The isolation work done on the MinIO box while this was still framed as a
+consolidation (a separate `sandbox-net` Docker network, `DOCKER-USER`
+firewall rules blocking it from reaching MinIO, gVisor installed) is
+harmless and was left in place unused, since nothing was ever actually
+migrated there. **MinIO's `127.0.0.1`-only port rebind is a real, permanent
+security improvement** (closes direct external/container access to
+9000-9001, forces all traffic through nginx as intended) and was kept
+regardless of the sandbox question.
 
 ### New: mail server migration (Hostinger → Hetzner), DONE 2026-08-22
 Real production migration, fully executed and verified this session (not
