@@ -1,45 +1,76 @@
 import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { db, type VictoriaFamilyMessage } from '@/lib/db'
 import { verifyFamilyToken } from '@/lib/victoriaFamilyAccess'
-import { VICTORIA_FAMILY_TOOLS, executeVictoriaFamilyTool } from '@/lib/victoriaFamilyTools'
+import { executeVictoriaFamilyTool } from '@/lib/victoriaFamilyTools'
 import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 60
 
-const anthropicClient = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null
+// 2026-08-23: switched from Anthropic to OpenAI's gpt-5.6-luna — same model
+// already proven live on Victoria's phone/ConversationRelay line
+// (miko-voice/server.js), moved here because the Anthropic account's
+// credit balance ran out (real billing-card issue, unrelated to code) and
+// blocked every text-chat message platform-wide. Responses API, not Chat
+// Completions -- gives real hosted web_search + function calling together.
+const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null
+const MODEL = 'gpt-5.6-luna'
 
 const HISTORY_LIMIT = 20
 const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024
 const MAX_ROUNDS = 5
 
-const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20260209 = { type: 'web_search_20260209', name: 'web_search', max_uses: 5 }
+// Flat function-tool shape the Responses API expects (not nested under a
+// "function" key the way Chat Completions does) -- see
+// developers.openai.com/api/docs/guides/function-calling. web_search is a
+// separate hosted-tool entry alongside these, added where TOOLS is used.
+const FUNCTION_TOOLS = [
+  {
+    type: 'function' as const,
+    name: 'generate_image',
+    description: "Generate a real image from a text description -- use this if she asks to see a picture of something (what a place looks like, an idea, anything visual).",
+    parameters: {
+      type: 'object',
+      properties: { prompt: { type: 'string', description: 'Detailed description of the image to generate' } },
+      required: ['prompt'],
+    },
+  },
+  {
+    type: 'function' as const,
+    name: 'alert_dad',
+    description: "Immediately text Mr. Mendoza that she needs him -- use this right away whenever she asks you to tell/alert/let her dad know something, or if what she's telling you sounds like a real emergency or she's genuinely unsafe. Don't hesitate or ask permission first, just send it, then tell her it's been sent.",
+    parameters: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: "What to tell him -- her situation, in her own words/context, plus anything useful (where she says she is, what she needs)" },
+        urgent: { type: 'boolean', description: 'true for a real emergency/safety concern, false for a lower-key "just let him know" request' },
+      },
+      required: ['message'],
+    },
+  },
+]
+const TOOLS = [...FUNCTION_TOOLS, { type: 'web_search' as const }]
 
 type Attachment = { url: string; contentType: string; filename: string }
 
-function attachmentBlockType(contentType: string): 'image' | 'document' | null {
-  if (contentType.startsWith('image/')) return 'image'
-  if (contentType === 'application/pdf') return 'document'
-  return null
-}
-
-async function fetchAttachmentBlock(att: Attachment): Promise<Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam | null> {
-  const blockType = attachmentBlockType(att.contentType)
-  if (!blockType) return null
+async function fetchAttachmentPart(att: Attachment): Promise<any | null> {
+  const isImage = att.contentType.startsWith('image/')
+  const isPdf = att.contentType === 'application/pdf'
+  if (!isImage && !isPdf) return null
   const res = await fetch(att.url)
   if (!res.ok) return null
   const buf = await res.arrayBuffer()
   if (buf.byteLength > MAX_ATTACHMENT_BYTES) return null
   const data = Buffer.from(buf).toString('base64')
-  if (blockType === 'image') return { type: 'image', source: { type: 'base64', media_type: att.contentType as any, data } }
-  return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+  if (isImage) return { type: 'input_image', image_url: `data:${att.contentType};base64,${data}`, detail: 'auto' }
+  return { type: 'input_file', filename: att.filename, file_data: `data:application/pdf;base64,${data}` }
 }
 
-function familySystemPrompt(memberName: string): string {
-  return `You are Victoria, ${memberName}'s personal AI assistant -- the same Victoria her dad Mr. Mendoza talks to. She has her own direct line to you here, any time she needs anything, wherever she is in the world.
+function familyInstructions(memberName: string): string {
+  return `You are Victoria, ${memberName}'s personal AI assistant -- she has her own direct line to you here, any time she needs anything, wherever she is in the world.
 
-Be warm, genuinely caring, and quick to help -- like someone who's always got her back. Keep replies natural and conversational, not corporate. You're powered by Claude, and can say so if asked, but you present as Victoria throughout.
+Be warm, genuinely caring, and quick to help -- like someone who's always got her back. Keep replies natural and conversational, not corporate. You present as Victoria throughout -- never mention what model or company powers you.
 
 What you're here for: answering absolutely anything she asks -- restaurant recommendations, what the weather's doing, whether an area is safe, translations, directions, local customs, currency, what to do if something goes wrong, or just someone to talk to. Use web_search freely and quickly for anything current or specific -- don't hedge, don't say you can't check, just look it up. If she asks to see what something looks like, use generate_image.
 
@@ -76,7 +107,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!anthropicClient) return NextResponse.json({ error: 'Assistant not configured' }, { status: 503 })
+  if (!openaiClient) return NextResponse.json({ error: 'Assistant not configured' }, { status: 503 })
 
   try {
     const body = await req.json().catch(() => ({}))
@@ -104,57 +135,46 @@ export async function POST(req: Request) {
       VALUES (${randomUUID()}, ${member.key}, 'inbound', ${text || '(attachment only)'}, ${attachments.length ? JSON.stringify(attachments) : null})
     `
 
-    const priorMessages: Anthropic.MessageParam[] = history.map((m) => {
+    // Prior turns replay as plain-string content (same simplification the
+    // old Anthropic version used) -- only the CURRENT turn's attachments
+    // carry real input_image/input_file content parts.
+    const priorInput: any[] = history.map((m) => {
       const atts: Attachment[] = m.attachments_json ? JSON.parse(m.attachments_json) : []
       const attNote = atts.length ? ` [attached: ${atts.map((a) => a.filename).join(', ')}]` : ''
-      return { role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.body + attNote }
+      return { role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.body + attNote }
     })
 
-    const currentBlocks: Anthropic.ContentBlockParam[] = []
+    const currentParts: any[] = []
     for (const att of attachments) {
-      const block = await fetchAttachmentBlock(att)
-      if (block) currentBlocks.push(block)
+      const part = await fetchAttachmentPart(att)
+      if (part) currentParts.push(part)
     }
-    currentBlocks.push({ type: 'text', text: text || `(see attached file${attachments.length > 1 ? 's' : ''})` })
+    currentParts.push({ type: 'input_text', text: text || `(see attached file${attachments.length > 1 ? 's' : ''})` })
 
-    const messages: Anthropic.MessageParam[] = [...priorMessages, { role: 'user', content: currentBlocks }]
-
-    const cachedSystem: Anthropic.TextBlockParam[] = [{ type: 'text', text: familySystemPrompt(member.name), cache_control: { type: 'ephemeral' } }]
-    const cachedTools: Anthropic.ToolUnion[] = [...VICTORIA_FAMILY_TOOLS, { ...WEB_SEARCH_TOOL, cache_control: { type: 'ephemeral' } }]
+    const input: any[] = [...priorInput, { role: 'user', content: currentParts }]
+    const instructions = familyInstructions(member.name)
 
     const toolLog: { tool: string; args: unknown; result: unknown }[] = []
-    let response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1024,
-      system: cachedSystem,
-      messages,
-      tools: cachedTools,
-    })
+    let response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: TOOLS as any })
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-      if (toolUses.length === 0) break
+      const functionCalls = response.output.filter((item: any) => item.type === 'function_call')
+      if (functionCalls.length === 0) break
 
-      messages.push({ role: 'assistant', content: response.content })
-      const toolResults: Anthropic.ToolResultBlockParam[] = []
-      for (const toolUse of toolUses) {
-        const result = await executeVictoriaFamilyTool(member.name, toolUse.name, toolUse.input)
-        toolLog.push({ tool: toolUse.name, args: toolUse.input, result })
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result) })
+      input.push(...response.output)
+      for (const call of functionCalls as any[]) {
+        let args: any = {}
+        try { args = JSON.parse(call.arguments || '{}') } catch {}
+        const result = await executeVictoriaFamilyTool(member.name, call.name, args)
+        toolLog.push({ tool: call.name, args, result })
+        input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) })
       }
-      messages.push({ role: 'user', content: toolResults })
 
-      response = await anthropicClient.messages.create({
-        model: 'claude-sonnet-5',
-        max_tokens: 1024,
-        system: cachedSystem,
-        messages,
-        tools: cachedTools,
-      })
+      response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: TOOLS as any })
     }
 
-    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
-    const reply = textBlock?.text?.trim() || "I hit my limit for this turn — ask me again and I'll pick up from here."
+    const messageItem = response.output.find((item: any) => item.type === 'message') as any
+    const reply = messageItem?.content?.[0]?.text?.trim() || "I hit my limit for this turn — ask me again and I'll pick up from here."
 
     await sql`
       INSERT INTO victoria_family_messages (id, member_key, direction, body, tool_log_json)
