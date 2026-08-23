@@ -7,6 +7,9 @@ import { VICTORIA_APP_TOOLS, executeVictoriaAppTool } from '@/lib/victoriaAppToo
 import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 120 // dispatch_business_task can chain several model calls (router/specialist/critic/delivery)
+// See the family chat route's identical export for why this matters --
+// without it this GET handler can be statically cached by pathname alone.
+export const dynamic = 'force-dynamic'
 
 // 2026-08-23: switched from Anthropic to OpenAI's gpt-5.6-luna — same model
 // already proven live on Victoria's phone/ConversationRelay line

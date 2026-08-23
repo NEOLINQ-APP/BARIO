@@ -7,6 +7,12 @@ import { executeVictoriaFamilyTool } from '@/lib/victoriaFamilyTools'
 import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 60
+// Without this, the GET handler below (no cookies()/headers() call, just
+// req.url's searchParams) can be treated as a static route and cached by
+// pathname alone -- serving the FIRST member who ever loaded this page
+// (name + message history) back to every other member regardless of their
+// own ?member=&token=. Root cause of "everyone gets called Mom" 2026-08-23.
+export const dynamic = 'force-dynamic'
 
 // 2026-08-23: switched from Anthropic to OpenAI's gpt-5.6-luna — same model
 // already proven live on Victoria's phone/ConversationRelay line
