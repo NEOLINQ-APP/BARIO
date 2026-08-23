@@ -48,6 +48,60 @@ Pulled via `GET /v1/servers` + `GET /v1/pricing` with `HETZNER_API_TOKEN`.
 
 **Total: $48.97/mo.** All 3 are real Hetzner Cloud servers, not billed through Hostinger.
 
+**Sandbox+MinIO consolidation — started 2026-08-22, NOT complete.** The plan
+was to move `sandbox-host-us.bario.ca`'s workload onto the MinIO box
+(`46.224.28.213`) to eliminate that $20.49/mo server, with real isolation so
+a sandbox escape still can't reach MinIO's data. What's actually done:
+MinIO rebound to `127.0.0.1`-only (closes direct/container access to
+9000-9001), a separate `sandbox-net` Docker network created, `DOCKER-USER`
+iptables rules blocking that network from reaching MinIO (persisted via a
+systemd unit, `sandbox-net-firewall.service`), and gVisor (`runsc`,
+ptrace platform) installed and registered in Docker's daemon config — all
+verified working. **NOT done**: the actual `sandbox-host-api` service was
+never started on the new box, Traefik was never set up there, the
+`bario-sandbox-node` image was never built there, `SANDBOX_HOST_URL` was
+never repointed, and the 19 live sandbox sessions on the OLD box were never
+migrated. `sandbox-host-us.bario.ca` is still running, still billed
+$20.49/mo, and is still the real production sandbox host — do not delete it
+or repoint `SANDBOX_HOST_URL` until the rest of this migration is actually
+finished and tested.
+
+### New: mail server migration (Hostinger → Hetzner), DONE 2026-08-22
+Real production migration, fully executed and verified this session (not
+just planned). Replaced the Hostinger-hosted Mailcow VPS (`148.230.94.192`,
+"KVM 4", $42.99/mo) with a new Hetzner box (`91.98.116.193`, `cx33` in nbg1,
+$9.99/mo) — same server type already used for the WP-hosting node, sized to
+the old box's real observed usage (was only using 3.3GB/15GB RAM,
+6.9GB/193GB disk).
+
+**What was actually verified, not assumed**: Mailcow installed at the exact
+same git commit as the source (avoids version-mismatch restore issues); a
+raw filesystem tar-copy of the live MySQL data was tried first and
+**silently produced an empty database** (0 rows) despite the restore script
+reporting success — a real InnoDB-consistency gotcha with hot-copying a
+live database's on-disk files. Fixed by using a proper `mysqldump
+--single-transaction` instead, which restored all 8 real mailboxes across
+7 domains correctly (verified via direct row counts and `doveadm mailbox
+status` matching the source's real message counts exactly, not just "the
+process exited 0"). DNS (`reseller.bario.ca` A record in Cloudflare) was
+cut over only after that data was independently confirmed correct. Post
+cutover: DNS resolves to the new IP, the new box has its own real
+Let's Encrypt cert for `reseller.bario.ca` (confirmed via a live TLS
+handshake, not just "acme container is running"), and IMAPS is reachable.
+
+**Real savings once the old box is decommissioned: $33.00/mo ($42.99 → $9.99).**
+
+**Known issue, unresolved**: SSH to the new mail box
+(`91.98.116.193`, key `~/.ssh/bario_mail_vps2`) stopped working shortly
+after the migration — same key that worked throughout setup now gets
+`Permission denied (publickey,password)`. Investigate before relying on SSH
+access to this box again.
+
+**Do NOT cancel the old Hostinger "KVM 4" subscription yet** — wait until
+the new box has been stable for a few days and the SSH issue above is
+resolved (you may need Hostinger's own console/VNC access to the old box if
+you ever need to get back into it once SSH there is also distrusted).
+
 **Resolved**: the "Mail reseller VPS" (`148.230.94.192`, `reseller.bario.ca`,
 Mailcow) is confirmed NOT one of these 3 Hetzner servers — it predates all of
 them (provisioned 2026-07-27, before the earliest Hetzner box existed

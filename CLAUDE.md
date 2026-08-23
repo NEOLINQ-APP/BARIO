@@ -119,10 +119,23 @@ check both independently if unsure.
   Unique Group Inc.'s and Bario.ca's dedicated Twenty CRM stacks used to run
   here too; both fully decommissioned 2026-08-20 alongside the rest of
   Twenty CRM (see above).
-- **Mail reseller VPS** (`148.230.94.192`, key `~/.ssh/bario_mail_vps`,
-  hostname `reseller.bario.ca`): cPanel/WHM installed 2026-07-27. Still needs
-  license application, first-time WHM setup wizard, and white-labeling before
-  it's a real product — not done yet as of this writing.
+- **Mail server** (`91.98.116.193`, Hetzner `cx33`, $9.99/mo, key
+  `~/.ssh/bario_mail_vps2`, hostname `reseller.bario.ca`): migrated
+  2026-08-22 off the old Hostinger KVM 4 box (`148.230.94.192`, $42.99/mo —
+  cancel that subscription once this box is confirmed stable) to cut cost.
+  Runs Mailcow (not cPanel/WHM — that plan was abandoned before this
+  migration). Real data verified migrated via `mysqldump`/`doveadm`: all 7
+  domains, all 8 mailboxes, message counts matching the source exactly.
+  DNS cutover confirmed live (`reseller.bario.ca` resolves to the new IP,
+  real Let's Encrypt cert issued, IMAPS reachable). **Known issue, not yet
+  resolved**: SSH access to this box stopped working shortly after the
+  migration (`Permission denied (publickey,password)` with the same key
+  that worked throughout setup) — investigate before assuming remote access
+  works. The old box is still running as of this writing; don't decommission
+  it or cancel its Hostinger subscription until the new box has been stable
+  for a few days AND the SSH access issue is resolved (you may need console
+  access via Hostinger if SSH is genuinely broken there too before you can
+  safely walk away from it).
 - **Cloudflare**: used for per-custom-domain zone creation (`lib/cloudflare.ts`),
   API token has write access (Zone:Edit, Account:Zone:Edit).
 
@@ -186,6 +199,42 @@ larger piece of work: rewrite this module to read/write Bario One's
 `lib/barioOneCrmCallLog.ts` already did for Victoria's call-logging path.
 Contacts list + click-to-call (`/admin/crm-outreach`'s other routes) are
 unaffected — already repointed to Bario One, or never depended on Twenty.
+
+## Session continuity — this file + TODO.md are the persistent memory
+
+Neither this file nor a chat transcript is a substitute for the other.
+**`CLAUDE.md` (this file) + `TODO.md` together are this project's
+persistent, repo-committed source of truth** — readable by any AI coding
+tool or human, not just Claude Code, and outliving any single
+conversation. `TODO.md` already covers task status, known bugs, and a
+dated changelog-by-example (its `Blocked`/`In progress`/`Done`/`Not
+started`/`New requests` sections) — don't fork that into a second,
+parallel set of status/task/bug files; extend what's there.
+
+At the start of a session, before making changes: read this file (already
+automatic), skim `TODO.md`'s `Blocked` and `In progress` sections, and run
+`git status`/`git log --oneline -5` — don't assume the current
+conversation contains the whole history, and don't assume nothing else
+has touched the repo since you last looked (this project has a real,
+repeated history of concurrent same-machine sessions colliding — see
+`TODO.md`'s own entries and stash-before-deploy habits if unsure).
+
+**Never claim something works because the code was written** — run the
+real build/typecheck, and where the change is live-testable (an API
+route, a UI flow), verify it against the actual deployed behavior, not
+just source-code review. If something can't be verified this session, say
+so plainly rather than implying it was tested.
+
+**If a fix attempt fails, don't just quietly try something else** — note
+in your response (and in `TODO.md` if the work spans sessions) what was
+tried and why it didn't work, so a future session doesn't re-attempt the
+same dead end from scratch.
+
+See `DECISIONS.md` for architectural/product decisions and their
+reasoning — distinct from `TODO.md`'s task-status framing, this is a
+scannable log of *why* a real choice was made, for when the reasoning
+itself matters later (e.g. "why does Sky use raw fetch for Gemini instead
+of the AI SDK's Google provider").
 
 ## Working conventions specific to this project
 
