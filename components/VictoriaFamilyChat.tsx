@@ -12,6 +12,52 @@ function getSpeechRecognition(): (new () => any) | null {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
 }
 
+// pushManager.subscribe() needs the VAPID public key as a raw Uint8Array,
+// not the base64url string it's stored/shipped as.
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const output = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i)
+  return output
+}
+
+// Push notifications so Victoria can reach them (reminders, anything she
+// wants to tell them proactively) even when this app isn't open. Silent
+// no-op on anything unsupported (notably: iOS Safari only allows this once
+// the app is actually added to the home screen — a bare browser tab there
+// will reject the permission prompt or subscribe() itself, which is fine,
+// SMS stays the reliable fallback for that case).
+async function subscribeToPush(memberKey: string, token: string) {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    if (!vapidPublicKey) return
+
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') return
+
+    const registration = await navigator.serviceWorker.ready
+    let subscription = await registration.pushManager.getSubscription()
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+      })
+    }
+
+    await fetch('/api/victoria/family/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member: memberKey, token, subscription: subscription.toJSON() }),
+    })
+  } catch {
+    // Notification permission denied, unsupported browser, etc. -- never
+    // block the chat app over this, push is a nice-to-have on top of SMS.
+  }
+}
+
 export default function VictoriaFamilyChat({ memberKey }: { memberKey: string }) {
   const storageKey = `bario_victoria_family_token_${memberKey}`
   const [token, setToken] = useState<string | null>(null)
@@ -88,6 +134,23 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
   const [locationSharing, setLocationSharing] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const watchIdRef = useRef<number | null>(null)
+
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPushEnabled(Notification.permission === 'granted')
+    }
+  }, [])
+  async function enablePush() {
+    if (!token || pushBusy) return
+    setPushBusy(true)
+    await subscribeToPush(memberKey, token)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPushEnabled(Notification.permission === 'granted')
+    }
+    setPushBusy(false)
+  }
 
   // Read the access token from the link on first visit, persist it locally
   // so re-opening the installed app later (no query string, just the
@@ -384,6 +447,15 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
               >
                 📍 {locationSharing ? 'Sharing location with Dad' : 'Share my location with Dad'}
               </button>
+              {!pushEnabled && (
+                <button
+                  onClick={enablePush}
+                  disabled={pushBusy}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 flex items-center gap-2 disabled:opacity-50"
+                >
+                  🔔 {pushBusy ? 'Turning on…' : 'Turn on notifications'}
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-between gap-3">

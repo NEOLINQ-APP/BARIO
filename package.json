@@ -45,6 +45,7 @@
     "ssh2": "^1.17.0",
     "stripe": "^22.3.2",
     "twilio": "^6.0.2",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -53,9 +54,11 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/ssh2": "^1.15.5",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.19",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "playwright": "^1.62.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"

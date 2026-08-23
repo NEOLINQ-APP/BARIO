@@ -279,9 +279,11 @@ async function ensureSchema() {
       last_location_lng DOUBLE PRECISION,
       last_location_at TIMESTAMPTZ,
       location_sharing_enabled BOOLEAN NOT NULL DEFAULT false,
+      push_subscription_json TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  await sql`ALTER TABLE victoria_family_members ADD COLUMN IF NOT EXISTS push_subscription_json TEXT`
   await sql`
     CREATE TABLE IF NOT EXISTS victoria_family_messages (
       id TEXT PRIMARY KEY,
@@ -3166,6 +3168,7 @@ export type VictoriaFamilyMember = {
   last_location_lng: number | null
   last_location_at: string | null
   location_sharing_enabled: boolean
+  push_subscription_json: string | null
   created_at: string
 }
 
