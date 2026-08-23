@@ -239,12 +239,36 @@ export default function VictoriaAppChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // On some WebKit versions, speaking an utterance with no explicit .voice
+  // set silently produces no audio rather than falling back audibly --
+  // getVoices() can also return [] until 'voiceschanged' has fired once.
+  function getPreferredVoice(): SpeechSynthesisVoice | null {
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices.length) return null
+    return voices.find((v) => v.lang?.toLowerCase().startsWith('en')) ?? voices[0]
+  }
+
   function speak(text: string) {
     if (!ttsSupported) return
     window.speechSynthesis.cancel() // don't stack replies if one's still talking
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.rate = 1.05
-    window.speechSynthesis.speak(utterance)
+    const voice = getPreferredVoice()
+    if (voice) {
+      utterance.voice = voice
+      window.speechSynthesis.speak(utterance)
+    } else {
+      let spoken = false
+      const trySpeak = () => {
+        if (spoken) return
+        spoken = true
+        const v = getPreferredVoice()
+        if (v) utterance.voice = v
+        window.speechSynthesis.speak(utterance)
+      }
+      window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true })
+      setTimeout(trySpeak, 300)
+    }
   }
 
   // iOS Safari silently drops speechSynthesis.speak() calls not triggered

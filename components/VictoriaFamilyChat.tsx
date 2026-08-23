@@ -267,12 +267,42 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
     setCallMuted(next)
   }
 
+  // On some WebKit versions, speaking an utterance with no explicit .voice
+  // set (left to resolve to "whatever's default") silently produces no
+  // audio at all rather than falling back audibly -- getVoices() can also
+  // return [] until the async 'voiceschanged' event has fired at least
+  // once. Explicitly picking an English voice (waiting briefly for the
+  // list to populate if needed) avoids relying on that implicit default.
+  function getPreferredVoice(): SpeechSynthesisVoice | null {
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices.length) return null
+    return voices.find((v) => v.lang?.toLowerCase().startsWith('en')) ?? voices[0]
+  }
+
   function speak(text: string) {
     if (!ttsSupported) return
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.rate = 1.05
-    window.speechSynthesis.speak(utterance)
+    const voice = getPreferredVoice()
+    if (voice) {
+      utterance.voice = voice
+      window.speechSynthesis.speak(utterance)
+    } else {
+      // Voice list not loaded yet -- wait for it once, then speak. If the
+      // event never fires (shouldn't happen, but don't hang forever),
+      // speak anyway after a short timeout using the implicit default.
+      let spoken = false
+      const trySpeak = () => {
+        if (spoken) return
+        spoken = true
+        const v = getPreferredVoice()
+        if (v) utterance.voice = v
+        window.speechSynthesis.speak(utterance)
+      }
+      window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true })
+      setTimeout(trySpeak, 300)
+    }
   }
 
   // iOS Safari silently drops speechSynthesis.speak() calls that aren't
