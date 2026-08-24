@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User, type Template } from '@/lib/db'
-import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
+import { hasZeusStudioAccess, hasPaidPlan } from '@/lib/access'
 import { resolveSiteId } from '@/lib/siteAccess'
 import { errorResponse } from '@/lib/errors'
 
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use templates' }, { status: 403 })
     }
 

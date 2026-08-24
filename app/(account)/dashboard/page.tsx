@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { ensureCreditsRefreshed } from '@/lib/credits'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasBuilderAccess, hasZeusStudioAccess } from '@/lib/access'
 import ResendVerificationButton from '@/components/ResendVerificationButton'
 import SupportAssistant from '@/components/SupportAssistant'
 import CollectionWarningPopup from '@/components/CollectionWarningPopup'
@@ -19,6 +19,7 @@ export default async function DashboardHome() {
   if (!user) redirect('/login')
 
   const builderAccess = hasBuilderAccess(user)
+  const canBuildStudio = hasZeusStudioAccess(user)
   const credits = user.is_admin ? -1 : builderAccess ? await ensureCreditsRefreshed(sql, user) : 0
 
   const warningSites = (await sql`
@@ -56,11 +57,13 @@ export default async function DashboardHome() {
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mt-4">
-          <a href="/dashboard/websites" className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-5 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors">
-            <div className="text-2xl mb-2">🌐</div>
-            <div className="font-semibold">Websites</div>
-            <div className="text-xs text-slate-500 dark:text-zinc-500 mt-1">Build, edit, and manage your sites</div>
-          </a>
+          {canBuildStudio && (
+            <a href="/dashboard/websites" className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-5 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors">
+              <div className="text-2xl mb-2">🌐</div>
+              <div className="font-semibold">Websites</div>
+              <div className="text-xs text-slate-500 dark:text-zinc-500 mt-1">Build, edit, and manage your sites</div>
+            </a>
+          )}
           <a href="/media" className="rounded-2xl border border-slate-300 dark:border-zinc-800 bg-white dark:bg-[#131b2a] shadow-sm dark:shadow-none p-5 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors">
             <div className="text-2xl mb-2">📁</div>
             <div className="font-semibold">X-Drive</div>

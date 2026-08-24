@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createPresignedUploadUrl } from '@/lib/storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
 // Client-side direct-to-storage upload — the browser PUTs file bytes
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 

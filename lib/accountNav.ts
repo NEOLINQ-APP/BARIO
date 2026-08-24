@@ -41,6 +41,17 @@ export const ACCOUNT_NAV_ITEMS: NavItem[] = [
 //   avatar dropdown already — deliberately NOT listed here).
 export const APP_FALLBACK_NAV_PREFIXES = ['/admin', '/build/templates']
 
+// Temporary lockdown, 2026-08-24 — see hasZeusStudioAccess in lib/access.ts.
+// Filters Websites/Studio out of the nav entirely for anyone who can't
+// currently reach them, rather than showing a dead link. Revert by
+// deleting this function and going back to using ACCOUNT_NAV_ITEMS
+// directly once access is reopened.
+const LOCKDOWN_HIDDEN_HREFS = new Set(['/dashboard/websites', '/dashboard/studio'])
+export function getAccountNavItems(opts: { canBuildStudio: boolean }): NavItem[] {
+  if (opts.canBuildStudio) return ACCOUNT_NAV_ITEMS
+  return ACCOUNT_NAV_ITEMS.filter((item) => !LOCKDOWN_HIDDEN_HREFS.has(item.href))
+}
+
 export function withClientRequestsLink(navItems: NavItem[], clientCompanyLabel: string | null): NavItem[] {
   if (!clientCompanyLabel) return navItems
   return [...navItems.slice(0, 1), { href: '/dashboard/requests', label: 'Requests', icon: '📋' }, ...navItems.slice(1)]

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import TemplateViewer from '@/components/TemplateViewer'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ export default async function TemplateViewerPage({ params, searchParams }: { par
   const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
   const user = rows[0]
   if (!user) redirect('/login')
-  if (!hasBuilderAccess(user)) redirect('/dashboard')
+  if (!hasZeusStudioAccess(user)) redirect('/dashboard')
 
   return <TemplateViewer templateId={params.id} siteId={searchParams.site ?? null} />
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { resolveStudioJob, type StudioJobRow } from '@/lib/studioJobs'
 import { errorResponse } from '@/lib/errors'
 
@@ -14,6 +15,7 @@ export async function GET(req: Request, { params }: { params: { jobId: string } 
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    if (!hasZeusStudioAccess(user)) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const rows = (await sql`SELECT * FROM studio_jobs WHERE id = ${jobId} AND user_id = ${user.id}`) as unknown as StudioJobRow[]
     let job = rows[0]

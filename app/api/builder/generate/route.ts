@@ -9,8 +9,9 @@ import { type Section } from '@/lib/openai'
 import { searchImage } from '@/lib/unsplash'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey } from '@/lib/stylePresets'
 import { ensureCreditsRefreshed } from '@/lib/credits'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
+import { checkThemeContrast, darkenUntilReadable } from '@/lib/contrastCheck'
 
 // Schema-validated generation (via the Vercel AI SDK's generateObject)
 // replaces the old raw chat.completions.create + JSON.parse approach.
@@ -210,6 +211,8 @@ Always respond with a single JSON object of the shape:
 
 When building a NEW site: plan out a real multi-page site with as many pages as the business actually needs — there's no fixed count or cap to pad to or stay under. A simple business might only need 3-5 pages (always include a "Home" page with slug ""; pick the rest from what actually fits, e.g. About, Services, Menu, Gallery, Pricing, Contact — don't force a page that doesn't make sense). A business with many distinct offerings (a dozen service types, several product categories, multiple locations) should get one dedicated page PER offering, organized hierarchically: one top-level parent page for the category (e.g. "Services", slug "services") carrying a "pagelinks" section that fans out to each specific sub-page (e.g. "services/plumbing-repair", "services/drain-cleaning"), and each of those gets its own real page with full content. Distribute content sensibly: the Home page should be a strong overview/landing page (nav, hero, a couple of highlight sections, cta, footer) — it should NOT contain everything; move a full pricing table to a dedicated pricing/services page, a full FAQ to its own page or the most relevant one, a full team section to an About page, etc. Every page needs its own nav (logo only) and footer.
 
+VAGUE / HUMAN-LANGUAGE REQUESTS: not every user knows web-design or technical vocabulary, and a request like "make it nicer," "make this look more modern," "this feels crowded," "make it feel premium," "this looks old," or "fix whatever's wrong with this" is a completely valid, real instruction — never respond by asking the user to describe a specific technical change instead. Interpret it using the actual levers this app gives you: which "style" preset fits best (see the preset list above — a wrong-feeling site is very often the wrong preset for the business), theme colors and "backgroundStyle" (solid vs. gradient), copywriting quality (generic filler reads as dated/cheap — specific, concrete language reads as modern/premium), section choice and order (too many sections crammed with dense text reads as "crowded" — spacing that out across more focused sections, or trimming a bloated section down to what actually matters, reads as "cleaner"), and images (a missing or generic-feeling image search phrase weakens a section — a specific, well-chosen one strengthens it). Pick the interpretation that best fits THIS business's actual current site and content, make a real, concrete change using those levers, and say plainly in your explanation what you changed and why — never make no changes and tell the user to be more specific instead, and never claim you improved something without actually changing the pages/theme you return.
+
 When EDITING an existing site: you'll be given the full current "pages" array and which page the user is currently viewing ("activeSlug"). By default, apply the user's requested change to sections on the CURRENTLY VIEWED page only — unless the user's message clearly names a different existing page ("update the Contact page's phone number"), asks to add/rename/remove a page, or asks for something that's inherently site-wide in scope (e.g. "split my services into their own pages", "reorganize the whole site", "add a page for each of our locations") — in any of those cases, act across whatever pages the request actually touches, not just the active one. Return the FULL updated "pages" array (every page, in the same order, same slugs unless a page was explicitly added/removed/renamed/restructured) — for any page or section NOT related to the user's request, copy its data EXACTLY as given, do not rewrite content the user did not ask to change. Only modify what was specifically requested.
 
 Your explanation should teach the user something about *why* the change works (e.g. "I moved your phone number into the hero section since that's the first thing visitors see, which usually gets more calls") — this app is meant to help people learn as they build, not just receive a black box.`
@@ -299,6 +302,80 @@ async function generateWithClaude(userPrompt: string, onPartial: (partial: Parti
   throw new ModelGenerationError('Claude could not produce a valid response')
 }
 
+// Gemini — backup generator + reviewer (2026-08-21, explicit user request,
+// see the Luna-primary/Gemini-backup-and-reviewer pipeline they specified).
+// Raw fetch to Gemini's REST API rather than the @ai-sdk/google package
+// (not installed) or the @google/genai SDK (installed but unused anywhere
+// in this codebase, so there's no proven working call-shape to copy, and no
+// way to test it locally — GEMINI_API_KEY is a Sensitive Vercel env var
+// that reads back empty). This exact raw-fetch pattern is already
+// live-verified working multiple times today on Victoria's phone pilot.
+// No native structured-output schema enforcement — this schema is already
+// documented above as large enough to break Claude's strict-mode grammar
+// compiler, so the same defensive choice applies here: plain JSON-in-prompt
+// + zod validate-and-retry, same as generateWithClaude.
+const GEMINI_RESPONSE_SHAPE_INSTRUCTIONS = `Respond with ONLY a single raw JSON object (no markdown code fences, no preamble, no explanation outside the JSON) matching exactly this shape:
+{
+  "explanation": "one or two plain-language sentences",
+  "theme": { "primary": "#hex", "accent": "#hex", "style": "preset-key-string", "backgroundStyle": "solid" or "gradient" },
+  "pages": [ { "name": "...", "slug": "...", "sections": [ { "type": "...", "data": { ... } }, ... ] }, ... ]
+}`
+
+async function callGemini(systemPrompt: string, userContent: string): Promise<z.infer<typeof responseSchema>> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new ModelGenerationError('GEMINI_API_KEY is not configured')
+
+  let lastError: string | null = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const promptText = lastError
+      ? `${userContent}\n\nYour previous response didn't match the required shape: ${lastError}. Return a corrected JSON object, still following the shape instructions exactly.`
+      : userContent
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: promptText }] }],
+        systemInstruction: { parts: [{ text: `${systemPrompt}\n\n${GEMINI_RESPONSE_SHAPE_INSTRUCTIONS}` }] },
+        generationConfig: { maxOutputTokens: 16000, thinkingConfig: { thinkingLevel: 'low' } },
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new ModelGenerationError(data?.error?.message ?? `Gemini ${res.status}`)
+
+    const raw = (data.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text || '').join('')
+    let json: unknown
+    try {
+      json = JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''))
+    } catch {
+      lastError = 'response was not valid JSON'
+      continue
+    }
+    const validated = responseSchema.safeParse(json)
+    if (validated.success) return validated.data
+    lastError = validated.error.message
+  }
+  throw new ModelGenerationError('Gemini could not produce a valid response after a retry')
+}
+
+async function generateWithGemini(userPrompt: string, onPartial: (partial: PartialResponse) => void): Promise<z.infer<typeof responseSchema>> {
+  const result = await callGemini(SYSTEM_PROMPT, userPrompt)
+  onPartial(result)
+  return result
+}
+
+// Review pass — runs after Luna succeeds, never blocks the response: any
+// error here is caught by the caller and just means the unreviewed Luna
+// output ships as-is. Not a rebuild — told explicitly to copy everything
+// through unchanged except for real, specific problems (invented contact
+// info, empty fields that should have content, a broken pagelinks slug).
+const GEMINI_REVIEW_SYSTEM_PROMPT = `You are reviewing a website another AI just built for Bario, a website-builder tool for small businesses, to catch real quality issues before it ships to the customer. You are NOT rebuilding it from scratch — copy everything through byte-for-byte unchanged except where you find a genuine, specific problem, such as: an invented phone number/email/address the business never actually gave you (should be an empty string instead, never a fabricated one), generic template filler copy that doesn't sound like a real business wrote it for their own site, a required field left empty that clearly should have real content given the business context, or a "pagelinks" card whose slug doesn't match any real page in this same site. If you find no real issues, return the input completely unchanged. Return the FULL corrected site in the exact same JSON shape you were given — never omit a page, section, or field that was already there.`
+
+async function reviewWithGemini(originalUserPrompt: string, generated: z.infer<typeof responseSchema>): Promise<z.infer<typeof responseSchema>> {
+  const reviewInput = `Original request this site was built from:\n${originalUserPrompt}\n\nGenerated site to review:\n${JSON.stringify(generated)}`
+  return callGemini(GEMINI_REVIEW_SYSTEM_PROMPT, reviewInput)
+}
+
 async function generateWithOpenAI(userPrompt: string, onPartial: (partial: PartialResponse) => void): Promise<z.infer<typeof responseSchema>> {
   const result = streamObject({
     model: openai('gpt-5.6-luna'),
@@ -356,7 +433,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = rows[0]
-    if (!user || !hasBuilderAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 
@@ -455,10 +532,43 @@ export async function POST(req: Request) {
       async start(controller) {
         const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
         try {
+          // Phase labels (2026-08-21) — the Gemini review step added above
+          // was previously invisible to the user: a few real extra seconds
+          // of wait with no indication anything was happening beyond the
+          // normal build. These map onto what this route actually does
+          // (there's no separate test/optimize/deploy phase for Sky's
+          // content-generation domain, unlike a full code-generating
+          // builder) rather than reusing generic phase names that wouldn't
+          // correspond to anything real here.
+          send({ type: 'phase', phase: 'planning' })
           let parsed: z.infer<typeof responseSchema>
           try {
             const onPartial = (partial: PartialResponse) => send({ type: 'partial', object: partial })
-            parsed = MODEL_PROVIDER === 'anthropic' ? await generateWithClaude(userPrompt, onPartial) : await generateWithOpenAI(userPrompt, onPartial)
+            if (MODEL_PROVIDER === 'anthropic') {
+              send({ type: 'phase', phase: 'building' })
+              parsed = await generateWithClaude(userPrompt, onPartial)
+            } else {
+              // Luna primary, Gemini backup + reviewer — explicit user-specified
+              // pipeline (2026-08-21). If Luna itself fails outright, Gemini
+              // steps in as a full backup generator. If Luna succeeds, Gemini
+              // gets a second look to catch real quality issues before the site
+              // ships — that pass fails open (any review error just means the
+              // unreviewed Luna output goes out, never blocks the response).
+              try {
+                send({ type: 'phase', phase: 'building' })
+                parsed = await generateWithOpenAI(userPrompt, onPartial)
+                try {
+                  send({ type: 'phase', phase: 'reviewing' })
+                  parsed = await reviewWithGemini(userPrompt, parsed)
+                } catch (reviewErr) {
+                  console.error('Gemini review pass failed — shipping unreviewed Luna output', reviewErr)
+                }
+              } catch (lunaErr) {
+                console.error('Luna generation failed — falling back to Gemini', lunaErr)
+                send({ type: 'phase', phase: 'building' })
+                parsed = await generateWithGemini(userPrompt, onPartial)
+              }
+            }
           } catch (err: any) {
             if (err instanceof NoObjectGeneratedError || err instanceof ModelGenerationError) {
               send({ type: 'error', error: "The AI couldn't put together a valid response for that — try rephrasing your request." })
@@ -504,7 +614,30 @@ export async function POST(req: Request) {
 
           // Schema already guarantees valid hex colors, a real style preset key,
           // and a valid backgroundStyle — no fallback-on-invalid needed anymore.
-          const theme_out = parsed.theme
+          let theme_out = parsed.theme
+
+          // Contrast QA + auto-fix (2026-08-21) — real, live bug this was
+          // built for: a generated site can pick a primary/accent pair that
+          // reads fine as swatches but produces white-on-light-color text
+          // once actually applied to nav/hero/CTA/headings. Bounded to 3
+          // passes (never an infinite loop) — darkenUntilReadable adjusts
+          // only the specific color actually failing, preserving hue rather
+          // than picking an unrelated replacement. Every fix is logged.
+          for (let pass = 0; pass < 3; pass++) {
+            const failures = checkThemeContrast(theme_out)
+            if (failures.length === 0) break
+            let next = { ...theme_out }
+            for (const f of failures) {
+              console.warn(`[contrast QA] ${f.pair}: ${f.ratio}:1 (needs 4.5:1) — fg ${f.foreground} / bg ${f.background}`)
+              if (f.foreground === theme_out.primary || f.background === theme_out.primary) {
+                next.primary = darkenUntilReadable(next.primary)
+              }
+              if (f.foreground === theme_out.accent || f.background === theme_out.accent) {
+                next.accent = darkenUntilReadable(next.accent)
+              }
+            }
+            theme_out = next
+          }
 
           // The model can (and did, in testing) describe a change in prose
           // while returning pages/theme byte-identical to what it was given —
@@ -528,7 +661,7 @@ export async function POST(req: Request) {
           }
 
           const explanation = nothingChanged
-            ? "I didn't actually make any changes there — your request may have been too vague for me to act on confidently, or already matched what's there. Try describing a specific, concrete change (e.g. a color, a headline, a new section) and I'll apply it."
+            ? "I didn't actually make any changes there — it may already match what you asked for. Tell me what still feels off and I'll take another pass."
             : typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
 
           send({ type: 'done', explanation, theme: theme_out, pages: resolvedPages, creditsRemaining })

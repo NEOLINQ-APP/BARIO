@@ -36,3 +36,17 @@ export function hasStudioAccess(user: Pick<User, 'is_admin' | 'email_verified'>)
 export function hasBuildAccess(user: Pick<User, 'is_admin' | 'email_verified'>): boolean {
   return hasBuilderAccess(user)
 }
+
+// Temporary lockdown, 2026-08-24: Studio + the AI website builder (Zeus/
+// Sky) are restricted to admin + one specific account while the user
+// finishes verifying they work correctly. Deliberately separate from
+// hasBuilderAccess/hasStudioAccess above (which stay unchanged and keep
+// gating X-Drive, VPS/WP config, and site-audit as before) so this doesn't
+// widen beyond what was asked. Revert by deleting this function and
+// switching its call sites back to hasBuilderAccess/hasStudioAccess once
+// the user gives the go-ahead to reopen access.
+const LOCKDOWN_ALLOWED_EMAIL = 'uniquegroup.org@gmail.com'
+export function hasZeusStudioAccess(user: Pick<User, 'is_admin' | 'email'>): boolean {
+  if (user.is_admin) return true
+  return user.email?.toLowerCase() === LOCKDOWN_ALLOWED_EMAIL
+}

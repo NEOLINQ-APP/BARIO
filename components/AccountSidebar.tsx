@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
 import ThemeToggle from '@/components/ThemeToggle'
-import { ACCOUNT_NAV_ITEMS, withClientRequestsLink } from '@/lib/accountNav'
+import { getAccountNavItems, withClientRequestsLink } from '@/lib/accountNav'
+import { hasZeusStudioAccess } from '@/lib/access'
 
 export default function AccountSidebar({ email, isAdmin, clientCompanyLabel }: { email: string; isAdmin: boolean; clientCompanyLabel?: string | null }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navItems = withClientRequestsLink(ACCOUNT_NAV_ITEMS, clientCompanyLabel ?? null)
+  const canBuildStudio = hasZeusStudioAccess({ is_admin: isAdmin, email })
+  const navItems = withClientRequestsLink(getAccountNavItems({ canBuildStudio }), clientCompanyLabel ?? null)
 
   function navLink(item: { href: string; label: string; icon: string }, onNavigate?: () => void) {
     const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname?.startsWith(item.href)

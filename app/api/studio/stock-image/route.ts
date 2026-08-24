@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasStudioAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { searchImage } from '@/lib/unsplash'
 import { errorResponse } from '@/lib/errors'
 
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = rows[0]
-    if (!user || !hasStudioAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use Studio' }, { status: 403 })
     }
 

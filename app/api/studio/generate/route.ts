@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasStudioAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { ensureCreditsRefreshed, creditsForVideoJob } from '@/lib/credits'
 import { recordLegalAcceptance } from '@/lib/legal'
 import { CURRENT_STUDIO_POLICY_VERSION } from '@/lib/legalVersion'
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasStudioAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use Studio' }, { status: 403 })
     }
 

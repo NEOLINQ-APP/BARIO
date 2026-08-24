@@ -5,7 +5,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasStudioAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { ensureCreditsRefreshed, creditsForExportJob } from '@/lib/credits'
 import { rateLimit } from '@/lib/rateLimit'
 import { put } from '@/lib/storage'
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     user = userRows[0]
-    if (!user || !hasStudioAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use Studio' }, { status: 403 })
     }
 

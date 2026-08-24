@@ -4,7 +4,7 @@ import * as cheerio from 'cheerio'
 import { put } from '@/lib/storage'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
-import { hasBuilderAccess, hasPaidPlan } from '@/lib/access'
+import { hasZeusStudioAccess, hasPaidPlan } from '@/lib/access'
 import { maxSitesForPlan } from '@/lib/plans'
 import { assertPublicHost } from '@/lib/ssrf'
 import { errorResponse } from '@/lib/errors'
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const userRows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = userRows[0]
-    if (!user || !hasBuilderAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email first' }, { status: 403 })
     }
 

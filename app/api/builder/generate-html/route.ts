@@ -3,7 +3,7 @@ import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
 import { getOpenAI } from '@/lib/openai'
 import { ensureCreditsRefreshed } from '@/lib/credits'
-import { hasBuilderAccess } from '@/lib/access'
+import { hasZeusStudioAccess } from '@/lib/access'
 import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 60
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     const sql = await db()
     const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
     const user = rows[0]
-    if (!user || !hasBuilderAccess(user)) {
+    if (!user || !hasZeusStudioAccess(user)) {
       return NextResponse.json({ error: 'Please verify your email to use the builder' }, { status: 403 })
     }
 

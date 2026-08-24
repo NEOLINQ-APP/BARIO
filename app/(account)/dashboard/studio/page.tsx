@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/session'
 import { db, type User } from '@/lib/db'
+import { hasZeusStudioAccess } from '@/lib/access'
 import StudioModeSwitch from '@/components/StudioModeSwitch'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,7 @@ export default async function StudioPage() {
   const rows = (await sql`SELECT * FROM users WHERE id = ${session.userId}`) as unknown as User[]
   const user = rows[0]
   if (!user) redirect('/login')
+  if (!hasZeusStudioAccess(user)) redirect('/dashboard')
 
   return (
     <main className="px-6 py-10 md:py-16 text-slate-900 dark:text-zinc-100">

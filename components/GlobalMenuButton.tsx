@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import LogoutButton from '@/components/LogoutButton'
-import { ACCOUNT_NAV_ITEMS, APP_FALLBACK_NAV_PREFIXES, withClientRequestsLink } from '@/lib/accountNav'
+import { getAccountNavItems, APP_FALLBACK_NAV_PREFIXES, withClientRequestsLink } from '@/lib/accountNav'
+import { hasZeusStudioAccess } from '@/lib/access'
 
 type MeResponse =
   | { loggedIn: false }
@@ -36,7 +37,8 @@ export default function GlobalMenuButton() {
 
   if (!eligiblePage || !me?.loggedIn) return null
 
-  const navItems = withClientRequestsLink(ACCOUNT_NAV_ITEMS, me.clientCompanyLabel)
+  const canBuildStudio = hasZeusStudioAccess({ is_admin: me.isAdmin, email: me.email })
+  const navItems = withClientRequestsLink(getAccountNavItems({ canBuildStudio }), me.clientCompanyLabel)
 
   return (
     <>
