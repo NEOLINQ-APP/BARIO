@@ -5,17 +5,25 @@ import { sendEmail } from '@/lib/email'
 // Real-world trigger: blessandseemusic.com's DNS silently drifted away from
 // Bario back to its old host at some undocumented point, and nobody noticed
 // until the customer reported the site broken -- an unknown-length silent
-// outage. This checks every verified, published custom domain on a
-// schedule so a repointed DNS record, an expired domain, or the origin
-// doing something wrong (e.g. redirecting away, matching what actually
-// happened here) surfaces within the cron interval instead of only when
-// someone happens to visit and complain.
+// outage. This checks EVERY published site on the platform (both a
+// connected custom domain and a plain *.bario.ca subdomain -- either can
+// break independently, not just custom domains) on a schedule so a
+// repointed DNS record, an expired domain, or the origin doing something
+// wrong (e.g. redirecting away, matching what actually happened here)
+// surfaces within the cron interval instead of only when a customer
+// happens to visit and complain. Test/throwaway accounts are excluded --
+// same exclusion patterns used everywhere else in this project -- so a
+// stale dev signup doesn't generate noise or wasted checks.
 export const maxDuration = 60
+
+const TEST_EMAIL_PATTERNS = [/@bario-internal-test\.com$/i, /@example\.com$/i, /@mailtest\.bario\.ca$/i, /^deleted-.*@deleted\.bario\.ca$/i]
 
 type SiteRow = {
   id: string
   name: string
-  custom_domain: string
+  subdomain: string | null
+  custom_domain: string | null
+  domain_status: string | null
   custom_domain_health: string | null
   custom_domain_health_alerted_at: string | null
   owner_email: string
@@ -54,16 +62,26 @@ export async function GET(req: Request) {
   }
 
   const sql = await db()
-  const sites = (await sql`
-    SELECT s.id, s.name, s.custom_domain, s.custom_domain_health, s.custom_domain_health_alerted_at, u.email AS owner_email
+  const allSites = (await sql`
+    SELECT s.id, s.name, s.subdomain, s.custom_domain, s.domain_status, s.custom_domain_health, s.custom_domain_health_alerted_at, u.email AS owner_email
     FROM sites s JOIN users u ON u.id = s.user_id
-    WHERE s.custom_domain IS NOT NULL AND s.domain_status = 'verified' AND s.is_published = true
+    WHERE s.is_published = true AND (s.subdomain IS NOT NULL OR s.custom_domain IS NOT NULL)
   `) as unknown as SiteRow[]
+
+  const sites = allSites.filter((s) => !TEST_EMAIL_PATTERNS.some((re) => re.test(s.owner_email)))
 
   const results: { domain: string; status: string; detail: string; alerted: boolean }[] = []
 
   for (const site of sites) {
-    const { status, detail } = await checkDomain(site.custom_domain)
+    // Prefer the connected custom domain (the "real" public address once
+    // verified) but fall back to the bario.ca subdomain when that's all a
+    // site has -- both are independently reachable per the site router, so
+    // whichever one is actually the live public address gets checked.
+    const domain =
+      site.custom_domain && site.domain_status === 'verified' ? site.custom_domain : site.subdomain ? `${site.subdomain}.bario.ca` : null
+    if (!domain) continue
+
+    const { status, detail } = await checkDomain(domain)
     const wasOk = site.custom_domain_health === 'ok' || site.custom_domain_health === null
     const isNowBad = status !== 'ok'
     const lastAlertAgeMs = site.custom_domain_health_alerted_at ? Date.now() - new Date(site.custom_domain_health_alerted_at).getTime() : Infinity
@@ -76,9 +94,9 @@ export async function GET(req: Request) {
 
     if (shouldAlert) {
       await sql`UPDATE sites SET custom_domain_health_alerted_at = now() WHERE id = ${site.id}`
-      const subject = `⚠ ${site.custom_domain} is ${status === 'redirected_away' ? 'redirecting away from Bario' : status} `
+      const subject = `⚠ ${domain} is ${status === 'redirected_away' ? 'redirecting away from Bario' : status} `
       const html = `
-        <p><strong>${site.custom_domain}</strong> (site "${site.name}") failed its domain health check.</p>
+        <p><strong>${domain}</strong> (site "${site.name}") failed its health check.</p>
         <p>Status: <strong>${status}</strong><br/>Detail: ${detail}</p>
         <p>This usually means the domain's DNS no longer points at Bario, or the destination it now points to is misconfigured. Check the domain's DNS records and Bario's <code>sites.domain_status</code>.</p>
       `
@@ -88,8 +106,8 @@ export async function GET(req: Request) {
       ])
     }
 
-    results.push({ domain: site.custom_domain, status, detail, alerted: shouldAlert })
+    results.push({ domain, status, detail, alerted: shouldAlert })
   }
 
-  return NextResponse.json({ ok: true, checked: results.length, results })
+  return NextResponse.json({ ok: true, checked: results.length, skippedTestAccounts: allSites.length - sites.length, results })
 }
