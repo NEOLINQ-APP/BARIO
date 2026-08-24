@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v11-2026-08-21-spott-integration-phase2c'
+const CURRENT_SCHEMA_VERSION = 'v12-2026-08-24-outreach-sends'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2804,6 +2804,24 @@ async function ensureSchema() {
   await sql`ALTER TABLE spott_reviews ADD COLUMN IF NOT EXISTS owner_reply TEXT`
   await sql`ALTER TABLE spott_reviews ADD COLUMN IF NOT EXISTS owner_reply_at TIMESTAMPTZ`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS spott_reviews_external_idx ON spott_reviews (organization_id, external_review_id) WHERE external_review_id IS NOT NULL`
+
+  // 2026-08-24: real send tracking for the AFC/Sunbuilt intro-outreach
+  // campaign (uses the already-drafted bo_notes content, see
+  // lib/crmIntroOutreach.ts) -- a hard idempotency gate so a contact is
+  // never emailed twice by an accidental re-run, matching the explicit
+  // "do not send duplicates or spam" instruction this was built under.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_outreach_sends (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id),
+      email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'sent',
+      error TEXT,
+      sent_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_outreach_sends_unique_idx ON bo_outreach_sends (organization_id, customer_id)`
 
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
