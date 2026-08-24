@@ -16,6 +16,7 @@ export default function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(params.get('error'))
   const [loading, setLoading] = useState(false)
+  const [agreedForGoogle, setAgreedForGoogle] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -66,7 +67,20 @@ export default function LoginForm() {
         <span className="text-xs text-slate-400 dark:text-zinc-500">or</span>
         <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
       </div>
-      <GoogleSignInButton plan={plan} next={next} label="Continue with Google" />
+      <GoogleSignInButton plan={plan} next={next} label="Continue with Google" disabled={!agreedForGoogle} />
+      <label className="flex items-start gap-2 mt-3 text-xs text-slate-500 dark:text-zinc-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={agreedForGoogle}
+          onChange={(e) => setAgreedForGoogle(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-zinc-700"
+        />
+        <span>
+          If this is your first time here, continuing with Google also creates an account and means you've
+          read and agree to our <a href="/terms" target="_blank" className="underline">Terms of Service</a>{' '}
+          and <a href="/privacy" target="_blank" className="underline">Privacy Policy</a>.
+        </span>
+      </label>
       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Don't have an account?{' '}
         <a

@@ -13,11 +13,16 @@ export default function SignupForm() {
   const next = params.get('next')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!agreed) {
+      setError('Please confirm you have read and agree to the Terms of Service and Privacy Policy.')
+      return
+    }
     setLoading(true)
     setError(null)
     const res = await fetch('/api/auth/signup', {
@@ -48,10 +53,27 @@ export default function SignupForm() {
       />
       <label className="block text-sm text-slate-500 dark:text-zinc-400 mt-4">Password</label>
       <PasswordInput value={password} onChange={setPassword} minLength={8} />
+
+      <label className="flex items-start gap-2 mt-4 text-xs text-slate-500 dark:text-zinc-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setError(null) }}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-zinc-700"
+        />
+        <span>
+          I've read and agree to Bario's{' '}
+          <a href="/terms" target="_blank" className="underline">Terms of Service</a>{' '}
+          (including that free/badged hosting is for static sites — features needing a server, database,
+          or backend of their own require a separate VPS) and{' '}
+          <a href="/privacy" target="_blank" className="underline">Privacy Policy</a>.
+        </span>
+      </label>
+
       {error && <p className="text-sm text-red-500 dark:text-red-400 mt-3">{error}</p>}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !agreed}
         className="w-full mt-6 px-4 py-2 rounded-xl font-semibold bg-[#f59e0b] text-[#1a1200] disabled:opacity-60"
       >
         {loading ? 'Creating account…' : 'Sign up'}
@@ -61,12 +83,7 @@ export default function SignupForm() {
         <span className="text-xs text-slate-400 dark:text-zinc-500">or</span>
         <div className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
       </div>
-      <GoogleSignInButton plan={plan} promoCode={promoCode} next={next} label="Continue with Google" />
-      <p className="text-xs text-slate-400 dark:text-zinc-500 mt-4 text-center">
-        By signing up you agree to our{' '}
-        <a href="/terms" className="underline">Terms</a> and{' '}
-        <a href="/privacy" className="underline">Privacy Policy</a>.
-      </p>
+      <GoogleSignInButton plan={plan} promoCode={promoCode} next={next} label="Continue with Google" disabled={!agreed} />
       <p className="text-sm text-slate-500 dark:text-zinc-400 mt-4 text-center">
         Already have an account?{' '}
         <a

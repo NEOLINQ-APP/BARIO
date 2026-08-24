@@ -10,7 +10,7 @@ export default function Terms() {
       <div className="max-w-2xl mx-auto">
         <a href="/" className="text-sm text-amber-600 dark:text-[#f59e0b]">← Back to bario.ca</a>
         <h1 className="text-3xl font-bold mt-6 mb-2">Terms of Service</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-10">Effective July 22, 2026</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-10">Effective August 24, 2026</p>
 
         <div className="space-y-8 text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
           <section>
@@ -33,7 +33,23 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">2. Your account</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">2. Hosting scope and limitations</h2>
+            <p>
+              Bario's free and badged hosting plans serve static, template-based websites — pages built with
+              our AI builder or imported as HTML/CSS/JavaScript that runs in the visitor's browser. They do
+              not include a server, database, or backend of your own. If your site depends on
+              server-side infrastructure — for example, a full e-commerce checkout, user accounts with a
+              real database, custom APIs, or anything that needs to run code on our servers rather than the
+              visitor's browser — those features will not function on standard hosting and require our
+              separate VPS product (a real virtual server, billed separately — see{' '}
+              <a href="/vps" className="text-amber-600 dark:text-[#f59e0b] underline">bario.ca/vps</a>). Signing
+              up for free or badged hosting does not entitle you to backend functionality of any kind; we're
+              not responsible for a site or feature that doesn't work because it needed a VPS you didn't add.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">3. Your account</h2>
             <p>
               You must provide a valid email address and keep your login credentials secure. You're
               responsible for activity that happens under your account. Tell us right away if you suspect
@@ -43,7 +59,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">3. Subscriptions and billing</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">4. Subscriptions and billing</h2>
             <p>
               Paid plans are billed on a recurring basis through Stripe, our payment processor — we never
               see or store your full card number. Subscriptions renew automatically until canceled. You can
@@ -55,7 +71,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">4. Acceptable use</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">5. Acceptable use</h2>
             <p>You agree not to use Bario to:</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
               <li>Publish illegal content, or content that infringes someone else's rights</li>
@@ -71,7 +87,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">5. Your content</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">6. Your content</h2>
             <p>
               You own the content you create with Bario — your site's text, images you upload, and your
               business information. You grant us a license to host, store, and display that content solely
@@ -81,7 +97,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">6. Third-party services</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">7. Third-party services</h2>
             <p>
               Bario relies on third-party providers to operate: Vercel (hosting, domains, file storage),
               Neon (database), OpenAI (AI generation), Stripe (billing), Resend (transactional email), and
@@ -91,7 +107,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">7. Disclaimers and limitation of liability</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">8. Disclaimers and limitation of liability</h2>
             <p>
               Bario is provided "as is" without warranties of any kind, express or implied. We don't
               guarantee the service will be uninterrupted, error-free, or that AI-generated content will be
@@ -103,7 +119,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">8. Termination</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">9. Termination</h2>
             <p>
               You can stop using Bario and delete your account at any time by contacting us. We may
               suspend or terminate your access for violating these Terms. On termination, we may delete
@@ -112,7 +128,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">9. Changes to these Terms</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">10. Changes to these Terms</h2>
             <p>
               We may update these Terms from time to time. We'll post the updated version here with a new
               effective date. Continued use of Bario after a change means you accept the update.
@@ -120,7 +136,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">10. Governing law</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">11. Governing law</h2>
             <p>
               These Terms are governed by the laws of the Province of Alberta, Canada, without regard to
               conflict-of-law principles.
@@ -128,7 +144,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">11. Contact</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">12. Contact</h2>
             <p>Questions about these Terms? Email us at hello@bario.ca.</p>
           </section>
         </div>
