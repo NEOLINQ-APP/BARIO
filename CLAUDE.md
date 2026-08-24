@@ -11,9 +11,11 @@ cross-session task tracker for BARIO's own engineering work. This file
 explains *how things work*; TODO.md tracks *what's currently in progress or
 blocked*.
 
-**Also check `SUNBUILT_TODO.md` and `AFC_TODO.md`** — separate per-client task
-lists for sunbuiltgroup.com and afclogistics.ca (marketing/leads/ops, not
-BARIO engineering). Same live/user-editable convention as TODO.md, with one
+**Also check `SUNBUILT_TODO.md`, `AFC_TODO.md`, `SPOTT_TODO.md`, and
+`NEOLINQ_TODO.md`** — separate per-domain task lists for sunbuiltgroup.com,
+afclogistics.ca, spott.ca, and neolinq.pro (marketing/leads/ops, not BARIO
+engineering — spott.ca's own engineering backlog lives in the `spott-ca`
+repo, not here). Same live/user-editable convention as TODO.md, with one
 extra rule: always get explicit approval before taking any real-world action
 from these lists (sending an email, posting to social, anything that spends
 money or is visible outside this session) — describe exactly what you're
