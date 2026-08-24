@@ -4,17 +4,34 @@ import { BARIO_ONE_CALL_LOG_ORG_IDS } from '@/lib/barioOneCrmCallLog'
 // Sends the already-drafted "BARIO Draft: Outreach to X" bo_notes content
 // as a real intro email, for businesses whose CRM outreach pipeline is
 // otherwise disabled (see CLAUDE.md's "Known-disabled feature: CRM
-// Outreach"). Deliberately plain/personal-looking rather than a designed
-// HTML template -- this is cold B2B outreach, not a consumer marketing
-// blast, and heavily-styled HTML tends to read as spam and hurt
-// deliverability for exactly this kind of email.
+// Outreach"). Reuses the real, already-provisioned Mailcow outreach
+// mailboxes (outreach@send.afclogistics.ca / outreach@send.sunbuiltgroup.com,
+// see lib/mailSend.ts + lib/crmOutreach.ts's OUTREACH_CRMS) rather than a
+// third-party ESP -- these mailboxes and their DNS were already real and
+// working before this campaign, just never wired to a real send trigger
+// since crmOutreach.ts's own path is disabled (dead Twenty CRM dependency).
+// Plain text, not designed HTML -- this is cold B2B outreach, not a
+// consumer marketing blast, and heavily-styled HTML tends to read as spam
+// and hurt deliverability here.
 //
 // Hard idempotency via bo_outreach_sends (unique on org+customer) is the
 // real "never duplicate/spam a lead" guarantee -- not just a best-effort
 // in-memory check.
-const BUSINESS_CONFIG: Record<string, { name: string; fromEmail: string; signature: string }> = {
-  afc: { name: 'AFC Logistics', fromEmail: 'hello@afclogistics.ca', signature: 'The AFC Logistics Team' },
-  sunbuilt: { name: 'Sunbuilt Group', fromEmail: 'hello@sunbuiltgroup.com', signature: 'The Sunbuilt Group Team' },
+const BUSINESS_CONFIG: Record<string, { name: string; fromAddress: string; smtpUserEnvVar: string; smtpPassEnvVar: string; signature: string }> = {
+  afc: {
+    name: 'AFC Logistics',
+    fromAddress: '"AFC Logistics" <outreach@send.afclogistics.ca>',
+    smtpUserEnvVar: 'AFC_OUTREACH_SMTP_USER',
+    smtpPassEnvVar: 'AFC_OUTREACH_SMTP_PASS',
+    signature: 'The AFC Logistics Team',
+  },
+  sunbuilt: {
+    name: 'Sunbuilt Group',
+    fromAddress: '"Sunbuilt Group" <outreach@send.sunbuiltgroup.com>',
+    smtpUserEnvVar: 'SUNBUILT_OUTREACH_SMTP_USER',
+    smtpPassEnvVar: 'SUNBUILT_OUTREACH_SMTP_PASS',
+    signature: 'The Sunbuilt Group Team',
+  },
 }
 
 // Known test/seed data that must never receive a real outreach email --
@@ -47,12 +64,9 @@ export async function sendIntroOutreachBatch(
   const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
   if (!config || !orgId) throw new Error(`Unknown business key: ${businessKey}`)
 
-  // Resend, not Brevo -- afclogistics.ca/sunbuiltgroup.com were verified
-  // as sending domains on BARIO's own Resend account specifically (each
-  // provider needs its own separate domain verification; a domain
-  // verified on Resend isn't usable for sending via Brevo).
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) throw new Error('RESEND_API_KEY is not configured')
+  const smtpUser = process.env[config.smtpUserEnvVar]
+  const smtpPass = process.env[config.smtpPassEnvVar]
+  if (!smtpUser || !smtpPass) throw new Error(`${config.smtpUserEnvVar}/${config.smtpPassEnvVar} not configured`)
 
   // Real draft + real email + never sent before (bo_outreach_sends is the
   // hard gate; the note-existence check alone isn't enough since a note
@@ -85,33 +99,21 @@ export async function sendIntroOutreachBatch(
       continue
     }
 
-    const htmlBody = body
-      .split('\n\n')
-      .map((para) => `<p style="margin:0 0 14px;">${para.replace(/\n/g, '<br/>')}</p>`)
-      .join('')
-    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:560px;">${htmlBody}</div>`
-
     try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: `${config.name} <${config.fromEmail}>`,
-          to: [row.email],
-          subject: `Quick question from ${config.name}`,
-          html,
-        }),
+      const { sendOutreachEmail } = await import('./mailSend')
+      await sendOutreachEmail({
+        smtpUser,
+        smtpPass,
+        from: config.fromAddress,
+        to: row.email,
+        subject: `Quick question from ${config.name}`,
+        text: body,
       })
-      const ok = res.ok
       await sql`
-        INSERT INTO bo_outreach_sends (id, organization_id, customer_id, email, status, error)
-        VALUES (${randomUUID()}, ${orgId}, ${row.id}, ${row.email}, ${ok ? 'sent' : 'failed'}, ${ok ? null : await res.text()})
+        INSERT INTO bo_outreach_sends (id, organization_id, customer_id, email, status)
+        VALUES (${randomUUID()}, ${orgId}, ${row.id}, ${row.email}, 'sent')
       `
-      if (ok) sent++
-      else {
-        skipped++
-        errors.push(`${row.email}: send failed (${res.status})`)
-      }
+      sent++
     } catch (e: any) {
       await sql`
         INSERT INTO bo_outreach_sends (id, organization_id, customer_id, email, status, error)
