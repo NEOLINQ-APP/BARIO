@@ -31,14 +31,14 @@ export async function POST(req: Request) {
       await sql`
         UPDATE sites SET
           name = 'YEG Transport', raw_html_backup = raw_html, raw_html = ${html},
-          content_mode = 'template', updated_at = now()
+          content_mode = 'template', is_published = true, updated_at = now()
         WHERE id = ${siteId}
       `
     } else {
       siteId = randomUUID()
       await sql`
-        INSERT INTO sites (id, user_id, name, subdomain, raw_html, content_mode)
-        VALUES (${siteId}, ${owner.id}, 'YEG Transport', ${SUBDOMAIN}, ${html}, 'template')
+        INSERT INTO sites (id, user_id, name, subdomain, raw_html, content_mode, is_published)
+        VALUES (${siteId}, ${owner.id}, 'YEG Transport', ${SUBDOMAIN}, ${html}, 'template', true)
       `
     }
 
