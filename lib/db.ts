@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v12-2026-08-24-outreach-sends'
+const CURRENT_SCHEMA_VERSION = 'v13-2026-08-24-domain-health'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -471,6 +471,14 @@ async function ensureSchema() {
   // by an import/edit — lets the admin-restore tool undo a bad edit without
   // needing a full version history table.
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS raw_html_backup TEXT`
+  // Custom-domain uptime tracking — catches a domain silently drifting away
+  // from Bario (DNS repointed elsewhere by the customer/registrar, or the
+  // origin it now points at doing something wrong like a stale-redirect
+  // bug) instead of it going unnoticed indefinitely. See
+  // app/api/cron/custom-domain-health/route.ts.
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain_health TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain_health_checked_at TIMESTAMPTZ`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS custom_domain_health_alerted_at TIMESTAMPTZ`
   await sql`
     CREATE TABLE IF NOT EXISTS admin_actions_log (
       id TEXT PRIMARY KEY,
