@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v13-2026-08-24-domain-health'
+const CURRENT_SCHEMA_VERSION = 'v14-2026-08-24-ad-campaigns'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2830,6 +2830,35 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_outreach_sends_unique_idx ON bo_outreach_sends (organization_id, customer_id)`
+
+  // Google Ads campaign drafts, managed from Bario One's CRM. Real Google
+  // Ads API access needs a developer token (manual application through
+  // Google's own Ads Manager UI, not something obtainable via API) plus a
+  // connected OAuth account — neither exists yet, so this starts as a
+  // draft-only planning tool (status stays 'draft' until a real connection
+  // exists) rather than pretending to push live campaigns it can't.
+  // google_ads_campaign_id stays null until a real sync happens.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_ad_campaigns (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      created_by_user_id TEXT REFERENCES users(id),
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      objective TEXT,
+      headline TEXT,
+      description TEXT,
+      keywords_json TEXT NOT NULL DEFAULT '[]',
+      target_locations TEXT,
+      daily_budget_cents INTEGER,
+      final_url TEXT,
+      google_ads_campaign_id TEXT,
+      google_ads_account_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_ad_campaigns_org_idx ON bo_ad_campaigns (organization_id)`
 
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())

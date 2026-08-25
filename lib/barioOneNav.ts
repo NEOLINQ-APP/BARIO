@@ -50,6 +50,7 @@ export const BARIO_ONE_NAV: BarioOneNavSection[] = [
       { href: '/dashboard/bario-one/marketing', label: 'Marketing Hub', moduleKey: 'crm', status: 'real' },
       { href: '/dashboard/bario-one/marketing/campaigns', label: 'Campaigns', moduleKey: 'crm', status: 'comingSoon' },
       { href: '/dashboard/bario-one/marketing/email', label: 'Email', moduleKey: 'crm', status: 'real' },
+      { href: '/dashboard/bario-one/marketing/google-ads', label: 'Google Ads', moduleKey: 'crm', status: 'real' },
       { href: '/dashboard/bario-one/marketing/sms', label: 'SMS', moduleKey: 'crm', status: 'comingSoon' },
       { href: '/dashboard/bario-one/marketing/promotions', label: 'Promotions', moduleKey: 'crm', status: 'comingSoon' },
       { href: '/dashboard/bario-one/marketing/coupons', label: 'Coupons', moduleKey: 'crm', status: 'comingSoon' },
