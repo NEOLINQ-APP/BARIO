@@ -157,8 +157,8 @@ export default function BarioOneGoogleAds() {
           <p className="font-semibold text-emerald-800 dark:text-emerald-300">✓ Connected to Google Ads</p>
           {connectedAt && (
             <p className="text-emerald-700 dark:text-emerald-400 mt-1">
-              Connected {new Date(connectedAt).toLocaleDateString()}. Real campaign push isn't wired up yet — the
-              connection is live, drafts below still need one more step before they launch.
+              Connected {new Date(connectedAt).toLocaleDateString()}. Click "Push to Google" on any draft below to
+              create it as a real, paused campaign in your Google Ads account.
             </p>
           )}
         </div>
