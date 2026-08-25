@@ -7,11 +7,15 @@ export async function GET(req: Request) {
   if (auth instanceof NextResponse) return auth
   const { sql } = auth
   try {
-    const rows = await sql`
+    const connections = await sql`
       SELECT organization_id, google_ads_customer_id, connected_by_user_id, connected_at
       FROM bo_google_ads_connections WHERE organization_id = 'db97fd81-faee-4489-af7e-3bb813886c53'
     `
-    return NextResponse.json({ ok: true, connections: rows })
+    const campaigns = await sql`
+      SELECT id, name, status, google_ads_campaign_id, push_error, pushed_at
+      FROM bo_ad_campaigns WHERE organization_id = 'db97fd81-faee-4489-af7e-3bb813886c53'
+    `
+    return NextResponse.json({ ok: true, connections, campaigns })
   } catch (err: any) {
     return errorResponse(err)
   }
