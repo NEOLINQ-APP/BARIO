@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (auth instanceof NextResponse) return auth
     const { sql, user, org } = auth
 
-    const { name, objective, headline, description, keywords, targetLocations, dailyBudgetCents, finalUrl } = await req.json()
+    const { name, objective, headline, description, headlines, descriptions, keywords, targetLocations, dailyBudgetCents, finalUrl } = await req.json()
     if (typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Campaign name is required' }, { status: 400 })
     }
@@ -41,9 +41,10 @@ export async function POST(req: Request) {
     await sql`
       INSERT INTO bo_ad_campaigns (
         id, organization_id, created_by_user_id, name, objective, headline, description,
-        keywords_json, target_locations, daily_budget_cents, final_url
+        headlines_json, descriptions_json, keywords_json, target_locations, daily_budget_cents, final_url
       ) VALUES (
         ${id}, ${org.id}, ${user.id}, ${name.trim()}, ${objective || null}, ${headline || null}, ${description || null},
+        ${JSON.stringify(Array.isArray(headlines) ? headlines : [])}, ${JSON.stringify(Array.isArray(descriptions) ? descriptions : [])},
         ${JSON.stringify(Array.isArray(keywords) ? keywords : [])}, ${targetLocations || null},
         ${typeof dailyBudgetCents === 'number' ? dailyBudgetCents : null}, ${finalUrl || null}
       )

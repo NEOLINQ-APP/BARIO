@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v15-2026-08-25-google-ads-oauth'
+const CURRENT_SCHEMA_VERSION = 'v16-2026-08-25-google-ads-push'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2859,6 +2859,16 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_ad_campaigns_org_idx ON bo_ad_campaigns (organization_id)`
+  // Google's Responsive Search Ads require multiple headline/description
+  // variants (3-15 headlines, 2-4 descriptions), not just one of each --
+  // headline/description above stay as the simple single-value summary
+  // shown in the drafts list; these hold the real variant sets used at
+  // push time. push_error/pushed_at let the UI show real failure detail
+  // (e.g. "account not yet on Basic Access") instead of a silent retry.
+  await sql`ALTER TABLE bo_ad_campaigns ADD COLUMN IF NOT EXISTS headlines_json TEXT NOT NULL DEFAULT '[]'`
+  await sql`ALTER TABLE bo_ad_campaigns ADD COLUMN IF NOT EXISTS descriptions_json TEXT NOT NULL DEFAULT '[]'`
+  await sql`ALTER TABLE bo_ad_campaigns ADD COLUMN IF NOT EXISTS push_error TEXT`
+  await sql`ALTER TABLE bo_ad_campaigns ADD COLUMN IF NOT EXISTS pushed_at TIMESTAMPTZ`
 
   // One Google Ads connection per org -- refresh_token is the real secret
   // (lets us call the Ads API indefinitely without the user re-authorizing),
