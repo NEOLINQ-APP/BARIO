@@ -11,8 +11,8 @@ export async function POST(req: Request) {
   const { sql } = auth
 
   try {
-    const campaignRows = (await sql`SELECT * FROM bo_ad_campaigns WHERE organization_id = ${AFC_ORG_ID}`) as unknown[]
-    const connectionRows = (await sql`SELECT * FROM bo_google_ads_connections WHERE organization_id = ${AFC_ORG_ID}`) as unknown[]
+    const campaignRows = await sql`SELECT * FROM bo_ad_campaigns WHERE organization_id = ${AFC_ORG_ID}`
+    const connectionRows = await sql`SELECT * FROM bo_google_ads_connections WHERE organization_id = ${AFC_ORG_ID}`
     const connection = connectionRows[0] as any
     if (!connection) return NextResponse.json({ error: 'not connected' }, { status: 400 })
 
