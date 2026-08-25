@@ -3,26 +3,19 @@
 import { useState } from 'react'
 import PricingButton from '@/components/PricingButton'
 
-type Feature = { label: string; paused?: boolean }
 type Plan = {
   key: string
   name: string
   monthlyCad: number
   annualCad: number
-  features: Feature[]
+  features: string[]
   featured?: boolean
 }
 
-// AI credits are temporarily paused, not removed — Studio and the AI
-// website builder are locked down (admin-only) while we finish verifying
-// them, see hasZeusStudioAccess in lib/access.ts. Prices are unchanged, so
-// this stays visible with a clear "paused" label rather than silently
-// disappearing, which would look like a quiet downgrade to anyone who
-// already saw the old pricing.
 const PLANS: Plan[] = [
-  { key: 'starter', name: 'Starter', monthlyCad: 19, annualCad: 190, features: [{ label: '1 site' }, { label: 'Free bario.ca subdomain' }, { label: '75 AI credits/mo', paused: true }, { label: 'Auto SSL & Managed DNS' }, { label: 'Remove the Bario badge' }] },
-  { key: 'business', name: 'Business', monthlyCad: 49, annualCad: 490, featured: true, features: [{ label: '5 sites' }, { label: 'Custom domain + subdomain' }, { label: '200 AI credits/mo', paused: true }, { label: 'Auto SSL & Managed DNS' }, { label: 'Remove the Bario badge' }] },
-  { key: 'agency', name: 'Agency', monthlyCad: 149, annualCad: 1490, features: [{ label: 'Up to 25 sites' }, { label: 'Custom domain + subdomain' }, { label: '750 AI credits/mo', paused: true }, { label: 'White-label HTML export' }, { label: 'Remove the Bario badge' }] },
+  { key: 'starter', name: 'Starter', monthlyCad: 19, annualCad: 190, features: ['1 site', 'Free bario.ca subdomain', 'Auto SSL & Managed DNS', 'Remove the Bario badge'] },
+  { key: 'business', name: 'Business', monthlyCad: 49, annualCad: 490, featured: true, features: ['5 sites', 'Custom domain + subdomain', 'Auto SSL & Managed DNS', 'Remove the Bario badge'] },
+  { key: 'agency', name: 'Agency', monthlyCad: 149, annualCad: 1490, features: ['Up to 25 sites', 'Custom domain + subdomain', 'White-label HTML export', 'Remove the Bario badge'] },
 ]
 
 export default function PricingSection() {
@@ -53,7 +46,6 @@ export default function PricingSection() {
             <ul className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
               <li className="flex items-center gap-2"><span className="text-cyan-600 dark:text-cyan-400">✓</span> 1 site</li>
               <li className="flex items-center gap-2"><span className="text-cyan-600 dark:text-cyan-400">✓</span> Free bario.ca subdomain</li>
-              <li className="flex items-center gap-2 text-slate-400 dark:text-slate-500"><span>⏸</span> 15 AI credits/mo <span className="text-xs">(paused during builder verification)</span></li>
               <li className="flex items-center gap-2"><span className="text-cyan-600 dark:text-cyan-400">✓</span> Auto SSL</li>
               <li className="flex items-center gap-2 text-slate-500"><span className="text-slate-400 dark:text-slate-600">•</span> "Made with Bario" badge shown</li>
             </ul>
@@ -89,10 +81,7 @@ export default function PricingSection() {
                 </div>
                 <ul className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
                   {plan.features.map((f) => (
-                    <li key={f.label} className={`flex items-center gap-2 ${f.paused ? 'text-slate-400 dark:text-slate-500' : ''}`}>
-                      <span className={f.paused ? 'text-slate-400 dark:text-slate-500' : 'text-cyan-600 dark:text-cyan-400'}>{f.paused ? '⏸' : '✓'}</span>
-                      {f.label}{f.paused && <span className="text-xs">(paused during builder verification)</span>}
-                    </li>
+                    <li key={f} className="flex items-center gap-2"><span className="text-cyan-600 dark:text-cyan-400">✓</span> {f}</li>
                   ))}
                 </ul>
               </div>
@@ -101,7 +90,7 @@ export default function PricingSection() {
           )
         })}
       </div>
-      <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. 1 AI credit = 1 chat message to Sky — manual text edits are always free. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
+      <p className="text-xs text-slate-500 mt-6 text-center">Prices in CAD. GST/HST extra where applicable. Cancel anytime. Free and Starter sites show a small "Made with Bario" badge — any paid plan can remove it.</p>
     </>
   )
 }
