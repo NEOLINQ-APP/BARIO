@@ -12,7 +12,15 @@ export async function GET() {
     const rows = await sql`
       SELECT * FROM bo_ad_campaigns WHERE organization_id = ${org.id} ORDER BY created_at DESC
     `
-    return NextResponse.json({ campaigns: rows })
+    const connectionRows = (await sql`
+      SELECT google_ads_customer_id, connected_at FROM bo_google_ads_connections WHERE organization_id = ${org.id}
+    `) as unknown as { google_ads_customer_id: string | null; connected_at: string }[]
+
+    return NextResponse.json({
+      campaigns: rows,
+      connected: connectionRows.length > 0,
+      connectedAt: connectionRows[0]?.connected_at ?? null,
+    })
   } catch (err: any) {
     return errorResponse(err)
   }

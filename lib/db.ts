@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v14-2026-08-24-ad-campaigns'
+const CURRENT_SCHEMA_VERSION = 'v15-2026-08-25-google-ads-oauth'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2859,6 +2859,21 @@ async function ensureSchema() {
     )
   `
   await sql`CREATE INDEX IF NOT EXISTS bo_ad_campaigns_org_idx ON bo_ad_campaigns (organization_id)`
+
+  // One Google Ads connection per org -- refresh_token is the real secret
+  // (lets us call the Ads API indefinitely without the user re-authorizing),
+  // encrypted at rest with the same AES-256-GCM helper already used for VPS
+  // passwords (lib/vpsPassword.ts) rather than a new scheme.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_google_ads_connections (
+      organization_id TEXT PRIMARY KEY REFERENCES bo_organizations(id),
+      google_ads_customer_id TEXT,
+      refresh_token_ciphertext TEXT NOT NULL,
+      refresh_token_iv TEXT NOT NULL,
+      connected_by_user_id TEXT REFERENCES users(id),
+      connected_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
 
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())

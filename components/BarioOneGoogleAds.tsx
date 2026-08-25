@@ -85,26 +85,67 @@ function NewCampaignForm({ onAdded }: { onAdded: () => void }) {
 
 export default function BarioOneGoogleAds() {
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
+  const [connected, setConnected] = useState(false)
+  const [connectedAt, setConnectedAt] = useState<string | null>(null)
+  const [banner, setBanner] = useState<{ kind: 'connected' | 'error'; message?: string } | null>(null)
 
   async function load() {
     const res = await fetch('/api/bario-one/marketing/google-ads')
     const data = await res.json()
     setCampaigns(data.campaigns ?? [])
+    setConnected(!!data.connected)
+    setConnectedAt(data.connectedAt ?? null)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connected')) setBanner({ kind: 'connected' })
+    else if (params.get('error')) setBanner({ kind: 'error', message: params.get('error') ?? undefined })
+    if (params.get('connected') || params.get('error')) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   return (
     <div>
-      <div className="rounded-2xl border border-amber-300 dark:border-[#d4af37]/40 bg-amber-50 dark:bg-[#d4af37]/10 p-4 mb-6 text-sm">
-        <p className="font-semibold text-amber-900 dark:text-[#d4af37]">Not connected to Google yet</p>
-        <p className="text-amber-800 dark:text-zinc-300 mt-1">
-          Real Google Ads API access needs a developer token, which only comes from applying inside your own
-          Google Ads Manager account (Tools &amp; Settings → API Center) — there's no way to get one through
-          this app alone. Draft your campaigns here in the meantime; once you have a token, these push straight
-          to Google instead of staying drafts.
-        </p>
-      </div>
+      {banner?.kind === 'connected' && (
+        <div className="rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 mb-6 text-sm text-emerald-800 dark:text-emerald-300">
+          Google Ads connected — campaign drafts can now be pushed live.
+        </div>
+      )}
+      {banner?.kind === 'error' && (
+        <div className="rounded-2xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-4 mb-6 text-sm text-red-800 dark:text-red-300">
+          {banner.message || 'Something went wrong connecting Google Ads.'}
+        </div>
+      )}
+
+      {connected ? (
+        <div className="rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4 mb-6 text-sm">
+          <p className="font-semibold text-emerald-800 dark:text-emerald-300">✓ Connected to Google Ads</p>
+          {connectedAt && (
+            <p className="text-emerald-700 dark:text-emerald-400 mt-1">
+              Connected {new Date(connectedAt).toLocaleDateString()}. Real campaign push isn't wired up yet — the
+              connection is live, drafts below still need one more step before they launch.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-amber-300 dark:border-[#d4af37]/40 bg-amber-50 dark:bg-[#d4af37]/10 p-4 mb-6 text-sm">
+          <p className="font-semibold text-amber-900 dark:text-[#d4af37]">Not connected to Google yet</p>
+          <p className="text-amber-800 dark:text-zinc-300 mt-1">
+            Draft your campaigns here in the meantime — once connected, these push straight to Google instead of
+            staying drafts. Real production use also needs Google's separate "Basic Access" approval on the
+            developer token, which can take a few days.
+          </p>
+          <a
+            href="/api/bario-one/marketing/google-ads/oauth/start"
+            className="inline-block mt-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2"
+          >
+            Connect Google Ads
+          </a>
+        </div>
+      )}
 
       <NewCampaignForm onAdded={load} />
 
