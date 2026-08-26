@@ -39,7 +39,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v16-2026-08-25-google-ads-push'
+const CURRENT_SCHEMA_VERSION = 'v17-2026-08-25-bario-pay'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2884,6 +2884,49 @@ async function ensureSchema() {
       connected_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+
+  // Bario Pay — internal dashboard for Bario's own recurring vendor bills
+  // (Hostinger, Hetzner, Vercel, Twilio, etc.), not customer billing.
+  // status is the manually/event-driven state ('active' | 'suspended' |
+  // 'warning'); the due-soon/flashing "orange within 2 weeks, flashing
+  // within 7 days" behavior is deliberately NOT stored -- it's computed
+  // from due_date at render time so it's always correct without a cron
+  // to keep it in sync.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bario_pay_bills (
+      id TEXT PRIMARY KEY,
+      vendor TEXT NOT NULL,
+      service_name TEXT NOT NULL,
+      plan_or_model TEXT,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'CAD',
+      billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+      due_date DATE,
+      status TEXT NOT NULL DEFAULT 'active',
+      notes TEXT,
+      last_paid_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  // Real cards are never stored here -- only Stripe's own tokenized
+  // PaymentMethod id plus display-safe metadata (brand/last4/expiry),
+  // exactly what Stripe's API itself returns and considers safe to show.
+  // The actual card number never reaches Bario's database or servers at
+  // all; Stripe Elements collects it directly, client-side, into Stripe.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bario_pay_cards (
+      id TEXT PRIMARY KEY,
+      stripe_payment_method_id TEXT NOT NULL UNIQUE,
+      brand TEXT,
+      last4 TEXT,
+      exp_month INTEGER,
+      exp_year INTEGER,
+      nickname TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`ALTER TABLE bario_pay_bills ADD COLUMN IF NOT EXISTS card_id TEXT REFERENCES bario_pay_cards(id)`
 
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())

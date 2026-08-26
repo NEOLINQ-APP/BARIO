@@ -65,6 +65,10 @@ export default function AdminHome() {
             <div className="font-semibold">Reseller Costs & Margin</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Real Hetzner VPS cost vs. what's charged, so you know how much discount room exists.</p>
           </a>
+          <a href="/admin/bario-pay" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
+            <div className="font-semibold">Bario Pay 💳</div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Every real vendor bill Bario pays, due-date status color-coded, cards on file to pay with.</p>
+          </a>
           <a href="/admin/coupons" className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#131b2a] p-6 hover:border-slate-300 dark:hover:border-zinc-600 transition-colors">
             <div className="font-semibold">Coupons & Promoter Links</div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-2">Create discount codes with a shareable auto-apply link for influencers/promoters.</p>
