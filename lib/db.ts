@@ -20,7 +20,14 @@ function getSql() {
   if (!_sql) {
     const url = process.env.DATABASE_URL || process.env.POSTGRES_URL
     if (!url) throw new Error('DATABASE_URL is not set')
-    _sql = postgres(url, { ssl: 'require', max: 1, prepare: false })
+    // connect_timeout was previously unset -- confirmed live 2026-08-27 as a
+    // real incident: a single stalled connection attempt (no client-side
+    // timeout to rescue it) hung forever, and since `_sql`/`schemaReady` are
+    // memoized at module scope, that poisoned every request routed to that
+    // warm container for the rest of its lifetime, with no way to recover
+    // short of a fresh container. idle_timeout closes connections this
+    // module holds open with nothing to do, rather than letting them pile up.
+    _sql = postgres(url, { ssl: 'require', max: 1, prepare: false, connect_timeout: 10, idle_timeout: 20 })
   }
   return _sql
 }
@@ -39,7 +46,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v17-2026-08-25-bario-pay'
+const CURRENT_SCHEMA_VERSION = 'v19-2026-08-27-miko-followup-drafts'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -2928,6 +2935,47 @@ async function ensureSchema() {
   `
   await sql`ALTER TABLE bario_pay_bills ADD COLUMN IF NOT EXISTS card_id TEXT REFERENCES bario_pay_cards(id)`
 
+  // Victoria's "ask Sky to fix the website" delegation, scoped deliberately
+  // narrow: she LOGS a request here for human review, she never triggers a
+  // live site edit herself over an unsupervised phone call. Mirrors
+  // neo_incidents' shape so both read the same way in the admin panel.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_sky_requests (
+      id TEXT PRIMARY KEY,
+      requested_by TEXT NOT NULL,
+      target TEXT,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending_review',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      resolved_at TIMESTAMPTZ
+    )
+  `
+
+  // Miko -- the business-operations agent. Same DRAFT-not-SENT discipline as
+  // victoria_sky_requests: Miko writes a real, personalized follow-up here
+  // and a human approves-and-sends it; she never emails a real customer
+  // unsupervised. This mirrors the caution already established in this
+  // codebase around lib/crmOutreach.ts (disabled 2026-08-20 rather than left
+  // to auto-send against a dead CRM) -- auto-sending customer communication
+  // without review is a real, previously-considered risk here, not a
+  // hypothetical one.
+  await sql`
+    CREATE TABLE IF NOT EXISTS miko_followup_drafts (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      customer_id TEXT NOT NULL REFERENCES bo_customers(id),
+      customer_name TEXT NOT NULL,
+      customer_email TEXT,
+      reason TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body_html TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      sent_at TIMESTAMPTZ
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS miko_followup_drafts_org_status_idx ON miko_followup_drafts (organization_id, status)`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -2936,7 +2984,17 @@ async function ensureSchema() {
 
 export async function db() {
   if (!schemaReady) schemaReady = ensureSchema()
-  await schemaReady
+  try {
+    await schemaReady
+  } catch (err) {
+    // A failed attempt (e.g. the connect_timeout above tripping) used to
+    // stay memoized as a permanently-rejected promise -- every request to
+    // that warm container would replay the same cached failure forever,
+    // with no way to recover short of the container being recycled.
+    // Clearing it here means the next request gets a real, fresh retry.
+    schemaReady = undefined
+    throw err
+  }
   return getSql()
 }
 
