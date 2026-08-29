@@ -8,3 +8,10 @@ out
 .vercel
 .env*
 tsconfig.tsbuildinfo
+
+# Session-local Claude Code config (broad Bash-allow, machine-specific)
+.claude/settings.json
+
+# Throwaway one-off verification scripts (see CLAUDE.md's testing convention)
+scratch-*.mjs
+/scripts_scratch/
