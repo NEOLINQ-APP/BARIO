@@ -14,7 +14,7 @@ import { sendEmail } from '@/lib/email'
 // happens to visit and complain. Test/throwaway accounts are excluded --
 // same exclusion patterns used everywhere else in this project -- so a
 // stale dev signup doesn't generate noise or wasted checks.
-export const maxDuration = 60
+export const maxDuration = 120
 
 const TEST_EMAIL_PATTERNS = [/@bario-internal-test\.com$/i, /@example\.com$/i, /@mailtest\.bario\.ca$/i, /^deleted-.*@deleted\.bario\.ca$/i]
 
@@ -72,41 +72,60 @@ export async function GET(req: Request) {
 
   const results: { domain: string; status: string; detail: string; alerted: boolean }[] = []
 
-  for (const site of sites) {
-    // Prefer the connected custom domain (the "real" public address once
-    // verified) but fall back to the bario.ca subdomain when that's all a
-    // site has -- both are independently reachable per the site router, so
-    // whichever one is actually the live public address gets checked.
-    const domain =
-      site.custom_domain && site.domain_status === 'verified' ? site.custom_domain : site.subdomain ? `${site.subdomain}.bario.ca` : null
-    if (!domain) continue
+  // Real incident 2026-08-27: this used to check every site's domain
+  // sequentially (up to 10s each, per checkDomain's own timeout) while
+  // holding this route's single (max: 1) DB connection open the whole
+  // time. Once the platform grew past a couple dozen published sites, that
+  // routinely blew past this route's own 60s maxDuration -- Vercel
+  // hard-kills the function at the timeout, which doesn't run cleanup, so
+  // the single Postgres connection was orphaned instead of closed. Every
+  // scheduled run repeated this, piling up stuck connections that
+  // degraded the shared connection pool for every other route on the
+  // platform. Fixed by checking domains in small concurrent batches --
+  // wall-clock time is now ~(sites / BATCH_SIZE) x 10s worst case instead
+  // of sites x 10s, comfortably inside the timeout for realistic site
+  // counts, and the DB connection is only touched briefly between batches
+  // rather than held through the slow network calls.
+  const BATCH_SIZE = 15
+  const checkable = sites
+    .map((site) => ({
+      site,
+      domain:
+        site.custom_domain && site.domain_status === 'verified' ? site.custom_domain : site.subdomain ? `${site.subdomain}.bario.ca` : null,
+    }))
+    .filter((x): x is { site: SiteRow; domain: string } => !!x.domain)
 
-    const { status, detail } = await checkDomain(domain)
-    const wasOk = site.custom_domain_health === 'ok' || site.custom_domain_health === null
-    const isNowBad = status !== 'ok'
-    const lastAlertAgeMs = site.custom_domain_health_alerted_at ? Date.now() - new Date(site.custom_domain_health_alerted_at).getTime() : Infinity
-    const shouldAlert = isNowBad && (wasOk || lastAlertAgeMs > REALERT_AFTER_MS)
+  for (let i = 0; i < checkable.length; i += BATCH_SIZE) {
+    const batch = checkable.slice(i, i + BATCH_SIZE)
+    const checked = await Promise.all(batch.map(async ({ site, domain }) => ({ site, domain, ...(await checkDomain(domain)) })))
 
-    await sql`
-      UPDATE sites SET custom_domain_health = ${status}, custom_domain_health_checked_at = now()
-      WHERE id = ${site.id}
-    `
+    for (const { site, domain, status, detail } of checked) {
+      const wasOk = site.custom_domain_health === 'ok' || site.custom_domain_health === null
+      const isNowBad = status !== 'ok'
+      const lastAlertAgeMs = site.custom_domain_health_alerted_at ? Date.now() - new Date(site.custom_domain_health_alerted_at).getTime() : Infinity
+      const shouldAlert = isNowBad && (wasOk || lastAlertAgeMs > REALERT_AFTER_MS)
 
-    if (shouldAlert) {
-      await sql`UPDATE sites SET custom_domain_health_alerted_at = now() WHERE id = ${site.id}`
-      const subject = `⚠ ${domain} is ${status === 'redirected_away' ? 'redirecting away from Bario' : status} `
-      const html = `
-        <p><strong>${domain}</strong> (site "${site.name}") failed its health check.</p>
-        <p>Status: <strong>${status}</strong><br/>Detail: ${detail}</p>
-        <p>This usually means the domain's DNS no longer points at Bario, or the destination it now points to is misconfigured. Check the domain's DNS records and Bario's <code>sites.domain_status</code>.</p>
+      await sql`
+        UPDATE sites SET custom_domain_health = ${status}, custom_domain_health_checked_at = now()
+        WHERE id = ${site.id}
       `
-      await Promise.allSettled([
-        sendEmail(ADMIN_NOTIFY_EMAIL, subject, html),
-        site.owner_email !== ADMIN_NOTIFY_EMAIL ? sendEmail(site.owner_email, subject, html) : Promise.resolve(),
-      ])
-    }
 
-    results.push({ domain, status, detail, alerted: shouldAlert })
+      if (shouldAlert) {
+        await sql`UPDATE sites SET custom_domain_health_alerted_at = now() WHERE id = ${site.id}`
+        const subject = `⚠ ${domain} is ${status === 'redirected_away' ? 'redirecting away from Bario' : status} `
+        const html = `
+          <p><strong>${domain}</strong> (site "${site.name}") failed its health check.</p>
+          <p>Status: <strong>${status}</strong><br/>Detail: ${detail}</p>
+          <p>This usually means the domain's DNS no longer points at Bario, or the destination it now points to is misconfigured. Check the domain's DNS records and Bario's <code>sites.domain_status</code>.</p>
+        `
+        await Promise.allSettled([
+          sendEmail(ADMIN_NOTIFY_EMAIL, subject, html),
+          site.owner_email !== ADMIN_NOTIFY_EMAIL ? sendEmail(site.owner_email, subject, html) : Promise.resolve(),
+        ])
+      }
+
+      results.push({ domain, status, detail, alerted: shouldAlert })
+    }
   }
 
   return NextResponse.json({ ok: true, checked: results.length, skippedTestAccounts: allSites.length - sites.length, results })

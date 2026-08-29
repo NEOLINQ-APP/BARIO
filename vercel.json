@@ -1,15 +1,15 @@
 {
   "crons": [
-    { "path": "/api/cron/vps-reconcile", "schedule": "0 */6 * * *" },
-    { "path": "/api/cron/crm-email-sync", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/studio-reconcile", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/vps-reconcile", "schedule": "10 0,6,12,18 * * *" },
+    { "path": "/api/cron/crm-email-sync", "schedule": "2,17,32,47 * * * *" },
+    { "path": "/api/cron/studio-reconcile", "schedule": "40 0,6,12,18 * * *" },
     { "path": "/api/cron/social-token-refresh", "schedule": "0 3 * * *" },
-    { "path": "/api/cron/wp-hosting-health", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/bo-invoice-recurring", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/neo-health-check", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/wp-hosting-health", "schedule": "6,21,36,51 * * * *" },
+    { "path": "/api/cron/bo-invoice-recurring", "schedule": "55 6 * * *" },
+    { "path": "/api/cron/neo-health-check", "schedule": "9,24,39,54 * * * *" },
     { "path": "/api/cron/bo-campaigns-scheduled", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/agent-tasks", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/victoria-scheduled-actions", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/custom-domain-health", "schedule": "*/30 * * * *" }
+    { "path": "/api/cron/agent-tasks", "schedule": "13,28,43,58 * * * *" },
+    { "path": "/api/cron/victoria-scheduled-actions", "schedule": "1,6,11,16,21,26,31,36,41,46,51,56 * * * *" },
+    { "path": "/api/cron/custom-domain-health", "schedule": "14,44 * * * *" }
   ]
 }

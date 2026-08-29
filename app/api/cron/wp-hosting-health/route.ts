@@ -23,23 +23,30 @@ export async function GET(req: Request) {
     FROM wp_hosting_nodes WHERE status != 'draining'
   `) as unknown as { id: string; ipv4: string; status: string; agent_api_token_ciphertext: string; agent_api_token_iv: string }[]
 
-  const results: { id: string; status: string }[] = []
+  // Same real bug class fixed in custom-domain-health 2026-08-27: sequential
+  // fetch-then-update while holding this route's single (max: 1) DB
+  // connection open the whole time, against a 30s budget that's the
+  // tightest of any cron here. Checking nodes in parallel first, then
+  // writing results, keeps the DB connection held only briefly instead of
+  // through every network round trip.
+  const checked = await Promise.all(
+    nodes.map(async (node) => {
+      try {
+        const token = decryptPassword(node.agent_api_token_ciphertext, node.agent_api_token_iv)
+        const res = await fetch(`http://${node.ipv4}:4100/health`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(8000),
+        })
+        return { id: node.id, status: res.ok ? 'active' : 'degraded' }
+      } catch {
+        return { id: node.id, status: 'unreachable' }
+      }
+    })
+  )
 
-  for (const node of nodes) {
-    try {
-      const token = decryptPassword(node.agent_api_token_ciphertext, node.agent_api_token_iv)
-      const res = await fetch(`http://${node.ipv4}:4100/health`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(8000),
-      })
-      const newStatus = res.ok ? 'active' : 'degraded'
-      await sql`UPDATE wp_hosting_nodes SET status = ${newStatus}, last_health_check_at = now(), updated_at = now() WHERE id = ${node.id}`
-      results.push({ id: node.id, status: newStatus })
-    } catch {
-      await sql`UPDATE wp_hosting_nodes SET status = 'unreachable', last_health_check_at = now(), updated_at = now() WHERE id = ${node.id}`
-      results.push({ id: node.id, status: 'unreachable' })
-    }
+  for (const { id, status } of checked) {
+    await sql`UPDATE wp_hosting_nodes SET status = ${status}, last_health_check_at = now(), updated_at = now() WHERE id = ${id}`
   }
 
-  return NextResponse.json({ ok: true, results })
+  return NextResponse.json({ ok: true, results: checked })
 }
