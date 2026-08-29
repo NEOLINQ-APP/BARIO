@@ -31,6 +31,16 @@ export async function searchImage(query: string, options: ImageSearchOptions = {
     const photo = data.results?.[0]
     if (!photo?.urls?.raw) return null
 
+    // Required by Unsplash's API guidelines: any time a photo is actually
+    // used (a generated site permanently embedding it counts), ping the
+    // download-tracking endpoint the photo's own response gives you — this
+    // is how they attribute real usage/views back to the photographer.
+    // Fire-and-forget: tracking must never block or fail the actual image
+    // resolution the caller is waiting on.
+    if (photo.links?.download_location) {
+      fetch(photo.links.download_location, { headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` } }).catch(() => {})
+    }
+
     // Build sizing/crop params explicitly against the raw (untransformed)
     // image rather than appending onto the pre-built "regular" URL, which
     // already has its own w/q params and would just get a second,
