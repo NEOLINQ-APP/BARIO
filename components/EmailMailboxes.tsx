@@ -105,6 +105,9 @@ export default function EmailMailboxes() {
     }
   }
 
+  if (error && (!sites || !mailboxes)) {
+    return <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
+  }
   if (!sites || !mailboxes) return <p className="text-sm text-slate-500 dark:text-zinc-500">Loading your mailboxes…</p>
 
   return (
