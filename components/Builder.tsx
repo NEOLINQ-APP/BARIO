@@ -154,6 +154,17 @@ function pagesFromModel(pages: { name: string; slug: string; sections: { type: S
   }))
 }
 
+// Mirrors the `phase` events app/api/builder/generate/route.ts now sends
+// (2026-08-21, surfacing the Gemini review pass that was previously
+// invisible — a few real extra seconds of wait with no indication anything
+// was happening). 'building' is also the default before any phase event
+// has arrived yet, or for phases with no distinct label of their own.
+const GEN_PHASE_LABELS: Record<'planning' | 'building' | 'reviewing', string> = {
+  planning: 'Sky is planning your site…',
+  building: 'Sky is building your site…',
+  reviewing: 'Double-checking the details…',
+}
+
 // Turns a mid-generation partial object (still missing fields, possibly a
 // trailing incomplete array element) into safely renderable pages — used
 // only for the live "Sky is building…" preview while a new site streams
@@ -402,6 +413,9 @@ export default function Builder({
   const [importingHtml, setImportingHtml] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [genPhase, setGenPhase] = useState<'planning' | 'building' | 'reviewing' | null>(null)
+  const [confirmDeletePage, setConfirmDeletePage] = useState<{ id: string; hasChildren: boolean } | null>(null)
+  const [homePageDeleteBlocked, setHomePageDeleteBlocked] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
@@ -520,19 +534,30 @@ export default function Builder({
     })
   }
 
+  // window.confirm()/alert() block the JS main thread until the user
+  // responds — harmless functionally, but a real performance-monitoring
+  // tool (INP) flags that block as if it were slow code, which reads as a
+  // scary "error" popup to anyone watching (2026-08-21). Replaced with a
+  // real React modal (confirmDeletePage state below) — same UX, no blocking
+  // dialog for any monitoring tool to (mis)report on.
   function deletePage(id: string) {
     if (pages.length <= 1) return
     const page = pages.find((p) => p.id === id)
     if (!page) return
     if (pages[0]?.id === id) {
-      alert("The Home page can't be deleted — rename it instead if you want a different landing page.")
+      setHomePageDeleteBlocked(true)
       return
     }
     const hasChildren = pages.some((p) => p.slug.startsWith(`${page.slug}/`))
-    const confirmed = window.confirm(
-      hasChildren ? 'Delete this page AND all of its sub-pages? This cannot be undone.' : 'Delete this page? This cannot be undone.'
-    )
-    if (!confirmed) return
+    setConfirmDeletePage({ id, hasChildren })
+  }
+
+  function performDeletePage() {
+    if (!confirmDeletePage) return
+    const { id } = confirmDeletePage
+    const page = pages.find((p) => p.id === id)
+    setConfirmDeletePage(null)
+    if (!page) return
     setPages((ps) => ps.filter((p) => p.id !== id && !p.slug.startsWith(`${page.slug}/`)))
     if (activePageId === id || activePage.slug.startsWith(`${page.slug}/`)) setActivePageId(pages[0].id)
   }
@@ -611,6 +636,7 @@ export default function Builder({
     }
 
     setBusy(true)
+    setGenPhase('planning')
 
     const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
     streamIdsRef.current = new Map()
@@ -677,7 +703,9 @@ export default function Builder({
           } catch {
             continue
           }
-          if (evt.type === 'partial') {
+          if (evt.type === 'phase') {
+            setGenPhase(evt.phase)
+          } else if (evt.type === 'partial') {
             if (isNew) {
               const preview = safePartialPages(evt.object?.pages, streamIdsRef)
               if (preview.length) setStreamingPages(preview)
@@ -707,6 +735,7 @@ export default function Builder({
     }
     setStreamingPages(null)
     setBusy(false)
+    setGenPhase(null)
   }
 
   async function handleSave() {
@@ -860,7 +889,7 @@ export default function Builder({
                 </div>
               </div>
             ))}
-            {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">Sky is building…</div>}
+            {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">{GEN_PHASE_LABELS[genPhase ?? 'building']}</div>}
           </div>
 
           <div className="p-3 border-t border-slate-200 dark:border-zinc-800">
@@ -1023,7 +1052,7 @@ export default function Builder({
             {streamingPages !== null && (
               <div className="max-w-5xl mx-auto mb-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-zinc-400">
                 <span className="b-building-dot" />
-                Sky is building your site…
+                {GEN_PHASE_LABELS[genPhase ?? 'building']}
               </div>
             )}
             <div
@@ -1126,6 +1155,47 @@ export default function Builder({
             setShowProfile(false)
           }}
         />
+      )}
+
+      {confirmDeletePage && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4" onClick={() => setConfirmDeletePage(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white text-slate-900 dark:border-zinc-800 dark:bg-[#131b2a] dark:text-zinc-100 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold mb-2">Delete this page?</h2>
+            <p className="text-sm text-slate-500 dark:text-zinc-400 mb-5">
+              {confirmDeletePage.hasChildren
+                ? 'This will delete the page AND all of its sub-pages. This cannot be undone.'
+                : 'This cannot be undone.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDeletePage(null)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                Cancel
+              </button>
+              <button onClick={performDeletePage} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {homePageDeleteBlocked && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4" onClick={() => setHomePageDeleteBlocked(false)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white text-slate-900 dark:border-zinc-800 dark:bg-[#131b2a] dark:text-zinc-100 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold mb-2">Can't delete the Home page</h2>
+            <p className="text-sm text-slate-500 dark:text-zinc-400 mb-5">Rename it instead if you want a different landing page.</p>
+            <div className="flex justify-end">
+              <button onClick={() => setHomePageDeleteBlocked(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1a56db] text-white hover:opacity-90">
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )
