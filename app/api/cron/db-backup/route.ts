@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { put } from '@/lib/storage'
+import { listProductionEnvVarNames } from '@/lib/vercel'
 import { gzipSync } from 'node:zlib'
 
 // Real, ongoing full-database backup — every production DB Bario touches,
@@ -70,6 +71,21 @@ async function dumpBarioOwnDb(): Promise<Dump> {
   return { tableCount: tables.length, totalRows, dump }
 }
 
+// Vercel never returns a Sensitive var's real value under any credential
+// (by design, not a bug) — this can't back up secret VALUES, only the list
+// of what exists, so a disaster-recovery rebuild knows exactly what needs
+// to be re-entered from Vercel's dashboard rather than discovering gaps
+// one broken feature at a time.
+async function backupEnvVarNames() {
+  const envs = await listProductionEnvVarNames()
+  const takenAt = new Date().toISOString()
+  const json = JSON.stringify({ taken_at: takenAt, count: envs.length, envs }, null, 2)
+  const dateKey = takenAt.slice(0, 10)
+  const key = `backups/bario-env-var-names/bario-env-var-names-${dateKey}.json`
+  const result = await put(key, json, { access: 'public', addRandomSuffix: false, contentType: 'application/json' })
+  return { project: 'bario-env-var-names', url: result.url, count: envs.length }
+}
+
 async function uploadBackup(project: string, payload: Dump) {
   const takenAt = new Date().toISOString()
   const json = JSON.stringify({ project, taken_at: takenAt, tableCount: payload.tableCount, totalRows: payload.totalRows, dump: payload.dump })
@@ -89,11 +105,14 @@ export async function GET(req: Request) {
   }
 
   const spottToken = process.env.SPOTT_SUPABASE_MGMT_TOKEN
-  const jobs: Array<Promise<{ project: string; url: string; tableCount: number; totalRows: number; bytes: number }>> = []
+  const jobs: Array<Promise<unknown>> = []
   const jobNames: string[] = []
 
   jobs.push(dumpBarioOwnDb().then((d) => uploadBackup('bario', d)))
   jobNames.push('bario')
+
+  jobs.push(backupEnvVarNames())
+  jobNames.push('bario-env-var-names')
 
   if (spottToken) {
     jobs.push(dumpViaManagementApi(SPOTT_REF, spottToken).then((d) => uploadBackup('spott-ca', d)))

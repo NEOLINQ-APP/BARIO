@@ -9,6 +9,26 @@ function authHeaders() {
   return { Authorization: `Bearer ${process.env.VERCEL_API_TOKEN}`, 'Content-Type': 'application/json' }
 }
 
+// Metadata only (key names, target, sensitivity, last-updated) -- Vercel's
+// API never returns a Sensitive var's actual value under any credential,
+// by design. Used by the daily backup cron so the *list* of what needs to
+// exist is never lost even though the values themselves can only ever be
+// recovered from Vercel's own dashboard by a logged-in human.
+export async function listProductionEnvVarNames(): Promise<{ key: string; target: string[]; sensitive: boolean; updatedAt: number }[]> {
+  if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is not set')
+  const res = await fetch(`${VERCEL_API}/v9/projects/${process.env.VERCEL_PROJECT_ID}/env${teamQuery()}`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) throw new Error(`Vercel env list failed: ${res.status}`)
+  const data = await res.json()
+  return (data.envs ?? []).map((e: any) => ({
+    key: e.key,
+    target: e.target ?? [],
+    sensitive: e.type === 'sensitive' || e.sensitive === true,
+    updatedAt: e.updatedAt ?? 0,
+  }))
+}
+
 export async function addDomainToVercel(domain: string) {
   if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is not set')
   const res = await fetch(`${VERCEL_API}/v10/projects/${process.env.VERCEL_PROJECT_ID}/domains${teamQuery()}`, {
