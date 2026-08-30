@@ -304,6 +304,25 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS victoria_family_messages_member_idx ON victoria_family_messages (member_key, created_at)`
 
+  // Contacts (name + email, phone optional) a full-access family member has
+  // Victoria remember -- e.g. "remember Auntie Sue's email is..." -- so a
+  // later "email Auntie Sue about..." doesn't need the address restated.
+  // Scoped per member_key, same isolation as personal.json namespaces on
+  // the phone side (miko-voice/server.js) -- one person's contacts must
+  // never surface for another.
+  await sql`
+    CREATE TABLE IF NOT EXISTS victoria_family_contacts (
+      id TEXT PRIMARY KEY,
+      member_key TEXT NOT NULL REFERENCES victoria_family_members(key),
+      name TEXT NOT NULL,
+      email TEXT,
+      phone_number TEXT,
+      relationship TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS victoria_family_contacts_member_idx ON victoria_family_contacts (member_key)`
+
   // Queue for coding tasks Victoria hands off to Claude rather than doing
   // herself — picked up by an hourly "Victoria Coding Dispatcher" routine
   // (a real Claude Code cloud session, created outside this repo via the
@@ -3404,6 +3423,16 @@ export type VictoriaFamilyMessage = {
   body: string
   attachments_json: string | null
   tool_log_json: string | null
+  created_at: string
+}
+
+export type VictoriaFamilyContact = {
+  id: string
+  member_key: string
+  name: string
+  email: string | null
+  phone_number: string | null
+  relationship: string | null
   created_at: string
 }
 

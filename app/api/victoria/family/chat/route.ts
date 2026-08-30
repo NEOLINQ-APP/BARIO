@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { db, type VictoriaFamilyMessage } from '@/lib/db'
 import { verifyFamilyToken } from '@/lib/victoriaFamilyAccess'
-import { executeVictoriaFamilyTool } from '@/lib/victoriaFamilyTools'
+import { executeVictoriaFamilyTool, FULL_ACCESS_FAMILY_KEYS } from '@/lib/victoriaFamilyTools'
 import { errorResponse } from '@/lib/errors'
 
 export const maxDuration = 60
@@ -30,7 +30,7 @@ const MAX_ROUNDS = 5
 // Flat function-tool shape the Responses API expects (not nested under a
 // "function" key the way Chat Completions does) -- see
 // developers.openai.com/api/docs/guides/function-calling. web_search is a
-// separate hosted-tool entry alongside these, added where TOOLS is used.
+// separate hosted-tool entry alongside these, added in toolsFor() below.
 const FUNCTION_TOOLS = [
   {
     type: 'function' as const,
@@ -56,7 +56,63 @@ const FUNCTION_TOOLS = [
     },
   },
 ]
-const TOOLS = [...FUNCTION_TOOLS, { type: 'web_search' as const }]
+
+// Only for members with the same full personal-assistant access already
+// granted on the phone side (FULL_ACCESS_FAMILY_KEYS, mirroring
+// miko-voice/server.js's FULL_ACCESS_PERSON_KEYS) -- everyone else stays on
+// FUNCTION_TOOLS above. draft_email always precedes send_email; the model
+// is instructed (familyInstructions) never to call send_email in the same
+// turn a draft was first shown.
+const FULL_ACCESS_TOOLS = [
+  {
+    type: 'function' as const,
+    name: 'remember_contact',
+    description: "Save a personal contact (name, and email and/or phone) for her so she doesn't have to repeat it later -- e.g. she says \"remember Auntie Sue's email is sue@example.com\".",
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        email: { type: 'string' },
+        phoneNumber: { type: 'string' },
+        relationship: { type: 'string' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    type: 'function' as const,
+    name: 'draft_email',
+    description: "Draft an email (to/subject/body) and show it back for confirmation. This does NOT send anything -- it's a preview only. `to` can be a saved contact's name or a real email address. Only call send_email after her next message explicitly confirms sending it.",
+    parameters: {
+      type: 'object',
+      properties: {
+        to: { type: 'string' },
+        subject: { type: 'string' },
+        body: { type: 'string', description: 'Plain text body -- will be converted to simple HTML paragraphs' },
+      },
+      required: ['to', 'subject', 'body'],
+    },
+  },
+  {
+    type: 'function' as const,
+    name: 'send_email',
+    description: 'Actually send a real email. Only call this after she has explicitly confirmed sending a drafted email in her own message -- never on the same turn a draft was first shown.',
+    parameters: {
+      type: 'object',
+      properties: {
+        to: { type: 'string' },
+        subject: { type: 'string' },
+        body: { type: 'string', description: 'Plain text body -- will be converted to simple HTML paragraphs' },
+      },
+      required: ['to', 'subject', 'body'],
+    },
+  },
+]
+
+function toolsFor(memberKey: string) {
+  const base = FULL_ACCESS_FAMILY_KEYS.has(memberKey) ? [...FUNCTION_TOOLS, ...FULL_ACCESS_TOOLS] : FUNCTION_TOOLS
+  return [...base, { type: 'web_search' as const }]
+}
 
 type Attachment = { url: string; contentType: string; filename: string }
 
@@ -73,8 +129,8 @@ async function fetchAttachmentPart(att: Attachment): Promise<any | null> {
   return { type: 'input_file', filename: att.filename, file_data: `data:application/pdf;base64,${data}` }
 }
 
-function familyInstructions(memberName: string): string {
-  return `You are Victoria, ${memberName}'s personal AI assistant -- she has her own direct line to you here, any time she needs anything, wherever she is in the world.
+function familyInstructions(memberName: string, fullAccess: boolean): string {
+  let base = `You are Victoria, ${memberName}'s personal AI assistant -- she has her own direct line to you here, any time she needs anything, wherever she is in the world.
 
 Be warm, genuinely caring, and quick to help -- like someone who's always got her back. Keep replies natural and conversational, not corporate. You present as Victoria throughout -- never mention what model or company powers you.
 
@@ -85,6 +141,11 @@ Safety is something you care about genuinely, not something you lecture about. N
 If she ever tells you she's unsafe, in trouble, hurt, lost in a bad way, or asks you to let her dad know something -- use alert_dad right away, no hesitation, then tell her calmly that he's been notified and you're right here with her. Trust your judgment on what counts as worth alerting him about; when in doubt, especially about real safety, send it.
 
 Never mention or reference anything about tracking her location -- there is none. If she asks whether you know where she is, be honest that you don't unless she tells you.`
+
+  if (fullAccess) {
+    base += `\n\nYou also help her with email: use remember_contact whenever she gives you someone's email/phone to save, so she never has to repeat it. When she asks you to email someone, use draft_email first and show her exactly what it'll say -- only call send_email after she explicitly confirms in her next message, never in the same turn as the draft. "to" can be a saved contact's name (you'll resolve it) or a raw address. If you don't have an address for someone she names, say so plainly and ask her for it -- never invent one.`
+  }
+  return base
 }
 
 export async function GET(req: Request) {
@@ -157,11 +218,13 @@ export async function POST(req: Request) {
     }
     currentParts.push({ type: 'input_text', text: text || `(see attached file${attachments.length > 1 ? 's' : ''})` })
 
+    const fullAccess = FULL_ACCESS_FAMILY_KEYS.has(member.key)
+    const tools = toolsFor(member.key)
     const input: any[] = [...priorInput, { role: 'user', content: currentParts }]
-    const instructions = familyInstructions(member.name)
+    const instructions = familyInstructions(member.name, fullAccess)
 
     const toolLog: { tool: string; args: unknown; result: unknown }[] = []
-    let response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: TOOLS as any })
+    let response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: tools as any })
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const functionCalls = response.output.filter((item: any) => item.type === 'function_call')
@@ -171,12 +234,12 @@ export async function POST(req: Request) {
       for (const call of functionCalls as any[]) {
         let args: any = {}
         try { args = JSON.parse(call.arguments || '{}') } catch {}
-        const result = await executeVictoriaFamilyTool(member.name, call.name, args)
+        const result = await executeVictoriaFamilyTool(sql, member.key, member.name, call.name, args)
         toolLog.push({ tool: call.name, args, result })
         input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) })
       }
 
-      response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: TOOLS as any })
+      response = await openaiClient.responses.create({ model: MODEL, instructions, input, tools: tools as any })
     }
 
     const messageItem = response.output.find((item: any) => item.type === 'message') as any
