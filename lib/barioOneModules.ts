@@ -8,7 +8,7 @@ export type BoModuleConfig = {
   key: BoModuleKey
   name: string
   description: string
-  priceCentsCad: number // placeholder — needs a real pricing sign-off before going live, same open item already tracked for VPS/domain pricing
+  priceCentsCad: number // final, signed off 2026-08-29 — zero real Stripe subscriptions existed on any module at sign-off time, so no grandfathering was needed
   requires: BoModuleKey[]
   stripePriceEnvVar: string
 }
