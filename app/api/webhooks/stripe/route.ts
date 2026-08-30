@@ -316,6 +316,19 @@ export async function POST(req: Request) {
         break
       }
 
+      if (session.mode === 'subscription' && userId && session.metadata?.purpose === 'backup_addon') {
+        // Stripe is the source of truth for "accepted" the same way it is
+        // for every other subscription here -- app/api/backup-addon/accept
+        // only creates the Checkout session, it never flips
+        // backup_addon_status itself.
+        await sql`UPDATE users SET backup_addon_status = 'accepted' WHERE id = ${userId}`
+        await sql`
+          INSERT INTO backup_addon_decisions (id, user_id, choice, price_cents, disclaimer_text_shown, stripe_subscription_id)
+          VALUES (${randomUUID()}, ${userId}, 'accepted', ${session.amount_total ?? null}, ${session.metadata?.disclaimerText ?? ''}, ${String(session.subscription)})
+        `
+        break
+      }
+
       if (session.mode === 'subscription') {
         // External client subscriptions (Bario Dialer / Voice Agent billed
         // to AFC Logistics, Sunbuilt Group, etc.) have no Bario userId —

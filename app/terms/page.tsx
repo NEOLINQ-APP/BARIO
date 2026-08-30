@@ -119,7 +119,19 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">9. Termination</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">9. Backup Protection add-on and data loss</h2>
+            <p>
+              Bario offers an optional Backup Protection add-on ($9/mo) that keeps automatic backups of
+              your site and data so it can be recovered if something goes wrong. This is opt-in — you
+              choose whether to add it when you sign up, and the choice is recorded on your account.
+              <strong> If you do not have Backup Protection enabled, Bario keeps no backup of your account,
+              and is not liable for any data, content, or information that is lost, deleted, or corrupted
+              for any reason.</strong> You can add Backup Protection at any time from your account settings.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">10. Termination</h2>
             <p>
               You can stop using Bario and delete your account at any time by contacting us. We may
               suspend or terminate your access for violating these Terms. On termination, we may delete
@@ -128,7 +140,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">10. Changes to these Terms</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">11. Changes to these Terms</h2>
             <p>
               We may update these Terms from time to time. We'll post the updated version here with a new
               effective date. Continued use of Bario after a change means you accept the update.
@@ -136,7 +148,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">11. Governing law</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">12. Governing law</h2>
             <p>
               These Terms are governed by the laws of the Province of Alberta, Canada, without regard to
               conflict-of-law principles.
@@ -144,7 +156,7 @@ export default function Terms() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">12. Contact</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-zinc-100 mb-2">13. Contact</h2>
             <p>Questions about these Terms? Email us at hello@bario.ca.</p>
           </section>
         </div>

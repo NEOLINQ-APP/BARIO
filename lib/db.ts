@@ -46,7 +46,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v21-2026-08-29-site-draft-publish-gate'
+const CURRENT_SCHEMA_VERSION = 'v22-2026-08-30-backup-addon'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -155,6 +155,26 @@ async function ensureSchema() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_salt TEXT`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_wrapped_mek TEXT`
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS e2e_recovery_wrapped_mek_iv TEXT`
+
+  // Backup Protection add-on ($9/mo) -- offered once at onboarding, real
+  // opt-in/decline choice with a durable audit trail. disclaimer_text_shown
+  // is the EXACT copy shown at decision time, not a pointer to "whatever
+  // the current ToS says" -- if the wording ever changes later, a past
+  // decline still needs to be provable against what they actually saw.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_addon_status TEXT`
+  await sql`
+    CREATE TABLE IF NOT EXISTS backup_addon_decisions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      choice TEXT NOT NULL CHECK (choice IN ('accepted', 'declined')),
+      price_cents INTEGER,
+      disclaimer_text_shown TEXT NOT NULL,
+      stripe_subscription_id TEXT,
+      decided_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS backup_addon_decisions_user_idx ON backup_addon_decisions (user_id, decided_at DESC)`
+
   await sql`
     CREATE TABLE IF NOT EXISTS family_groups (
       id TEXT PRIMARY KEY,
@@ -3088,6 +3108,7 @@ export type User = {
   e2e_recovery_salt: string | null
   e2e_recovery_wrapped_mek: string | null
   e2e_recovery_wrapped_mek_iv: string | null
+  backup_addon_status: string | null
 }
 
 export type SiteAudit = {

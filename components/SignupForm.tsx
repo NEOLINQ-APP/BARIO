@@ -36,7 +36,7 @@ export default function SignupForm() {
       setLoading(false)
       return
     }
-    await continueAfterAuth(plan, promoCode, next)
+    await continueAfterAuth(plan, promoCode, next, true)
   }
 
   return (

@@ -56,6 +56,7 @@ export async function GET(req: Request) {
 
     let userId: string
     let sessionVersion: number
+    const isNewSignup = existing.length === 0
 
     if (existing.length > 0) {
       userId = existing[0].id
@@ -86,6 +87,7 @@ export async function GET(req: Request) {
     if (payload.plan) continueUrl.searchParams.set('plan', payload.plan)
     if (payload.promo) continueUrl.searchParams.set('promo', payload.promo)
     if (payload.next) continueUrl.searchParams.set('next', payload.next)
+    if (isNewSignup) continueUrl.searchParams.set('new', '1')
 
     const res = NextResponse.redirect(continueUrl)
     res.cookies.set('google_oauth_nonce', '', { path: '/', maxAge: 0 })

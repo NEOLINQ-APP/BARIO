@@ -8,7 +8,7 @@ function Continue() {
   const params = useSearchParams()
 
   useEffect(() => {
-    continueAfterAuth(params.get('plan'), params.get('promo'), params.get('next'))
+    continueAfterAuth(params.get('plan'), params.get('promo'), params.get('next'), params.get('new') === '1')
   }, [params])
 
   return (

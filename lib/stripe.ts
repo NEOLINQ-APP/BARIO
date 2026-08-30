@@ -14,6 +14,12 @@ export function getStripe(): Stripe {
 // Site plans now offer monthly or annual billing (annual ~17% off, "pay for
 // 10 months, get 12" framing). Existing monthly price IDs are unchanged;
 // annual is a new, separate Price attached to the same Stripe Product.
+// Backup Protection add-on, $9/mo flat -- offered once at onboarding
+// (app/onboarding/backup), signed off 2026-08-30. Separate recurring Price,
+// not bundled into a site plan, since it's opt-in independent of tier.
+export const BACKUP_ADDON_PRICE_CENTS = 900
+export const BACKUP_ADDON_PRICE_ID = process.env.STRIPE_PRICE_BACKUP_ADDON
+
 export const PLAN_PRICE_IDS: Record<string, { monthly: string | undefined; annual: string | undefined }> = {
   starter: { monthly: process.env.STRIPE_PRICE_STARTER, annual: process.env.STRIPE_PRICE_STARTER_ANNUAL },
   business: { monthly: process.env.STRIPE_PRICE_BUSINESS, annual: process.env.STRIPE_PRICE_BUSINESS_ANNUAL },
