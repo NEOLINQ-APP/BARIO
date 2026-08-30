@@ -12,6 +12,23 @@ function getSpeechRecognition(): (new () => any) | null {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
 }
 
+// Victoria's replies come back as plain markdown text (she uses **bold**
+// for emphasis in lists etc.), but this chat bubble rendered raw text —
+// literal asterisks showed up in every reply instead of bold (confirmed
+// live 2026-08-29). No markdown library in this project yet, and pulling
+// one in for a single `**bold**` case is overkill, so this just splits on
+// that one pattern and wraps the matched spans in <strong> — line breaks
+// are already handled correctly by the bubble's own whitespace-pre-wrap.
+function renderContent(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
+
 // pushManager.subscribe() needs the VAPID public key as a raw Uint8Array,
 // not the base64url string it's stored/shipped as.
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -564,7 +581,7 @@ export default function VictoriaFamilyChat({ memberKey }: { memberKey: string })
                       : 'bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800'
                   }`}
                 >
-                  {m.content}
+                  {renderContent(m.content)}
                 </div>
                 {m.attachments && m.attachments.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1 justify-end">

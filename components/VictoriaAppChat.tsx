@@ -9,6 +9,19 @@ type Msg = { role: 'user' | 'assistant'; content: string; attachments?: Attachme
 type ToolLogEntry = { tool: string; args: unknown; result: unknown }
 type CallState = 'idle' | 'requesting' | 'ringing' | 'in-call' | 'ended'
 
+// Same fix as VictoriaFamilyChat.tsx: Victoria's replies use **bold**
+// markdown, but this bubble rendered raw text (literal asterisks) with no
+// markdown parsing at all.
+function renderContent(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
+
 function greetingFor(name: string): Msg {
   return {
     role: 'assistant',
@@ -588,7 +601,7 @@ export default function VictoriaAppChat() {
                       : 'bg-white dark:bg-[#0b111c] text-slate-900 dark:text-zinc-100 border border-slate-200 dark:border-zinc-800'
                   }`}
                 >
-                  {m.content}
+                  {renderContent(m.content)}
                 </div>
                 {m.attachments && m.attachments.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1 justify-end">
