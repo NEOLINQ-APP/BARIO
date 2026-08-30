@@ -385,7 +385,20 @@ async function generateWithOpenAI(userPrompt: string, onPartial: (partial: Parti
     // strictJsonSchema:false is no longer load-bearing for the open-record
     // problem (the schema is closed now), but keeping it off still avoids
     // paying for OpenAI's own strict-mode compile step we don't need here.
-    providerOptions: { openai: { strictJsonSchema: false } },
+    // reasoningEffort (2026-08-30) — this was the only gpt-5.6-luna call
+    // anywhere in the codebase with no reasoning-effort override at all;
+    // every other one hit the same slow/unpredictable-latency problem and
+    // needed one set explicitly (see app/api/studio/copilot/route.ts,
+    // app/api/public/drivers-exam-assist/route.ts — both use 'none' for
+    // fast classification-style calls). Confirmed live: a real 4-page,
+    // image-heavy build with no override here took anywhere from 34s to
+    // over 5 minutes across 5 back-to-back identical test requests, still
+    // streaming (not stuck) the whole time — genuinely unpredictable
+    // reasoning-depth variance, not a hang. 'low' (not 'none') because this
+    // call does real compositional work an intent-classifier doesn't —
+    // page structure, style-preset choice, business-specific copywriting —
+    // so some reasoning budget is worth keeping, just not an unbounded one.
+    providerOptions: { openai: { strictJsonSchema: false, reasoningEffort: 'low' } },
   })
   for await (const partial of result.partialObjectStream) {
     onPartial(partial as PartialResponse)
@@ -639,6 +652,20 @@ export async function POST(req: Request) {
             theme_out = next
           }
 
+          // The explanation below is the model's own prose, written before
+          // this contrast pass ran -- if the pass actually changed a color,
+          // that prose is now describing a color the site no longer uses
+          // (e.g. "kept your accent #D4A574" when it's really #9e6931).
+          // Append a plain-language, deterministic note whenever that
+          // happened, rather than silently shipping a mismatch between what
+          // Sky says it did and what it actually shipped.
+          const colorAdjustments: string[] = []
+          if (theme_out.primary !== parsed.theme.primary) colorAdjustments.push(`primary color from ${parsed.theme.primary} to ${theme_out.primary}`)
+          if (theme_out.accent !== parsed.theme.accent) colorAdjustments.push(`accent color from ${parsed.theme.accent} to ${theme_out.accent}`)
+          const contrastNote = colorAdjustments.length
+            ? ` One more thing: I had to darken the ${colorAdjustments.join(' and the ')} — the color you asked for didn't have enough contrast against the white text/buttons sitting on it, so I adjusted it just enough to keep that text readable.`
+            : ''
+
           // The model can (and did, in testing) describe a change in prose
           // while returning pages/theme byte-identical to what it was given —
           // a confident-sounding lie, not an edit. Compare BEFORE image
@@ -662,7 +689,7 @@ export async function POST(req: Request) {
 
           const explanation = nothingChanged
             ? "I didn't actually make any changes there — it may already match what you asked for. Tell me what still feels off and I'll take another pass."
-            : typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.'
+            : (typeof parsed.explanation === 'string' ? parsed.explanation : 'Done.') + contrastNote
 
           send({ type: 'done', explanation, theme: theme_out, pages: resolvedPages, creditsRemaining })
         } catch (err: any) {
