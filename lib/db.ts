@@ -46,7 +46,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v19-2026-08-27-miko-followup-drafts'
+const CURRENT_SCHEMA_VERSION = 'v21-2026-08-29-site-draft-publish-gate'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -362,6 +362,50 @@ async function ensureSchema() {
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_category TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_hours TEXT`
   await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS business_location TEXT`
+  // Preview -> approve -> publish staging gate. Every edit in Builder.tsx/
+  // TemplateBuilder.tsx now lands in these draft_* columns instead of the
+  // live ones below -- a real visitor never sees a change until the owner
+  // hits Publish, which copies draft -> live in one transaction (see
+  // app/api/builder/site/publish-draft/route.ts). NULL on a draft_* column
+  // means "no pending draft, live is current" -- every pre-existing site
+  // has all-NULL drafts and renders in the builder exactly as it did
+  // before this shipped. has_unpublished_changes is the single source of
+  // truth for "is there a draft pending" (draft columns are deliberately
+  // NOT cleared after publish, since the next edit overwrites them anyway).
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_sections_json TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_theme_json TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_raw_html TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_name TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_meta_title TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_meta_description TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_analytics_id TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_business_name TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_business_category TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_business_hours TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_business_location TEXT`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS has_unpublished_changes BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS draft_updated_at TIMESTAMPTZ`
+  await sql`ALTER TABLE sites ADD COLUMN IF NOT EXISTS last_published_at TIMESTAMPTZ`
+  // One-row-per-publish snapshot of whatever the live columns held right
+  // before a publish-draft overwrote them -- cheap rollback history as a
+  // byproduct of the staging gate above. No restore UI yet; an admin can
+  // restore by hand the same way raw_html_backup already works. Modeled on
+  // admin_actions_log's shape below.
+  await sql`
+    CREATE TABLE IF NOT EXISTS site_versions (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      sections_json TEXT,
+      theme_json TEXT,
+      raw_html TEXT,
+      name TEXT,
+      meta_title TEXT,
+      meta_description TEXT,
+      published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      published_by TEXT
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS site_versions_site_id_idx ON site_versions (site_id, published_at DESC)`
   await sql`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
@@ -3433,6 +3477,33 @@ export type Site = {
   business_category: string | null
   business_hours: string | null
   business_location: string | null
+  draft_sections_json: string | null
+  draft_theme_json: string | null
+  draft_raw_html: string | null
+  draft_name: string | null
+  draft_meta_title: string | null
+  draft_meta_description: string | null
+  draft_analytics_id: string | null
+  draft_business_name: string | null
+  draft_business_category: string | null
+  draft_business_hours: string | null
+  draft_business_location: string | null
+  has_unpublished_changes: boolean
+  draft_updated_at: string | null
+  last_published_at: string | null
+}
+
+export type SiteVersion = {
+  id: string
+  site_id: string
+  sections_json: string | null
+  theme_json: string | null
+  raw_html: string | null
+  name: string | null
+  meta_title: string | null
+  meta_description: string | null
+  published_at: string
+  published_by: string | null
 }
 
 export type SitePage = {

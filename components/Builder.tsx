@@ -252,6 +252,8 @@ export default function Builder({
   initialBusinessCategory,
   initialBusinessHours,
   initialBusinessLocation,
+  initialHasUnpublishedChanges,
+  initialLastPublishedAt,
 }: {
   siteId: string | null
   initialName: string
@@ -275,6 +277,8 @@ export default function Builder({
   initialBusinessCategory: string
   initialBusinessHours: string
   initialBusinessLocation: string
+  initialHasUnpublishedChanges: boolean
+  initialLastPublishedAt: string | null
 }) {
   const router = useRouter()
   const [currentSiteId, setCurrentSiteId] = useState(siteId)
@@ -419,6 +423,35 @@ export default function Builder({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  // Preview -> approve -> publish: autosave always lands in draft_* columns
+  // server-side now (see app/api/builder/site/route.ts), so hasUnpublishedChanges
+  // tracks whether there's a draft not yet promoted to the live site.
+  const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(initialHasUnpublishedChanges)
+  const [lastPublishedAt, setLastPublishedAt] = useState(initialLastPublishedAt)
+  const [publishingDraft, setPublishingDraft] = useState(false)
+  const [publishMsg, setPublishMsg] = useState<string | null>(null)
+
+  async function handlePublishDraft() {
+    if (!currentSiteId || !hasUnpublishedChanges) return
+    setPublishingDraft(true)
+    setPublishMsg(null)
+    try {
+      const res = await fetch('/api/builder/site/publish-draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId: currentSiteId }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Publish failed')
+      setHasUnpublishedChanges(false)
+      setLastPublishedAt(new Date().toISOString())
+      setPublishMsg('Published')
+    } catch (err: any) {
+      setPublishMsg(`Failed: ${err.message}`)
+    }
+    setPublishingDraft(false)
+    setTimeout(() => setPublishMsg(null), 3000)
+  }
 
   function addMsg(role: ChatMsg['role'], text: string) {
     setMessages((m) => [...m, { role, text }])
@@ -770,8 +803,9 @@ export default function Builder({
         setCurrentSiteId(d.id)
         router.replace(`/build?site=${d.id}`, { scroll: false })
       }
-      setSaveMsg('Saved')
+      setSaveMsg('Draft saved')
       setDirty(false)
+      setHasUnpublishedChanges(true)
     } catch (err: any) {
       setSaveMsg(`Failed: ${err.message}`)
     }
@@ -849,7 +883,7 @@ export default function Builder({
               <option value="gradient" style={OPTION_STYLE}>Gradient</option>
             </select>
           </label>
-          {saveMsg && <span className="text-xs text-slate-500 dark:text-zinc-400">{saveMsg}</span>}
+          {(publishMsg ?? saveMsg) && <span className="text-xs text-slate-500 dark:text-zinc-400">{publishMsg ?? saveMsg}</span>}
           <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Business Profile
           </button>
@@ -859,8 +893,25 @@ export default function Builder({
           <button onClick={handleExport} title="Exports the page you're currently viewing" className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Export HTML
           </button>
-          <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
-            Publish
+          <a
+            href={currentSiteId ? `/api/builder/site/preview?site=${currentSiteId}` : undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={hasUnpublishedChanges ? "Preview your unpublished changes" : "Preview what's currently live"}
+            className={`px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold ${!currentSiteId ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            Preview
+          </a>
+          <button
+            onClick={handlePublishDraft}
+            disabled={!currentSiteId || !hasUnpublishedChanges || publishingDraft}
+            title={lastPublishedAt ? `Last published ${new Date(lastPublishedAt).toLocaleString()}` : 'Not published yet'}
+            className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold disabled:opacity-40"
+          >
+            {publishingDraft ? 'Publishing…' : hasUnpublishedChanges ? 'Publish' : 'Published'}
+          </button>
+          <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
+            Go Live
           </button>
           <button
             onClick={() => setUiTheme((t) => (t === 'dark' ? 'light' : 'dark'))}

@@ -25,6 +25,8 @@ export default function TemplateBuilder({
   initialMetaDescription,
   initialAnalyticsId,
   initialFaviconUrl,
+  initialHasUnpublishedChanges,
+  initialLastPublishedAt,
 }: {
   siteId: string
   initialName: string
@@ -43,6 +45,8 @@ export default function TemplateBuilder({
   initialMetaDescription: string
   initialAnalyticsId: string
   initialFaviconUrl: string
+  initialHasUnpublishedChanges: boolean
+  initialLastPublishedAt: string | null
 }) {
   const [siteName] = useState(initialName)
   const [metaTitle, setMetaTitle] = useState(initialMetaTitle)
@@ -61,6 +65,34 @@ export default function TemplateBuilder({
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  // Preview -> approve -> publish: autosave always lands in draft_raw_html
+  // server-side now (see app/api/sites/template-content/route.ts).
+  const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(initialHasUnpublishedChanges)
+  const [lastPublishedAt, setLastPublishedAt] = useState(initialLastPublishedAt)
+  const [publishingDraft, setPublishingDraft] = useState(false)
+  const [publishMsg, setPublishMsg] = useState<string | null>(null)
+
+  async function handlePublishDraft() {
+    if (!hasUnpublishedChanges) return
+    setPublishingDraft(true)
+    setPublishMsg(null)
+    try {
+      const res = await fetch('/api/builder/site/publish-draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteId }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Publish failed')
+      setHasUnpublishedChanges(false)
+      setLastPublishedAt(new Date().toISOString())
+      setPublishMsg('Published')
+    } catch (err: any) {
+      setPublishMsg(`Failed: ${err.message}`)
+    }
+    setPublishingDraft(false)
+    setTimeout(() => setPublishMsg(null), 3000)
+  }
   const [switching, setSwitching] = useState(false)
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
@@ -177,8 +209,9 @@ export default function TemplateBuilder({
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Save failed')
-      setSaveMsg('Saved')
+      setSaveMsg('Draft saved')
       setDirty(false)
+      setHasUnpublishedChanges(true)
     } catch (err: any) {
       setSaveMsg(`Failed: ${err.message}`)
     }
@@ -265,15 +298,32 @@ export default function TemplateBuilder({
           <span className={`text-xs px-2 py-1 rounded-full border ${!unlimitedCredits && credits <= 5 ? 'border-red-500/40 text-red-400' : 'border-zinc-700 text-zinc-400'}`}>
             {unlimitedCredits ? '∞ credits (admin)' : `${credits} credit${credits === 1 ? '' : 's'} left`}
           </span>
-          {saveMsg && <span className="text-xs text-zinc-400">{saveMsg}</span>}
+          {(publishMsg ?? saveMsg) && <span className="text-xs text-zinc-400">{publishMsg ?? saveMsg}</span>}
           <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button onClick={handleExport} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
             Export HTML
           </button>
-          <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold">
-            Publish
+          <a
+            href={`/api/builder/site/preview?site=${siteId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={hasUnpublishedChanges ? "Preview your unpublished changes" : "Preview what's currently live"}
+            className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold"
+          >
+            Preview
+          </a>
+          <button
+            onClick={handlePublishDraft}
+            disabled={!hasUnpublishedChanges || publishingDraft}
+            title={lastPublishedAt ? `Last published ${new Date(lastPublishedAt).toLocaleString()}` : 'Not published yet'}
+            className="px-3 py-1.5 rounded-lg bg-[#f59e0b] text-[#1a1200] text-xs font-semibold disabled:opacity-40"
+          >
+            {publishingDraft ? 'Publishing…' : hasUnpublishedChanges ? 'Publish' : 'Published'}
+          </button>
+          <button onClick={() => setShowPublish(true)} className="px-3 py-1.5 rounded-lg border border-zinc-700 text-xs font-semibold">
+            Go Live
           </button>
           <ProfileMenu
             email={userEmail}

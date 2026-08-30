@@ -33,10 +33,12 @@ export async function POST(req: Request) {
     const siteId = await resolveSiteId(sql, session.userId, requestedSiteId)
     if (!siteId) return NextResponse.json({ error: 'No template site found — pick a template first' }, { status: 404 })
 
+    // Draft, not live -- see lib/db.ts's staging-gate schema comment. A real
+    // visitor keeps seeing the last-published raw_html until Publish.
     const rows = (await sql`
       UPDATE sites SET
-        raw_html = ${html}, meta_title = ${cleanMetaTitle}, meta_description = ${cleanMetaDescription},
-        analytics_id = ${cleanAnalyticsId || null}, updated_at = now()
+        draft_raw_html = ${html}, draft_meta_title = ${cleanMetaTitle}, draft_meta_description = ${cleanMetaDescription},
+        draft_analytics_id = ${cleanAnalyticsId || null}, has_unpublished_changes = true, draft_updated_at = now(), updated_at = now()
       WHERE id = ${siteId} AND content_mode = 'template'
       RETURNING id
     `) as unknown as { id: string }[]

@@ -37,23 +37,44 @@ export async function GET(req: Request) {
         business_category: string | null
         business_hours: string | null
         business_location: string | null
+        has_unpublished_changes: boolean
+        draft_updated_at: string | null
+        last_published_at: string | null
+        draft_sections_json: string | null
+        draft_theme_json: string | null
+        draft_name: string | null
+        draft_meta_title: string | null
+        draft_meta_description: string | null
+        draft_analytics_id: string | null
+        draft_business_name: string | null
+        draft_business_category: string | null
+        draft_business_hours: string | null
+        draft_business_location: string | null
       }[])
     : []
   const site = rows[0]
+  // A pending draft (has_unpublished_changes) is what the builder shows and
+  // keeps editing -- the live columns stay untouched until Publish. A site
+  // with no pending draft (including every site that existed before this
+  // feature shipped) falls back to its live columns, unchanged behavior.
+  const useDraft = !!site?.has_unpublished_changes
 
   return NextResponse.json({
     id: site?.id ?? null,
-    name: site?.name ?? 'My Site',
-    pages: site ? parsePagesJson(site.sections_json) : [{ name: 'Home', slug: '', sections: [] }],
-    theme: site ? JSON.parse(site.theme_json) : DEFAULT_THEME,
-    metaTitle: site?.meta_title ?? '',
-    metaDescription: site?.meta_description ?? '',
-    analyticsId: site?.analytics_id ?? '',
+    name: (useDraft ? site?.draft_name : null) ?? site?.name ?? 'My Site',
+    pages: site ? parsePagesJson((useDraft ? site.draft_sections_json : null) ?? site.sections_json) : [{ name: 'Home', slug: '', sections: [] }],
+    theme: site ? JSON.parse((useDraft ? site.draft_theme_json : null) ?? site.theme_json) : DEFAULT_THEME,
+    metaTitle: (useDraft ? site?.draft_meta_title : null) ?? site?.meta_title ?? '',
+    metaDescription: (useDraft ? site?.draft_meta_description : null) ?? site?.meta_description ?? '',
+    analyticsId: (useDraft ? site?.draft_analytics_id : null) ?? site?.analytics_id ?? '',
     faviconUrl: site?.favicon_url ?? '',
-    businessName: site?.business_name ?? '',
-    businessCategory: site?.business_category ?? '',
-    businessHours: site?.business_hours ?? '',
-    businessLocation: site?.business_location ?? '',
+    businessName: (useDraft ? site?.draft_business_name : null) ?? site?.business_name ?? '',
+    businessCategory: (useDraft ? site?.draft_business_category : null) ?? site?.business_category ?? '',
+    businessHours: (useDraft ? site?.draft_business_hours : null) ?? site?.business_hours ?? '',
+    businessLocation: (useDraft ? site?.draft_business_location : null) ?? site?.business_location ?? '',
+    hasUnpublishedChanges: useDraft,
+    draftUpdatedAt: site?.draft_updated_at ?? null,
+    lastPublishedAt: site?.last_published_at ?? null,
   })
 }
 
@@ -106,28 +127,36 @@ export async function POST(req: Request) {
     const cleanBusinessHours = typeof businessHours === 'string' && businessHours.trim() ? businessHours.trim() : null
     const cleanBusinessLocation = typeof businessLocation === 'string' && businessLocation.trim() ? businessLocation.trim() : null
 
+    // Every edit lands in draft_* columns, never the live ones -- a real
+    // visitor sees nothing until the owner hits Publish
+    // (/api/builder/site/publish-draft). See lib/db.ts's schema comment for
+    // the full staging-gate design.
     let finalId = siteId
     if (siteId) {
       await sql`
         UPDATE sites SET
-          name = ${siteName}, sections_json = ${sectionsJson}, theme_json = ${themeJson},
-          meta_title = ${cleanMetaTitle}, meta_description = ${cleanMetaDescription},
-          analytics_id = ${cleanAnalyticsId || null},
-          business_name = ${cleanBusinessName}, business_category = ${cleanBusinessCategory},
-          business_hours = ${cleanBusinessHours}, business_location = ${cleanBusinessLocation},
-          updated_at = now()
+          draft_name = ${siteName}, draft_sections_json = ${sectionsJson}, draft_theme_json = ${themeJson},
+          draft_meta_title = ${cleanMetaTitle}, draft_meta_description = ${cleanMetaDescription},
+          draft_analytics_id = ${cleanAnalyticsId || null},
+          draft_business_name = ${cleanBusinessName}, draft_business_category = ${cleanBusinessCategory},
+          draft_business_hours = ${cleanBusinessHours}, draft_business_location = ${cleanBusinessLocation},
+          has_unpublished_changes = true, draft_updated_at = now(), updated_at = now()
         WHERE id = ${siteId}
       `
     } else {
       finalId = randomUUID()
       await sql`
         INSERT INTO sites (
-          id, user_id, name, sections_json, theme_json, meta_title, meta_description, analytics_id,
-          business_name, business_category, business_hours, business_location
+          id, user_id, name,
+          draft_name, draft_sections_json, draft_theme_json, draft_meta_title, draft_meta_description, draft_analytics_id,
+          draft_business_name, draft_business_category, draft_business_hours, draft_business_location,
+          has_unpublished_changes, draft_updated_at
         )
         VALUES (
-          ${finalId}, ${session.userId}, ${siteName}, ${sectionsJson}, ${themeJson}, ${cleanMetaTitle}, ${cleanMetaDescription}, ${cleanAnalyticsId || null},
-          ${cleanBusinessName}, ${cleanBusinessCategory}, ${cleanBusinessHours}, ${cleanBusinessLocation}
+          ${finalId}, ${session.userId}, ${siteName},
+          ${siteName}, ${sectionsJson}, ${themeJson}, ${cleanMetaTitle}, ${cleanMetaDescription}, ${cleanAnalyticsId || null},
+          ${cleanBusinessName}, ${cleanBusinessCategory}, ${cleanBusinessHours}, ${cleanBusinessLocation},
+          true, now()
         )
       `
     }
