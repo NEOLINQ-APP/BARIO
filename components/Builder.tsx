@@ -14,8 +14,10 @@ type SectionType = 'nav' | 'hero' | 'features' | 'stats' | 'testimonial' | 'pric
 type SectionData = Record<string, string>
 type Section = { id: string; type: SectionType; data: SectionData }
 type Page = { id: string; name: string; slug: string; sections: Section[] }
-type ChatMsg = { role: 'assistant' | 'user'; text: string }
+type ChatMsg = { role: 'assistant' | 'user' | 'plan'; text: string }
 type Theme = { primary: string; accent: string; style?: string; backgroundStyle?: 'solid' | 'gradient' }
+type Attachment = { url: string; kind: 'image' | 'video' | 'audio'; name: string }
+type QueuedMessage = { text: string; attachment: Attachment | null }
 
 const SECTION_LABELS: Record<SectionType, string> = {
   nav: 'Nav', hero: 'Hero', features: 'Features', stats: 'Stats',
@@ -409,7 +411,7 @@ export default function Builder({
     { role: 'assistant', text: "Hi! I'm Sky, your website builder. Tell me what kind of website you need and I'll build it — a real multi-page site, not just one long page. Try: \"Build a site for a Calgary plumbing company.\"" },
   ])
   const [input, setInput] = useState('')
-  const [attachment, setAttachment] = useState<{ url: string; kind: 'image' | 'video' | 'audio'; name: string } | null>(null)
+  const [attachment, setAttachment] = useState<Attachment | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -418,6 +420,17 @@ export default function Builder({
   const [importError, setImportError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [genPhase, setGenPhase] = useState<'planning' | 'building' | 'reviewing' | null>(null)
+  // Plan Mode + Prompt Queue (2026-08-30) -- see runGeneration/processMessage/
+  // handleSend below. queue holds messages sent while something is already
+  // in flight (busy generating, or planningPlan waiting on a plan) instead
+  // of silently dropping them like handleSend used to. pendingPlan holds the
+  // text/attachment a rendered 'plan' chat message is waiting on approval
+  // for -- mutually exclusive with busy by construction (Approve clears it
+  // and starts the real generation in the same tick).
+  const [queue, setQueue] = useState<QueuedMessage[]>([])
+  const [planMode, setPlanMode] = useState(false)
+  const [planningPlan, setPlanningPlan] = useState(false)
+  const [pendingPlan, setPendingPlan] = useState<QueuedMessage | null>(null)
   const [confirmDeletePage, setConfirmDeletePage] = useState<{ id: string; hasChildren: boolean } | null>(null)
   const [homePageDeleteBlocked, setHomePageDeleteBlocked] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -647,31 +660,13 @@ export default function Builder({
     }
   }
 
-  async function handleSend() {
-    const text = input.trim()
-    if ((!text && !attachment) || busy) return
-    setInput('')
-    const currentAttachment = attachment
-    setAttachment(null)
-    addMsg('user', currentAttachment ? `${text} 📎 ${currentAttachment.name}` : text)
-
-    if (!currentAttachment && TEMPLATE_INTENT_RE.test(text)) {
-      const matchedKey = matchTemplateAlias(text)
-      if (matchedKey) {
-        loadTemplate(matchedKey)
-        return
-      }
-      addMsg(
-        'assistant',
-        "I can't pull in a premium template through chat yet. Click \"Premium Templates\" at the top of the screen to browse full custom designs, or \"Upload your own HTML\" below to bring in a site file you already have. I do have business, restaurant, and agency quick-start templates ready right now though — click one below, or tell me what to build and I'll design it from scratch."
-      )
-      return
-    }
-
+  // The actual generation call -- unchanged from what handleSend used to do
+  // inline, just extracted so both a live send (Plan Mode off, or Approve on
+  // a pending plan) and a dequeued message go through the exact same path.
+  async function runGeneration(text: string, currentAttachment: Attachment | null, isNew: boolean) {
     setBusy(true)
     setGenPhase('planning')
 
-    const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
     streamIdsRef.current = new Map()
     if (isNew) setStreamingPages([])
 
@@ -770,6 +765,108 @@ export default function Builder({
     setBusy(false)
     setGenPhase(null)
   }
+
+  // Entry point for both a live send and a dequeued message -- adds the user
+  // bubble, handles the premium-template shortcut, then either asks for a
+  // plan first (Plan Mode on) or goes straight to runGeneration.
+  async function processMessage(text: string, currentAttachment: Attachment | null) {
+    addMsg('user', currentAttachment ? `${text} 📎 ${currentAttachment.name}` : text)
+
+    if (!currentAttachment && TEMPLATE_INTENT_RE.test(text)) {
+      const matchedKey = matchTemplateAlias(text)
+      if (matchedKey) {
+        loadTemplate(matchedKey)
+        return
+      }
+      addMsg(
+        'assistant',
+        "I can't pull in a premium template through chat yet. Click \"Premium Templates\" at the top of the screen to browse full custom designs, or \"Upload your own HTML\" below to bring in a site file you already have. I do have business, restaurant, and agency quick-start templates ready right now though — click one below, or tell me what to build and I'll design it from scratch."
+      )
+      return
+    }
+
+    const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
+
+    if (!planMode) {
+      await runGeneration(text, currentAttachment, isNew)
+      return
+    }
+
+    setPlanningPlan(true)
+    try {
+      const res = await fetch('/api/builder/plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: text || `Use this attached ${currentAttachment?.kind} where it fits best.`,
+          pages: pages.map((p) => ({ name: p.name, slug: p.slug, sections: p.sections.map((s) => ({ type: s.type, data: s.data })) })),
+          activeSlug: activePage.slug,
+          theme,
+          isNew,
+          businessName,
+          businessCategory,
+          businessHours,
+          businessLocation,
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? "Couldn't put together a plan for that.")
+      setMessages((m) => [...m, { role: 'plan', text: d.plan }])
+      setPendingPlan({ text, attachment: currentAttachment })
+    } catch (err: any) {
+      addMsg('assistant', `⚠️ ${err.message}`)
+    }
+    setPlanningPlan(false)
+  }
+
+  function handleApprovePlan() {
+    if (!pendingPlan) return
+    const { text, attachment: att } = pendingPlan
+    setPendingPlan(null)
+    const isNew = pages.every((p) => p.sections.length === 0) || /build|create|make|generate|new site/i.test(text)
+    runGeneration(text, att, isNew)
+  }
+
+  function handleCancelPlan() {
+    setPendingPlan(null)
+    addMsg('assistant', "No problem — tell me what you'd like instead.")
+  }
+
+  // The single entry point the Send button / Enter key call. Nothing is ever
+  // silently dropped anymore: if something's already in flight (a real
+  // generation, or a plan being thought through), the message queues
+  // instead of no-opping. A new message always supersedes a plan that's
+  // still awaiting approval, rather than queuing behind it.
+  function handleSend() {
+    const text = input.trim()
+    if (!text && !attachment) return
+    setInput('')
+    const currentAttachment = attachment
+    setAttachment(null)
+
+    if (pendingPlan) setPendingPlan(null)
+
+    if (busy || planningPlan) {
+      if (queue.length >= 50) {
+        addMsg('assistant', "You've got 50 messages queued already — that's the limit for now. Wait for a few of those to finish before adding more.")
+        return
+      }
+      setQueue((q) => [...q, { text, attachment: currentAttachment }])
+      return
+    }
+
+    processMessage(text, currentAttachment)
+  }
+
+  // Automatically process the next queued message once nothing else is in
+  // flight -- this is what makes the queue actually a queue instead of just
+  // a place messages sit forever.
+  useEffect(() => {
+    if (busy || planningPlan || queue.length === 0) return
+    const [next, ...rest] = queue
+    setQueue(rest)
+    processMessage(next.text, next.attachment)
+  }, [busy, planningPlan, queue])
 
   async function handleSave() {
     setSaving(true)
@@ -883,6 +980,10 @@ export default function Builder({
               <option value="gradient" style={OPTION_STYLE}>Gradient</option>
             </select>
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 cursor-pointer" title="When on, Sky proposes a short plan and waits for your approval before actually building anything">
+            <input type="checkbox" checked={planMode} onChange={(e) => setPlanMode(e.target.checked)} className="cursor-pointer" />
+            Plan Mode
+          </label>
           {(publishMsg ?? saveMsg) && <span className="text-xs text-slate-500 dark:text-zinc-400">{publishMsg ?? saveMsg}</span>}
           <button onClick={() => setShowProfile(true)} className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 text-xs font-semibold">
             Business Profile
@@ -935,12 +1036,41 @@ export default function Builder({
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${m.role === 'user' ? 'bg-[#1a56db] text-white' : 'bg-slate-100 border border-slate-200 text-slate-700 dark:bg-[#131b2a] dark:border-zinc-800 dark:text-zinc-200'}`}>
-                  {m.text}
+                <div
+                  className={
+                    m.role === 'user'
+                      ? 'max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed bg-[#1a56db] text-white'
+                      : m.role === 'plan'
+                        ? 'max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed bg-amber-50 border border-amber-300 text-slate-700 dark:bg-amber-950/30 dark:border-amber-700/50 dark:text-zinc-200'
+                        : 'max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed bg-slate-100 border border-slate-200 text-slate-700 dark:bg-[#131b2a] dark:border-zinc-800 dark:text-zinc-200'
+                  }
+                >
+                  {m.role === 'plan' && <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">Plan</div>}
+                  <div className="whitespace-pre-line">{m.text}</div>
+                  {m.role === 'plan' && i === messages.length - 1 && pendingPlan && (
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={handleApprovePlan} className="px-2.5 py-1 rounded-lg bg-[#f59e0b] text-[#1a1200] text-[11px] font-semibold">
+                        Approve & Build
+                      </button>
+                      <button onClick={handleCancelPlan} className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-zinc-600 text-[11px] font-semibold">
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+            {planningPlan && <div className="text-xs text-slate-400 dark:text-zinc-500">Sky is thinking about a plan…</div>}
             {busy && <div className="text-xs text-slate-400 dark:text-zinc-500">{GEN_PHASE_LABELS[genPhase ?? 'building']}</div>}
+            {queue.map((q, i) => (
+              <div key={`queued-${i}`} className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed border border-dashed border-slate-300 dark:border-zinc-600 text-slate-500 dark:text-zinc-400 flex items-center gap-2">
+                  <span className="truncate">{q.attachment ? `${q.text} 📎 ${q.attachment.name}` : q.text}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-500 shrink-0">Queued</span>
+                  <button onClick={() => setQueue((qs) => qs.filter((_, idx) => idx !== i))} title="Remove from queue" className="text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300 shrink-0">✕</button>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="p-3 border-t border-slate-200 dark:border-zinc-800">
@@ -1015,7 +1145,7 @@ export default function Builder({
                 disabled={outOfCredits}
                 className="flex-1 bg-white border border-slate-300 dark:bg-[#131b2a] dark:border-zinc-700 rounded-xl px-3 py-2 text-xs outline-none resize-none disabled:opacity-50"
               />
-              <button onClick={handleSend} disabled={busy || outOfCredits || uploadingFile} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
+              <button onClick={handleSend} disabled={outOfCredits || uploadingFile} title={busy || planningPlan ? "Sky's still working on the last one — this will queue" : undefined} className="px-3 rounded-xl bg-[#1a56db] text-white text-xs font-semibold disabled:opacity-50">
                 Send
               </button>
             </div>
