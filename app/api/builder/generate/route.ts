@@ -405,6 +405,7 @@ export async function POST(req: Request) {
       activeSlug,
       theme,
       isNew,
+      explicitStyle,
       businessName,
       businessCategory,
       businessHours,
@@ -418,7 +419,9 @@ export async function POST(req: Request) {
     }
 
     const { userPrompt, currentPages, currentTheme } = buildUserPrompt({
-      prompt, pages, activeSlug, theme, isNew, businessName, businessCategory, businessHours, businessLocation, attachmentUrl, attachmentKind,
+      prompt, pages, activeSlug, theme, isNew,
+      explicitStyle: isStylePresetKey(explicitStyle) ? explicitStyle : null,
+      businessName, businessCategory, businessHours, businessLocation, attachmentUrl, attachmentKind,
     })
 
     // gpt-5.6-luna's 1.05M-token context comfortably fits the system prompt, this prompt, and

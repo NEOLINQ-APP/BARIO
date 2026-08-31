@@ -1,5 +1,5 @@
 import { type Section } from '@/lib/openai'
-import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey } from '@/lib/stylePresets'
+import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey, type StylePresetKey } from '@/lib/stylePresets'
 
 // Shared between app/api/builder/generate/route.ts and app/api/builder/
 // plan/route.ts. A Next.js route.ts file can only export HTTP handlers and
@@ -76,13 +76,15 @@ Your explanation should teach the user something about *why* the change works (e
 // both the real generate call and the Plan Mode preview call, so a plan
 // reflects the exact same grounding the real build would use.
 export function buildUserPrompt({
-  prompt, pages, activeSlug, theme, isNew, businessName, businessCategory, businessHours, businessLocation, attachmentUrl, attachmentKind,
+  prompt, pages, activeSlug, theme, isNew, explicitStyle, businessName, businessCategory, businessHours, businessLocation, attachmentUrl, attachmentKind,
 }: {
   prompt: string
   pages: unknown
   activeSlug?: string | null
   theme: unknown
   isNew: boolean
+  /** User explicitly picked this style in the new-site intake step — overrides the system prompt's "auto-pick a preset" instruction for this one build. */
+  explicitStyle?: StylePresetKey | null
   businessName?: string | null
   businessCategory?: string | null
   businessHours?: string | null
@@ -120,8 +122,16 @@ export function buildUserPrompt({
       ? `\n\nThe user attached a real ${attachmentKind} file at this URL: ${attachmentUrl}`
       : ''
 
+  // Explicit style from the new-site intake step overrides the system
+  // prompt's default "pick whichever preset best fits the business"
+  // instruction for this one build — stated plainly so it isn't just
+  // silently ignored by that broader instruction.
+  const styleLine = isNew && explicitStyle
+    ? `\n\nThe user explicitly chose the "${explicitStyle}" style preset (${STYLE_PRESETS[explicitStyle].vibe}) — use it as-is, do not pick a different preset.`
+    : ''
+
   const userPrompt = isNew
-    ? `${businessContext}${attachmentLine}\n\nBuild a new website. The user wants: "${prompt}"`
+    ? `${businessContext}${attachmentLine}${styleLine}\n\nBuild a new website. The user wants: "${prompt}"`
     : `${businessContext}${attachmentLine}\n\nEdit the existing website. The user wants: "${prompt}"\n\nCurrently viewing page (slug): "${activeSlug ?? ''}"\n\nCurrent theme:\n${JSON.stringify(currentTheme)}\n\nCurrent pages:\n${JSON.stringify(currentPages)}`
 
   return { userPrompt, currentPages, currentTheme }

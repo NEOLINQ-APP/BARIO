@@ -7,6 +7,7 @@ import './builder-sections.css'
 import ProfileMenu from '@/components/ProfileMenu'
 import PublishPanel from '@/components/PublishPanel'
 import BusinessProfilePanel from '@/components/BusinessProfilePanel'
+import NewSiteIntake from '@/components/NewSiteIntake'
 import { buildSiteHtml, backgroundVars } from '@/lib/renderSite'
 import { STYLE_PRESETS, STYLE_PRESET_KEYS, DEFAULT_STYLE_PRESET, isStylePresetKey, type StylePresetKey } from '@/lib/stylePresets'
 
@@ -319,6 +320,11 @@ export default function Builder({
   const [businessHours, setBusinessHours] = useState(initialBusinessHours)
   const [businessLocation, setBusinessLocation] = useState(initialBusinessLocation)
   const [showProfile, setShowProfile] = useState(false)
+  // Shown once for a genuinely blank new site, in place of the bare prompt
+  // box (see NewSiteIntake) -- local-only, not persisted, so it never
+  // reappears once dismissed (skipped or built) even if the site stays
+  // blank for some other reason later.
+  const [dismissedIntake, setDismissedIntake] = useState(false)
   const [showPublish, setShowPublish] = useState(false)
   const [credits, setCredits] = useState(initialCredits)
   const unlimitedCredits = credits === -1
@@ -663,7 +669,7 @@ export default function Builder({
   // The actual generation call -- unchanged from what handleSend used to do
   // inline, just extracted so both a live send (Plan Mode off, or Approve on
   // a pending plan) and a dequeued message go through the exact same path.
-  async function runGeneration(text: string, currentAttachment: Attachment | null, isNew: boolean) {
+  async function runGeneration(text: string, currentAttachment: Attachment | null, isNew: boolean, styleOverride?: StylePresetKey | null) {
     setBusy(true)
     setGenPhase('planning')
 
@@ -698,6 +704,7 @@ export default function Builder({
           activeSlug: activePage.slug,
           theme,
           isNew,
+          explicitStyle: styleOverride ?? null,
           businessName,
           businessCategory,
           businessHours,
@@ -764,6 +771,16 @@ export default function Builder({
     setStreamingPages(null)
     setBusy(false)
     setGenPhase(null)
+  }
+
+  // Submits the NewSiteIntake form -- bypasses processMessage's plan-mode/
+  // queueing logic (not relevant for the very first build of a blank site)
+  // and calls runGeneration directly, threading the chosen style through as
+  // an explicit override so Sky doesn't fall back to auto-picking one.
+  function handleIntakeBuild(promptText: string, styleKey: StylePresetKey | null, logo: Attachment | null) {
+    setDismissedIntake(true)
+    addMsg('user', logo ? `${promptText} 📎 ${logo.name}` : promptText)
+    runGeneration(promptText, logo, true, styleKey)
   }
 
   // Entry point for both a live send and a dequeued message -- adds the user
@@ -925,8 +942,26 @@ export default function Builder({
     a.click()
   }
 
+  const isBlankSite = pages.every((p) => p.sections.length === 0)
+
   return (
-    <main className="h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-[#0b111c] dark:text-zinc-100">
+    <main className="h-screen flex flex-col relative bg-slate-50 text-slate-900 dark:bg-[#0b111c] dark:text-zinc-100">
+      {isBlankSite && !dismissedIntake && (
+        <div className="absolute inset-0 z-40 flex bg-slate-50 dark:bg-[#0b111c]">
+          <NewSiteIntake
+            businessName={businessName}
+            setBusinessName={setBusinessName}
+            businessCategory={businessCategory}
+            setBusinessCategory={setBusinessCategory}
+            businessLocation={businessLocation}
+            setBusinessLocation={setBusinessLocation}
+            businessHours={businessHours}
+            setBusinessHours={setBusinessHours}
+            onBuild={handleIntakeBuild}
+            onSkip={() => setDismissedIntake(true)}
+          />
+        </div>
+      )}
       <div className="flex items-center gap-4 h-14 px-5 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
         <a href="/dashboard" className="text-sm text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200">← Dashboard</a>
         <a href={`/build/templates${currentSiteId ? `?site=${currentSiteId}` : ''}`} className="text-sm text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200">Premium Templates</a>
