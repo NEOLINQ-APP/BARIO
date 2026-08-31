@@ -13,20 +13,24 @@ const REQUIRED_CONTACT_FIELDS: (keyof RegistrantContact)[] = [
   'firstName', 'lastName', 'address1', 'city', 'stateProvince', 'postalCode', 'country', 'phone', 'emailAddress',
 ]
 
-// Temporarily held: the registrar backend is still pointed at Namecheap's
-// sandbox (see [[bario_domain_reseller]]), and Stripe is in live mode — a
-// real customer could be really charged for a domain that never actually
-// registers. Blocked here at the API level (not just hidden in the UI) so
-// this can never be reached by calling the route directly either. Remove
-// once the registrar proxy is switched to production Namecheap credentials
-// and a real end-to-end purchase has been verified.
+// Temporarily held: the real purchase flow (Stripe charge → webhook →
+// registrar.register()) has never been run end-to-end with real money —
+// only against Namecheap's fake-money sandbox, before the 2026-08-12 swap to
+// ResellerClub (see [[bario_domain_reseller]] and TODO.md). ResellerClub's
+// /check and /pricing are confirmed live and real; registration itself is
+// not yet proven. Stripe is in live mode, so an unverified bug here could
+// really charge a customer for a domain that never registers. Blocked here
+// at the API level (not just hidden in the UI) so this can never be reached
+// by calling the route directly either. Remove once a real paid test
+// registration has actually been run and verified end-to-end.
 const DOMAIN_PURCHASE_ON_HOLD = true
 
 // Starts a domain purchase — creates a pending order and a real Stripe
 // Checkout session. The domain is NOT registered here; that only happens
 // once Stripe confirms payment (app/api/webhooks/stripe/route.ts), so a
 // customer can never end up charged-but-not-registered or registered-for-
-// free. Currently pointed at Namecheap's sandbox — see [[bario_domain_reseller]].
+// free. Registrar backend is ResellerClub (see lib/registrar.ts) — see
+// [[bario_domain_reseller]].
 export async function POST(req: Request) {
   if (DOMAIN_PURCHASE_ON_HOLD) {
     return NextResponse.json(
@@ -79,6 +83,15 @@ export async function POST(req: Request) {
     const retailCents = Math.round(retail * 100)
 
     const id = randomUUID()
+    // KNOWN BUG, not yet fixed: NAMECHEAP_ENVIRONMENT doesn't exist anywhere
+    // in Vercel's env (confirmed via `vercel env ls production` 2026-08-30 —
+    // only REGISTRAR_PROXY_URL/SECRET and Reseller_Club_Api do) — this always
+    // silently falls back to the literal string 'sandbox', regardless of
+    // what ResellerClub is actually doing. Every domain_orders row's
+    // `environment` column is currently meaningless. Left as-is rather than
+    // guessing a replacement — the correct value depends on whether
+    // registrar-proxy (the VPS-side service, not in this repo) exposes a
+    // real sandbox/production distinction for ResellerClub at all.
     await sql`
       INSERT INTO domain_orders (id, user_id, site_id, domain, years, status, environment, contact_json, retail_price_cents)
       VALUES (${id}, ${session.userId}, ${siteId}, ${domain}, ${years}, 'pending_payment', ${process.env.NAMECHEAP_ENVIRONMENT ?? 'sandbox'}, ${JSON.stringify(contact)}, ${retailCents})

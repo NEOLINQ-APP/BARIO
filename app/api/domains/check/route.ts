@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/errors'
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 
 // 2026-08-29: switched from a direct rdap.org fetch to the real
-// registrar-backed check (same VPS-proxied Namecheap path /api/domains/
+// registrar-backed check (same VPS-proxied ResellerClub path /api/domains/
 // search already uses) -- rdap.org was returning a 403 Cloudflare
 // bot-protection page to every request from Vercel's serverless IPs,
 // making every domain/every TLD report 'unknown' regardless of real

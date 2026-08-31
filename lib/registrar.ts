@@ -1,11 +1,14 @@
 // Client for BARIO's own registrar-proxy service (a small Express app on the
-// main VPS, registrar.bario.ca) — exists solely because Namecheap's API
+// main VPS, registrar.bario.ca) — exists solely because the registrar's API
 // requires the calling IP to be pre-whitelisted on the account, and Vercel
 // serverless functions have no fixed outbound IP. The proxy runs on the one
-// box whose IP actually is whitelisted and forwards calls to Namecheap,
-// parsing its XML into JSON along the way. See lib/mailcow.ts/lib/hetzner.ts
-// for the same "Vercel calls out to an internal API it doesn't run itself"
-// shape already used elsewhere in this codebase.
+// box whose IP actually is whitelisted and forwards calls to the registrar.
+// Originally built against Namecheap; swapped to ResellerClub 2026-08-12
+// (Namecheap's production API access was stuck in a slow manual-approval
+// queue) — this file's own interface didn't need to change, only the proxy's
+// internals did (see TODO.md's 2026-08-12 entry). See lib/mailcow.ts/
+// lib/hetzner.ts for the same "Vercel calls out to an internal API it
+// doesn't run itself" shape already used elsewhere in this codebase.
 function proxyUrl() {
   if (!process.env.REGISTRAR_PROXY_URL) throw new Error('REGISTRAR_PROXY_URL is not set')
   return process.env.REGISTRAR_PROXY_URL

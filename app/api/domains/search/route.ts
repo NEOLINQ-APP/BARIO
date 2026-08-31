@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/errors'
 
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 
-// Real registrar-backed domain search (via lib/registrar.ts's Namecheap
+// Real registrar-backed domain search (via lib/registrar.ts's ResellerClub
 // proxy) — distinct from /api/domains/check, which is the public homepage
 // teaser widget backed by RDAP (no pricing, no purchase path). This one
 // actually reflects what a customer could buy, but still just returns
