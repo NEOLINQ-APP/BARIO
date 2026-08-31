@@ -19,6 +19,7 @@ export const BARIO_ONE_CALL_LOG_ORG_IDS: Record<string, string> = {
   sunbuilt: '2bef423d-737a-4d79-b30c-5ced1fe9ffcb',
   unique: 'f7e3dc4b-fb3c-41eb-a24d-6339491c927c',
   bario: '184e65d3-faf9-4a21-8454-958f106fea06',
+  hydroblasters: '6049f2ce-74d6-4ff9-8294-adc14fdb7cf2',
 }
 
 function last10Digits(raw: string): string {

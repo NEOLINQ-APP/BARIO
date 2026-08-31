@@ -13,7 +13,7 @@ import { BARIO_ONE_CALL_LOG_ORG_IDS, findOrCreateBoCustomerByEmail, logBoWebLead
 // auth, since a real anonymous visitor has no Bario session. Repointed
 // 2026-08-18 from AFC's/Sunbuilt's standalone Twenty CRM (now deleted) to
 // their real Bario One CRM.
-const ALLOWED_BUSINESS_KEYS = new Set(['afc', 'sunbuilt'])
+const ALLOWED_BUSINESS_KEYS = new Set(['afc', 'sunbuilt', 'hydroblasters'])
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
