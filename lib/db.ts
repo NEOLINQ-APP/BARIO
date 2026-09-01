@@ -46,7 +46,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v22-2026-08-30-backup-addon'
+const CURRENT_SCHEMA_VERSION = 'v23-2026-09-01-service-catalog-driver-locations'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -3059,6 +3059,75 @@ async function ensureSchema() {
   `
   await sql`CREATE INDEX IF NOT EXISTS miko_followup_drafts_org_status_idx ON miko_followup_drafts (organization_id, status)`
 
+  // Service catalog (2026-09-01) -- the single authoritative source for a
+  // Bario One org's packages/add-ons: price, price type (fixed/starting/
+  // custom_quote -- a fixed price is quotable as-is, 'starting' means the
+  // number is a floor that can go up with condition/scope, 'custom_quote'
+  // has no priceCents at all and must always be quoted as "contact us"),
+  // estimated duration (also drives booking-availability logic, e.g.
+  // HydroBlasters' short-job-vs-long-job same-day rule), and inclusions/
+  // exclusions so a public-facing chat assistant or booking UI never has to
+  // hardcode pricing copy that can drift out of sync with what's actually
+  // sold. slug is unique per org, not globally, so two orgs can each have
+  // their own 'signature-detail' without colliding.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_service_catalog (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      category TEXT NOT NULL,
+      subcategory TEXT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      price_type TEXT NOT NULL DEFAULT 'fixed',
+      price_cents INTEGER,
+      estimated_duration_hours NUMERIC,
+      description TEXT,
+      inclusions_json TEXT NOT NULL DEFAULT '[]',
+      exclusions_json TEXT NOT NULL DEFAULT '[]',
+      is_addon BOOLEAN NOT NULL DEFAULT false,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_service_catalog_org_idx ON bo_service_catalog (organization_id)`
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_service_catalog_org_slug_unique ON bo_service_catalog (organization_id, slug)`
+
+  // Field GPS tracking (2026-09-01) -- built for HydroBlasters' "see where
+  // my vehicle is" request but kept generic/org-scoped like everything else
+  // in Bario One rather than a one-off. One row per employee holds only
+  // their LATEST position (upserted on every ping, not a full history
+  // table) since "where is my driver right now" is the actual product
+  // requirement, not a location history log -- keeps the table tiny
+  // regardless of ping frequency. Pings are only ever sent while an
+  // employee has an active job (see bo_appointments.status = 'in_progress'
+  // and the driver tracking page), same "no toggle needed, starts
+  // automatically with the job" behavior as AFC Logistics' own driver
+  // portal (a separate, non-Bario-One app) already does.
+  await sql`
+    CREATE TABLE IF NOT EXISTS bo_driver_locations (
+      employee_id TEXT PRIMARY KEY REFERENCES bo_employees(id),
+      organization_id TEXT NOT NULL REFERENCES bo_organizations(id),
+      appointment_id TEXT REFERENCES bo_appointments(id),
+      lat DOUBLE PRECISION NOT NULL,
+      lng DOUBLE PRECISION NOT NULL,
+      accuracy_meters DOUBLE PRECISION,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS bo_driver_locations_org_idx ON bo_driver_locations (organization_id)`
+
+  // Arrival detection: set once a driver's live ping lands within the
+  // geofence radius of the job's service address (see
+  // lib/driverArrival.ts) -- a real timestamp, not a manual "I'm here"
+  // button, so it can't be fudged. service_lat/lng cache the one-time
+  // geocode of bo_appointments.location so arrival checks don't re-geocode
+  // on every single ping.
+  await sql`ALTER TABLE bo_appointments ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMPTZ`
+  await sql`ALTER TABLE bo_appointments ADD COLUMN IF NOT EXISTS service_lat DOUBLE PRECISION`
+  await sql`ALTER TABLE bo_appointments ADD COLUMN IF NOT EXISTS service_lng DOUBLE PRECISION`
+
   await sql`
     INSERT INTO platform_settings (key, value, updated_at) VALUES ('schema_version', ${CURRENT_SCHEMA_VERSION}, now())
     ON CONFLICT (key) DO UPDATE SET value = ${CURRENT_SCHEMA_VERSION}, updated_at = now()
@@ -4021,6 +4090,41 @@ export type BoAppointment = {
   notes: string | null
   created_by_user_id: string | null
   created_at: string
+  updated_at: string
+  arrived_at: string | null
+  service_lat: number | null
+  service_lng: number | null
+}
+
+export type BoServiceCatalogPriceType = 'fixed' | 'starting' | 'custom_quote'
+
+export type BoServiceCatalogItem = {
+  id: string
+  organization_id: string
+  category: string
+  subcategory: string | null
+  name: string
+  slug: string
+  price_type: BoServiceCatalogPriceType
+  price_cents: number | null
+  estimated_duration_hours: number | null
+  description: string | null
+  inclusions_json: string
+  exclusions_json: string
+  is_addon: boolean
+  sort_order: number
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type BoDriverLocation = {
+  employee_id: string
+  organization_id: string
+  appointment_id: string | null
+  lat: number
+  lng: number
+  accuracy_meters: number | null
   updated_at: string
 }
 

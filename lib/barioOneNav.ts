@@ -98,6 +98,7 @@ export const BARIO_ONE_NAV: BarioOneNavSection[] = [
       { href: '/dashboard/bario-one/appointments', label: 'Booking', moduleKey: 'crm', status: 'real' },
       { href: '/dashboard/bario-one/appointments/services', label: 'Services', moduleKey: 'crm', status: 'comingSoon' },
       { href: '/dashboard/bario-one/appointments/staff', label: 'Staff', moduleKey: 'crm', status: 'comingSoon' },
+      { href: '/dashboard/bario-one/tracking', label: 'Field Tracking', moduleKey: 'employees', status: 'real' },
     ],
   },
   {
