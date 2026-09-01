@@ -37,7 +37,10 @@ export async function GET(req: Request) {
       slug: r.slug,
       priceType: r.price_type,
       priceCents: r.price_cents,
-      estimatedDurationHours: r.estimated_duration_hours,
+      // NUMERIC column -- postgres.js returns it as a string; coerce so
+      // clients get a real number (see the booking route's own comment for
+      // the concrete bug this avoids).
+      estimatedDurationHours: r.estimated_duration_hours == null ? null : Number(r.estimated_duration_hours),
       description: r.description,
       inclusions: JSON.parse(r.inclusions_json || '[]'),
       exclusions: JSON.parse(r.exclusions_json || '[]'),

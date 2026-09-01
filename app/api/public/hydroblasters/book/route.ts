@@ -69,7 +69,14 @@ export async function POST(req: Request) {
     const totalCents = requiresQuote ? null : items.reduce((sum, i) => sum + (i.price_cents ?? 0), 0)
     // Fallback duration for an item with no estimate on file — errs toward
     // the safe/long side so we never accidentally under-book a slot.
-    const totalDurationHours = items.reduce((sum, i) => sum + (i.estimated_duration_hours ?? 4), 0)
+    // NUMERIC columns come back from postgres.js as strings (to avoid
+    // float-precision loss), not numbers — Number(...) here is required or
+    // this silently becomes string concatenation ("2" + "3.5" = "23.5")
+    // instead of addition, which was confirmed live: it either produced a
+    // wildly wrong duration or, when concatenation yielded an invalid
+    // numeric literal (two decimal points), NaN -> an Invalid Date -> a
+    // real DB insert failure (500) further down.
+    const totalDurationHours = items.reduce((sum, i) => sum + Number(i.estimated_duration_hours ?? 4), 0)
     const candidateEnd = new Date(candidateStart.getTime() + totalDurationHours * 60 * 60 * 1000)
 
     const existingRows = (await sql`
