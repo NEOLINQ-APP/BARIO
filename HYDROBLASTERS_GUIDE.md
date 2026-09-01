@@ -26,6 +26,14 @@ Verified live end-to-end 2026-08-31: a real Playwright run through the actual bo
 
 **Known limitation carried over from the original design**: the Step 4 price summary ($397.94 CAD) is a static placeholder — it doesn't actually price off the category/subcategory/add-on selected in Step 1. Real numbers still need a pricing engine; not built this pass.
 
+## Image audit — 2026-09-01
+
+The client-supplied file's Unsplash URLs were partly hallucinated (real-looking IDs that don't exist) and partly just wrong photos. Found by checking every `<img>`/background-image URL's real HTTP status, not just eyeballing the page:
+- **2 hard 404s** (hero banner + "Automotive & Light Trucks" card shared one broken id; "Heavy Equipment & Machinery" card) — one was a single-character typo away from a real, relevant photo (`f9917d1beb6d` vs. the real `f9917d1eea6f`), suggesting that's literally how it broke.
+- **4 store product images loaded fine (200 OK) but showed the wrong thing entirely** — "HydroShield Ceramic Wash" was a jar of toothbrushes, "BlastOff Degreaser" was blister-pack pills, "Air Freshener 3-Pack" was a wrapped gift box, and the microfiber towel photo was an unrelated cleaning-gloves shot. A pure HTTP-status check would have called all 4 "working" — worth remembering that "loads" and "correct" are different checks.
+
+All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
+
 ## Domain cutover (hydroblasters.ca)
 
 Not connected yet — user chose to stage on the `.bario.ca` subdomain first. To connect the real domain: confirm DNS/registrar access for `hydroblasters.ca`, then use `/api/admin/users/connect-domain` (Cloudflare zone + Vercel cert, same flow as every other client site) followed by `/api/admin/users/verify-domain` — **DNS pointing correctly does NOT automatically flip `domain_status` to `verified`**, the verify step has to actually run or the site 404s despite correct DNS (bit AFC/Sunbuilt/rapturemedia before).
