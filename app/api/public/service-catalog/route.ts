@@ -10,11 +10,19 @@ import type { BoServiceCatalogItem } from '@/lib/db'
 // the chat assistant can never show conflicting numbers. Reuses the same
 // businessKey allowlist as /api/public/site-lead rather than a separate
 // one — one place that maps "which public key maps to which org."
+// CORS-open like site-lead — called cross-origin from a client's own
+// raw_html site (e.g. hydroblasters.bario.ca calling www.bario.ca).
+const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 export async function GET(req: Request) {
   try {
     const businessKey = new URL(req.url).searchParams.get('businessKey') ?? ''
     const orgId = BARIO_ONE_CALL_LOG_ORG_IDS[businessKey]
-    if (!orgId) return NextResponse.json({ error: 'Unknown business' }, { status: 404 })
+    if (!orgId) return NextResponse.json({ error: 'Unknown business' }, { status: 404, headers: CORS_HEADERS })
 
     const sql = await db()
     const rows = (await sql`
@@ -38,9 +46,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json(
       { ok: true, items },
-      { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120' } }
+      { headers: { ...CORS_HEADERS, 'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120' } }
     )
   } catch (err) {
-    return errorResponse(err)
+    const res = errorResponse(err)
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+    return res
   }
 }

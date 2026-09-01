@@ -16,13 +16,29 @@ import type { BoServiceCatalogItem } from '@/lib/db'
 // contact-style forms don't need any of this, hence staying on site-lead.
 const ORG_ID = BARIO_ONE_CALL_LOG_ORG_IDS.hydroblasters
 
+// CORS-open — called cross-origin from hydroblasters.bario.ca (and later
+// hydroblasters.ca) to www.bario.ca, same as every other /api/public/* route.
+const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: CORS_HEADERS })
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 export async function POST(req: Request) {
   try {
-    if (!ORG_ID) return NextResponse.json({ error: 'Booking is not configured' }, { status: 500 })
+    if (!ORG_ID) return json({ error: 'Booking is not configured' }, 500)
     const sql = await db()
 
     const ipOk = await rateLimit(sql, `hydro-book:ip:${clientIp(req)}`, 10, 60 * 60)
-    if (!ipOk) return rateLimitResponse()
+    if (!ipOk) {
+      const res = rateLimitResponse()
+      Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+      return res
+    }
 
     const body = await req.json()
     const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 200) : ''
@@ -34,20 +50,20 @@ export async function POST(req: Request) {
     const preferredDateTime = typeof body?.preferredDateTime === 'string' ? body.preferredDateTime : ''
     const extraNotes = typeof body?.notes === 'string' ? body.notes.trim().slice(0, 1000) : ''
 
-    if (!name || !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'A valid name and email are required' }, { status: 400 })
-    if (!phone) return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
-    if (catalogItemIds.length === 0) return NextResponse.json({ error: 'Select at least one service' }, { status: 400 })
-    if (!preferredDateTime) return NextResponse.json({ error: 'Preferred date/time is required' }, { status: 400 })
+    if (!name || !/^\S+@\S+\.\S+$/.test(email)) return json({ error: 'A valid name and email are required' }, 400)
+    if (!phone) return json({ error: 'Phone number is required' }, 400)
+    if (catalogItemIds.length === 0) return json({ error: 'Select at least one service' }, 400)
+    if (!preferredDateTime) return json({ error: 'Preferred date/time is required' }, 400)
 
     const candidateStart = new Date(preferredDateTime)
     if (isNaN(candidateStart.getTime()) || candidateStart.getTime() < Date.now()) {
-      return NextResponse.json({ error: 'Please choose a valid future date/time' }, { status: 400 })
+      return json({ error: 'Please choose a valid future date/time' }, 400)
     }
 
     const items = (await sql`
       SELECT * FROM bo_service_catalog WHERE organization_id = ${ORG_ID} AND id = ANY(${catalogItemIds}) AND active = true
     `) as unknown as BoServiceCatalogItem[]
-    if (items.length === 0) return NextResponse.json({ error: 'Selected service(s) not found' }, { status: 400 })
+    if (items.length === 0) return json({ error: 'Selected service(s) not found' }, 400)
 
     const requiresQuote = items.some((i) => i.price_type === 'custom_quote')
     const totalCents = requiresQuote ? null : items.reduce((sum, i) => sum + (i.price_cents ?? 0), 0)
@@ -67,11 +83,11 @@ export async function POST(req: Request) {
 
     const availability = checkBookingSpacing(candidateStart, totalDurationHours, existing)
     if (!availability.allowed) {
-      return NextResponse.json({ error: availability.reason }, { status: 409 })
+      return json({ error: availability.reason }, 409)
     }
 
     const customerId = await findOrCreateBoCustomerByEmail(sql, ORG_ID, email, name, phone)
-    if (!customerId) return NextResponse.json({ error: 'Could not create customer record' }, { status: 500 })
+    if (!customerId) return json({ error: 'Could not create customer record' }, 500)
 
     const serviceNames = items.map((i) => (i.subcategory ? `${i.name} (${i.subcategory})` : i.name))
     const dealTitle = serviceNames[0] ?? 'Booking'
@@ -101,7 +117,7 @@ export async function POST(req: Request) {
     ].filter(Boolean)
     await logBoWebLeadNote(sql, ORG_ID, customerId, 'Booking Wizard', noteLines.join('\n'))
 
-    return NextResponse.json({
+    return json({
       ok: true,
       appointmentId,
       startsAt: candidateStart.toISOString(),
@@ -110,6 +126,8 @@ export async function POST(req: Request) {
       requiresQuote,
     })
   } catch (err) {
-    return errorResponse(err)
+    const res = errorResponse(err)
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+    return res
   }
 }

@@ -16,6 +16,14 @@ import type { BoServiceCatalogItem } from '@/lib/db'
 // separate copy of the numbers to keep in sync.
 const ORG_ID = BARIO_ONE_CALL_LOG_ORG_IDS.hydroblasters
 
+// CORS-open — called cross-origin from hydroblasters.bario.ca (and later
+// hydroblasters.ca) to www.bario.ca, same as every other /api/public/* route.
+const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 function money(cents: number | null): string {
   if (cents == null) return 'N/A'
   return `$${(cents / 100).toFixed(2)}`
@@ -85,22 +93,26 @@ const MAX_HISTORY = 12
 
 export async function POST(req: Request) {
   try {
-    if (!ORG_ID) return NextResponse.json({ error: 'Hydro is not configured' }, { status: 500 })
+    if (!ORG_ID) return NextResponse.json({ error: 'Hydro is not configured' }, { status: 500, headers: CORS_HEADERS })
 
     const sql = await db()
     const ok = await rateLimit(sql, `hydro-chat:ip:${clientIp(req)}`, 30, 60 * 60)
-    if (!ok) return rateLimitResponse()
+    if (!ok) {
+      const res = rateLimitResponse()
+      Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+      return res
+    }
 
     const body = await req.json().catch(() => null)
     const incoming = Array.isArray(body?.messages) ? body.messages : null
     if (!incoming || incoming.length === 0) {
-      return NextResponse.json({ error: 'No message provided' }, { status: 400 })
+      return NextResponse.json({ error: 'No message provided' }, { status: 400, headers: CORS_HEADERS })
     }
     const cleaned = incoming
       .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string' && m.content.trim())
       .slice(-MAX_HISTORY)
       .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: String(m.content).slice(0, MAX_MESSAGE_LENGTH) }))
-    if (cleaned.length === 0) return NextResponse.json({ error: 'No message provided' }, { status: 400 })
+    if (cleaned.length === 0) return NextResponse.json({ error: 'No message provided' }, { status: 400, headers: CORS_HEADERS })
 
     const catalogRows = (await sql`
       SELECT * FROM bo_service_catalog WHERE organization_id = ${ORG_ID} AND active = true ORDER BY sort_order ASC
@@ -116,8 +128,10 @@ export async function POST(req: Request) {
     })
 
     const reply = completion.choices[0]?.message?.content?.trim() || "Sorry, I didn't quite catch that — could you rephrase?"
-    return NextResponse.json({ reply })
+    return NextResponse.json({ reply }, { headers: CORS_HEADERS })
   } catch (err) {
-    return errorResponse(err)
+    const res = errorResponse(err)
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+    return res
   }
 }
