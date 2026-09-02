@@ -54,6 +54,14 @@ The client-supplied file's Unsplash URLs were partly hallucinated (real-looking 
 
 All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
 
+## Brand wordmark + footer reorganization — 2026-09-02
+
+- **"HYDRO BLASTERS" text styling**: matched the client's own logo art (blue "HYDRO" + light-grey "BLASTERS", bold geometric caps) using the Orbitron Google Font + sampled hex colors (`#1E9EF4` / `#DCDEE2`), applied as real text (`.brand-wordmark` CSS class, not another raster image) everywhere the brand name appears as a title: header logo, footer logo, store page heading, client portal heading. Real text stays crisp at any size, unlike a raster logo graphic (see below).
+- **Nav bar moved into the footer**: the "QUICK NAVIGATION" bar (all 6 items, including the Staff/Admin login links) used to sit directly under the header — very prominent for what's really a utility/staff-access strip. Moved it into the footer, right above the copyright line, per the client's explicit request that customers shouldn't see admin/staff access prominently. Had to compensate: the bar used to provide the fixed header's top clearance (`margin-top: 70px`) for every view — moved that clearance onto `.view-container` directly so page content doesn't hide under the fixed header now that the bar isn't there.
+- **Social icons added**: Instagram/Facebook/TikTok in the footer, styled as circular icon buttons. **Links are placeholders (`href="#"`) — user said they'll create the pages and provide the real URLs later.** Update these three `<a>` tags in the footer once given.
+
+All confirmed live via Playwright: zero page errors, hero section renders correctly (not hidden under the fixed header), nav bar confirmed present in `footer` and absent from its old top-of-body location, footer screenshot checked visually.
+
 ## Real logo + favicon installed — 2026-09-02
 
 User sent real brand art (a "Hydro" mascot — that's the character's actual name, also used for the AI chat persona). Two source files (`Hydro Blasters.png`, opaque dark background; `hydro_blasters_transparent.png`, genuinely alpha-transparent despite rendering pink in some previews — verified via a real pixel/alpha histogram check, not just visually) processed with Pillow: background chroma-keyed out of the full lockup, and the mascot cropped tight (excluding the wordmark, which is illegible at small sizes) into square icon files at 16/32/180/512px. Uploaded to BARIO's media storage (`storage.bario.ca`, public URLs) rather than embedding as base64.
