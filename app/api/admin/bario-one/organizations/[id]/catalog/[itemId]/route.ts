@@ -35,13 +35,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string; it
     const inclusionsJson = Array.isArray(body.inclusions) ? JSON.stringify(body.inclusions) : existing.inclusions_json
     const exclusionsJson = Array.isArray(body.exclusions) ? JSON.stringify(body.exclusions) : existing.exclusions_json
     const active = typeof body.active === 'boolean' ? body.active : existing.active
+    const popular = typeof body.popular === 'boolean' ? body.popular : existing.popular
     const sortOrder = typeof body.sortOrder === 'number' ? body.sortOrder : existing.sort_order
 
     await sql`
       UPDATE bo_service_catalog SET
         name = ${name}, category = ${category}, subcategory = ${subcategory}, price_type = ${priceType},
         price_cents = ${priceCents}, estimated_duration_hours = ${estimatedDurationHours}, description = ${description},
-        inclusions_json = ${inclusionsJson}, exclusions_json = ${exclusionsJson}, active = ${active}, sort_order = ${sortOrder},
+        inclusions_json = ${inclusionsJson}, exclusions_json = ${exclusionsJson}, active = ${active}, popular = ${popular}, sort_order = ${sortOrder},
         updated_at = now()
       WHERE id = ${params.itemId} AND organization_id = ${params.id}
     `

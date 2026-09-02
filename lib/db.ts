@@ -46,7 +46,7 @@ function getSql() {
 // DB-touching route platform-wide, while non-DB routes stayed fast. Ship a
 // schema change and forget to bump this = a real, live "why isn't my new
 // column there" bug, not a hypothetical.
-const CURRENT_SCHEMA_VERSION = 'v23-2026-09-01-service-catalog-driver-locations'
+const CURRENT_SCHEMA_VERSION = 'v24-2026-09-02-service-catalog-popular-flag'
 
 async function ensureSchema() {
   const sql = getSql()
@@ -3091,6 +3091,7 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `
+  await sql`ALTER TABLE bo_service_catalog ADD COLUMN IF NOT EXISTS popular BOOLEAN NOT NULL DEFAULT false`
   await sql`CREATE INDEX IF NOT EXISTS bo_service_catalog_org_idx ON bo_service_catalog (organization_id)`
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS bo_service_catalog_org_slug_unique ON bo_service_catalog (organization_id, slug)`
 
@@ -4112,6 +4113,7 @@ export type BoServiceCatalogItem = {
   inclusions_json: string
   exclusions_json: string
   is_addon: boolean
+  popular: boolean
   sort_order: number
   active: boolean
   created_at: string

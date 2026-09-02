@@ -45,6 +45,7 @@ export async function GET(req: Request) {
       inclusions: JSON.parse(r.inclusions_json || '[]'),
       exclusions: JSON.parse(r.exclusions_json || '[]'),
       isAddon: r.is_addon,
+      popular: r.popular,
     }))
 
     return NextResponse.json(

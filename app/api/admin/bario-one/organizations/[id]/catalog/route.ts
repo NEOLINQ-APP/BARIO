@@ -38,6 +38,25 @@ type SeedItem = {
   inclusions?: string[]
   exclusions?: string[]
   isAddon?: boolean
+  popular?: boolean
+}
+
+// DELETE wipes an org's entire catalog — used ahead of a full-replace
+// reseed (e.g. HydroBlasters' 2026-09-02 architecture change to two
+// strictly separate divisions), since POST only upserts by slug and would
+// otherwise leave old, now-irrelevant rows behind alongside the new ones.
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const auth = await requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
+  const { sql } = auth
+
+  try {
+    const result = await sql`DELETE FROM bo_service_catalog WHERE organization_id = ${params.id}`
+    await logAdminAction(sql, { action: 'catalog-wipe', params: { orgId: params.id }, result: 'ok', triggeredBy: auth.user ? 'admin' : 'ai_autonomous' })
+    return NextResponse.json({ ok: true, deleted: (result as any).count ?? null })
+  } catch (err) {
+    return errorResponse(err)
+  }
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -59,12 +78,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       await sql`
         INSERT INTO bo_service_catalog (
           id, organization_id, category, subcategory, name, slug, price_type, price_cents,
-          estimated_duration_hours, description, inclusions_json, exclusions_json, is_addon, sort_order
+          estimated_duration_hours, description, inclusions_json, exclusions_json, is_addon, popular, sort_order
         )
         VALUES (
           ${randomUUID()}, ${params.id}, ${it.category}, ${it.subcategory ?? null}, ${it.name}, ${it.slug},
           ${it.priceType}, ${it.priceCents}, ${it.estimatedDurationHours}, ${it.description ?? null},
-          ${JSON.stringify(it.inclusions ?? [])}, ${JSON.stringify(it.exclusions ?? [])}, ${!!it.isAddon}, ${i}
+          ${JSON.stringify(it.inclusions ?? [])}, ${JSON.stringify(it.exclusions ?? [])}, ${!!it.isAddon}, ${!!it.popular}, ${i}
         )
         ON CONFLICT (organization_id, slug) DO UPDATE SET
           category = EXCLUDED.category,
@@ -77,6 +96,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           inclusions_json = EXCLUDED.inclusions_json,
           exclusions_json = EXCLUDED.exclusions_json,
           is_addon = EXCLUDED.is_addon,
+          popular = EXCLUDED.popular,
           sort_order = EXCLUDED.sort_order,
           updated_at = now()
       `
