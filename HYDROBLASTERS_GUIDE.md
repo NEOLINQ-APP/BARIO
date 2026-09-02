@@ -1,6 +1,6 @@
 # HydroBlasters.ca — Access & How-To Reference
 
-New client, onboarded 2026-08-31. Mobile pressure washing / detailing / branded supply store. Hosted on BARIO (not a separate VPS like AFC/Sunbuilt) — single-page raw-HTML site imported via the admin API, live at **https://hydroblasters.bario.ca** (custom domain `hydroblasters.ca` not yet connected — DNS/registrar access unconfirmed, see below).
+New client, onboarded 2026-08-31. Mobile pressure washing / detailing / branded supply store. Hosted on BARIO (not a separate VPS like AFC/Sunbuilt) — single-page raw-HTML site imported via the admin API. **Live at the real domain, `https://hydroblasters.ca`** (and `www.`) as of 2026-09-01 — user added the DNS records, `verify-domain` run and confirmed `verified`. Still also reachable at `https://hydroblasters.bario.ca` (same site, both resolve).
 
 ---
 
@@ -54,13 +54,9 @@ The client-supplied file's Unsplash URLs were partly hallucinated (real-looking 
 
 All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
 
-## Domain cutover (hydroblasters.ca)
+## Domain cutover (hydroblasters.ca) — DONE 2026-09-01
 
-`connect-domain` has already been run — Vercel confirms the domain is attached to this project (registrar: "Third Party", i.e. not registered through Vercel). **Still waiting on real DNS**: `hydroblasters.ca` does not currently resolve anywhere (confirmed via `curl`/`vercel domains inspect`). The Cloudflare-zone/nameserver-delegation half of connect-domain didn't succeed for this domain (`nameservers: null` in the response) — doesn't matter, the simpler path Vercel itself recommends works fine: add these two records at wherever `hydroblasters.ca`'s DNS is actually managed (its current registrar's panel, no nameserver change needed):
-- `A` record, name `@`, value `76.76.21.21`
-- `CNAME` record, name `www`, value `cname.vercel-dns.com`
-
-Once those propagate, run `/api/admin/users/verify-domain` — **DNS pointing correctly does NOT automatically flip `domain_status` to `verified`**, the verify step has to actually run or the site 404s despite correct DNS (bit AFC/Sunbuilt/rapturemedia before).
+`connect-domain` run (registrar: "Third Party" — not registered through Vercel/BARIO), user added the two DNS records at their registrar (A `@` -> `76.76.21.21`, CNAME `www` -> `cname.vercel-dns.com`; the Cloudflare-zone/nameserver-delegation half of connect-domain never populated for this domain, `nameservers: null` — didn't matter, the direct-A-record path works fine), `verify-domain` run and returned `verified: true`. Confirmed live via `curl` (both `hydroblasters.ca` and `www.` return `200`) and a real Playwright pass through the booking wizard on the actual production domain (catalog loads, no page errors). `domain_status` is now `'verified'` in the `sites` table.
 
 ## Deploy note
 
