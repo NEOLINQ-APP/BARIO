@@ -54,6 +54,31 @@ The client-supplied file's Unsplash URLs were partly hallucinated (real-looking 
 
 All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
 
+## Full site rebuild — two-division architecture — 2026-09-02
+
+Client sent a large spec asking for a Next.js/React rebuild with a strict two-division IA. Clarified with the user first (real infra decision, not a content tweak): kept the current hosting (raw_html on BARIO, same domain/CRM/GPS-tracking work already shipped) rather than standing up a separate Next.js/Vercel project — same visual/interactive result, no new infrastructure. User confirmed ("why don't we use both" + showed the existing wizard as the base to build from).
+
+**Architecture — "CRITICAL... never mix" honored throughout**:
+- **HB - Pressure Washing** = properties only (Residential/Commercial/Industrial sub-tabs)
+- **HB - Mobile Detailing** = vehicles/equipment only (Automotive/Marine/Motorcycle/Semi Truck/Heavy Equipment sub-tabs)
+- Old mixed "Our Full Mobile Capabilities" 6-card grid (which had property AND vehicle services in one grid) removed entirely — was a real violation of the client's own rule, predating this rebuild.
+
+**New catalog** (`lib/hydroblastersCatalogV2.ts`, 55 items) fully replaces the old 140-item one — different structure, different prices for several packages. Added real DB support for a `popular` flag (`bo_service_catalog.popular`, new schema version `v24`) so "Most Popular" badges are genuine data, not hardcoded. Added a `DELETE` handler on the admin catalog route for a true full-replace reseed (POST alone only upserts by slug, which would've left 140 old rows sitting alongside the new 55).
+
+**New interactive UI** (all real, live-tested via Playwright, not just visually checked):
+- Package cards: time badge, price, checkmarked inclusions, "Most Popular" badge, Select Package (highlights white when selected, per spec) + Add-On Services buttons
+- Add-on modal: checkboxes, live running total per division
+- Sticky summary bar (Mobile Detailing, also enabled for Pressure Washing for consistency): package + add-on count + running total + Continue to Details
+- Filterable "Our Work" gallery on Pressure Washing (real Unsplash photos per category — not fabricated before/after pairs, since no real job photos exist yet; labeled honestly as illustrative work examples)
+- Mobile hamburger nav, 5-item global nav (HOME / HB - PRESSURE WASHING / HB - MOBILE DETAILING / ABOUT / GET QUOTE)
+- New brand: navy `#0A1930` bg, electric blue `#00A8FF` accent, Inter body + Montserrat Bold headings, new Hydro hero art (`hydro_forward_side.png`, forward-facing with wand)
+
+**Booking flow**: old Step 1 (category/package dropdowns) removed — package+add-on selection now happens in the division views themselves; "Continue to Details" hands off into the existing Step 2-4 flow (contact info → photos → estimate/confirm) unchanged, still posting to the same real `/api/public/hydroblasters/book` endpoint with the same 72h spacing rule. **Real bug caught before shipping**: `confirmBooking()`'s destructuring bug (`getSelectedItems()` object treated as if it were the items array) would have crashed every submission — caught via type review before the live test, not after.
+
+**Real UX bug fixed via live testing**: the chat widget's fixed bottom-right position overlapped the sticky summary bar's own Continue button, making it unclickable when both were showing at once. Fixed with a `body.sticky-active` class that lifts the chat widget above the sticky bar.
+
+Full flow live-verified end-to-end: selected Marine "Full Detail" ($699), continued via the sticky bar, filled contact info, submitted — real appointment + CRM lead created with the correct $733.95 total (incl. GST), then deleted as test data. Hydro AI confirmed reading the new catalog live (no redeploy needed, it re-reads the DB every message).
+
 ## Wordmark sizing pass — 2026-09-02
 
 Follow-up polish after the first wordmark pass: enlarged the mascot icon (44px -> 68px header, 38px -> 56px footer), shrank the "HYDRO BLASTERS" text itself (own explicit font-size instead of inheriting `.logo`'s larger size), added real spacing between the two words (was rendering as one squished "HYDROBLASTERS"), and dropped the trailing ".CA" from both the header and footer logo lockups entirely. Store/client-portal heading instances (which use the same `.brand-wordmark` class inside larger H2s) were left at their own inherited sizes — appropriately large in that context, not affected by the header/footer-specific size overrides.
