@@ -54,6 +54,10 @@ The client-supplied file's Unsplash URLs were partly hallucinated (real-looking 
 
 All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
 
+## Wordmark sizing pass — 2026-09-02
+
+Follow-up polish after the first wordmark pass: enlarged the mascot icon (44px -> 68px header, 38px -> 56px footer), shrank the "HYDRO BLASTERS" text itself (own explicit font-size instead of inheriting `.logo`'s larger size), added real spacing between the two words (was rendering as one squished "HYDROBLASTERS"), and dropped the trailing ".CA" from both the header and footer logo lockups entirely. Store/client-portal heading instances (which use the same `.brand-wordmark` class inside larger H2s) were left at their own inherited sizes — appropriately large in that context, not affected by the header/footer-specific size overrides.
+
 ## Brand wordmark + footer reorganization — 2026-09-02
 
 - **"HYDRO BLASTERS" text styling**: matched the client's own logo art (blue "HYDRO" + light-grey "BLASTERS", bold geometric caps) using the Orbitron Google Font + sampled hex colors (`#1E9EF4` / `#DCDEE2`), applied as real text (`.brand-wordmark` CSS class, not another raster image) everywhere the brand name appears as a title: header logo, footer logo, store page heading, client portal heading. Real text stays crisp at any size, unlike a raster logo graphic (see below).
