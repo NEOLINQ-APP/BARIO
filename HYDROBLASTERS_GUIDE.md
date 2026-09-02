@@ -54,6 +54,10 @@ The client-supplied file's Unsplash URLs were partly hallucinated (real-looking 
 
 All 6 replaced with real, verified Unsplash photos (searched via the API, checked visually before committing, `download_location` pinged per Unsplash's compliance terms) — matching subjects, no visible third-party branding (rejected a Febreze can and a few candidates with cosmetic-brand mockup text). Re-imported via `/api/admin/users/import-html`, confirmed live via a fresh (cache-busted) fetch and a full-page Playwright screenshot.
 
+## Bario badge removed — 2026-09-01
+
+The free-tier "Built with Bario" badge only comes off when the owning account is on a paid plan AND `sites.show_badge = false` (`hasPaidPlan()` check, enforced server-side in `/api/admin/users/set-badge` too, not just cosmetic). Comped `admin@hydroblasters.ca` onto the `business` hosting plan via `/api/admin/users/grant-plan` (no real Stripe subscription — same "manual comp" mechanism used elsewhere, matches the plan tier that would normally be needed for their already-connected custom domain anyway), then `/api/admin/users/set-badge` with `showBadge: false`. Confirmed live via a fresh (`X-Vercel-Cache: MISS`) fetch and a Playwright screenshot — badge gone from the hero area. Note: the footer text "Powered by Bario One OS Integration Layer" is the *client's own* copy from their original file, not the platform badge — left as-is, wasn't asked to change it.
+
 ## Domain cutover (hydroblasters.ca) — DONE 2026-09-01
 
 `connect-domain` run (registrar: "Third Party" — not registered through Vercel/BARIO), user added the two DNS records at their registrar (A `@` -> `76.76.21.21`, CNAME `www` -> `cname.vercel-dns.com`; the Cloudflare-zone/nameserver-delegation half of connect-domain never populated for this domain, `nameservers: null` — didn't matter, the direct-A-record path works fine), `verify-domain` run and returned `verified: true`. Confirmed live via `curl` (both `hydroblasters.ca` and `www.` return `200`) and a real Playwright pass through the booking wizard on the actual production domain (catalog loads, no page errors). `domain_status` is now `'verified'` in the `sites` table.
