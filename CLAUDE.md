@@ -74,6 +74,50 @@ session-cookie based (`lib/session.ts`).
   a customer's behalf, add a Bearer-gated equivalent rather than working
   around it. All admin actions log to `admin_actions_log` via
   `lib/adminActions.ts`.
+- **`BARIO_ADMIN_API_KEY` — check the shared cache before rotating, and
+  probe correctly.** The current working value lives in two places: a
+  same-machine file cache at `C:/tmp/_bario_new_admin_key.txt`, and
+  `GET/POST /api/admin/agent-kv?key=BARIO_ADMIN_API_KEY` (see below) for
+  cross-machine sessions (e.g. one running on the VPS via code.bario.ca)
+  that can't read that Windows path. **Every session should check one of
+  these and probe it before assuming the key is stale.** Probe with:
+  `curl -L --location-trusted -H "Authorization: Bearer $(cat
+  /c/tmp/_bario_new_admin_key.txt)" .../api/admin/users/sites?email=x@x.com`
+  — expect anything other than `{"error":"Not authenticated"}`.
+  **`--location-trusted` is not optional**: `bario.ca` 308-redirects to
+  `www.bario.ca`, a different host, and curl's default `-L` silently drops
+  the `Authorization` header across a cross-host redirect — a genuinely
+  valid key will falsely read as broken without this flag (burned real time
+  chasing a phantom rotation failure this way on 2026-09-01, ended up
+  rotating a perfectly working key three times before finding the actual
+  bug was in the test, not the key).
+  Concurrent same-machine sessions rotating this independently — each
+  hitting what looks like a 401, generating its own new key, `env rm` +
+  `env add` + redeploy, without checking whether another session already
+  fixed it or is mid-rotation — is a real, repeatedly-hit problem, not a
+  hypothetical. If the cached key genuinely fails a *correctly-flagged*
+  probe and a rotation is necessary: generate one new key, `vercel env rm`
+  + `vercel env add --sensitive` + `vercel --prod` redeploy, **verify with
+  the same `--location-trusted` probe before declaring it done**, then
+  **write the new value to both `/c/tmp/_bario_new_admin_key.txt` AND
+  `POST /api/admin/agent-kv`** so every other session — same machine or
+  not, this one included next time — picks it up instead of rotating
+  again. Never rotate speculatively — only when a correctly-flagged probe
+  has actually just failed.
+- **`/api/admin/agent-kv`** (`app/api/admin/agent-kv/route.ts`): a small
+  shared scratch key-value store for AI coding agents (+ the admin user)
+  working on BARIO across machines/sessions — backed by the existing
+  `platform_settings` table under an `agent:` key prefix (see
+  `lib/platformSettings.ts`), not a new table. Gated by the same
+  `requireAdmin()` as every other admin route (Bearer key OR a logged-in
+  admin session) — an admin session in particular can always reach it even
+  when the Bearer key itself is broken, since session auth doesn't depend
+  on it. `GET ?key=foo` reads one entry, bare `GET` lists everything under
+  the prefix, `POST {key, value}` upserts. Intended for exactly this kind
+  of cross-session coordination state (the current admin key being the
+  first real use) — not a general customer-facing feature, and not a
+  substitute for real settings that already have their own typed
+  helper (`getEmployerInfo`, etc.).
 - **`resolveSiteId()`** (`lib/siteAccess.ts`): when no explicit `siteId` is
   given, defaults to the account's most-recently-touched site. This means
   importing content onto an account that already has a site, without passing
